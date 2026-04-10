@@ -107,6 +107,7 @@ class Workspace(Base):
     templates = relationship("TemplateRecord", back_populates="workspace", cascade="all, delete-orphan")
     background_jobs = relationship("BackgroundJob", back_populates="workspace", cascade="all, delete-orphan")
     reply_policies = relationship("ReplyPolicy", back_populates="workspace", cascade="all, delete-orphan")
+    routing_rules = relationship("RoutingRule", back_populates="workspace", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -215,6 +216,9 @@ class Conversation(Base):
     source_ref = Column(String(64), nullable=True, index=True)
     active_reply_policy_key = Column(String(64), nullable=False, default="default_inbound", index=True)
     human_queue = Column(String(64), nullable=True, index=True)
+    ai_assist_status = Column(String(32), nullable=True, index=True)
+    ai_assist_draft = Column(Text, nullable=True)
+    ai_assist_updated_at = Column(DateTime(timezone=True), nullable=True, index=True)
     last_message_at = Column(DateTime(timezone=True), nullable=True, index=True)
     last_inbound_at = Column(DateTime(timezone=True), nullable=True, index=True)
     last_outbound_at = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -304,6 +308,23 @@ class ReplyPolicy(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     workspace = relationship("Workspace", back_populates="reply_policies")
+
+
+class RoutingRule(Base):
+    __tablename__ = "routing_rules"
+    __table_args__ = (UniqueConstraint("workspace_id", "scope_type", "scope_key", name="uq_routing_rule_scope"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope_type = Column(String(32), nullable=False, index=True)
+    scope_key = Column(String(64), nullable=False, index=True)
+    display_name = Column(String(255), nullable=False)
+    policy_use_case_key = Column(String(64), nullable=False, index=True)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    workspace = relationship("Workspace", back_populates="routing_rules")
 
 
 class ContactNote(Base):

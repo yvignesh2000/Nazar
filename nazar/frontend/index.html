@@ -1308,6 +1308,13 @@ body {
         <span class="ins-action">View →</span>
       </div>
 
+      <div class="bc-stats-row" style="margin:20px 0 24px;">
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="ops-needs-reply">0</div><div class="bc-stat-label">Need Reply</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="ops-ai-assist">0</div><div class="bc-stat-label">AI Drafts Ready</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="ops-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="ops-bot-human">0 / 0</div><div class="bc-stat-label">Bot / Human Sends</div></div>
+      </div>
+
       <!-- Grid: Activity + Pipeline mini -->
       <div class="overview-grid">
         <div class="card fade-up d4">
@@ -1351,6 +1358,10 @@ body {
           <div class="conv-filter" onclick="filterByType(this,'unassigned')">Unassigned</div>
           <div class="conv-filter" onclick="filterByType(this,'human_required')">👤 Human</div>
           <div class="conv-filter" onclick="filterByType(this,'assigned_to_me')">Mine</div>
+          <div class="conv-filter" onclick="filterByType(this,'campaigns')">Campaigns</div>
+          <div class="conv-filter" onclick="filterByType(this,'sales_queue')">Sales</div>
+          <div class="conv-filter" onclick="filterByType(this,'support_queue')">Support</div>
+          <div class="conv-filter" onclick="filterByType(this,'ai_assist')">AI Assist</div>
         </div>
         <div class="conv-items" id="conv-list-items">
           <div class="empty-state">
@@ -1397,10 +1408,10 @@ body {
           <button class="btn btn-primary">+ New Broadcast</button>
         </div>
         <div class="bc-stats-row">
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)">0</div><div class="bc-stat-label">Total Sent</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)">0%</div><div class="bc-stat-label">Delivery Rate</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)">0%</div><div class="bc-stat-label">Read Rate</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)">0%</div><div class="bc-stat-label">Reply Rate</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="bc-total-sent">0</div><div class="bc-stat-label">Total Sent</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="bc-delivery-rate">0%</div><div class="bc-stat-label">Delivery Rate</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="bc-total-broadcasts">0</div><div class="bc-stat-label">Broadcasts</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="bc-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
         </div>
         <div class="bc-list" id="broadcast-list">
           <div class="empty-state">
@@ -1423,8 +1434,13 @@ body {
           <div id="broadcast-targets"></div>
         </div>
         <div class="compose-area">
+          <div class="compose-label">Campaign Key</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Give this campaign a key like <code>april_reactivation</code>. Routing rules can target this exact key.</div>
+          <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation">
+        </div>
+        <div class="compose-area">
           <div class="compose-label">When Customers Reply</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Choose which use case should own replies to this broadcast.</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Optional override. Leave on campaign rule unless you want this one broadcast to behave differently.</div>
           <select class="form-input" id="broadcast-reply-use-case"></select>
         </div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="sendBroadcast()">
@@ -1551,6 +1567,19 @@ body {
             <div class="config-section-title" style="font-size:18px;">Reply Routing By Use Case</div>
             <div class="config-section-sub">Decide whether the bot, a human, or a human with AI assist should own replies for each workflow.</div>
             <div id="reply-policy-list"></div>
+          </div>
+          <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
+            <div class="config-section-title" style="font-size:18px;">Routing Rules</div>
+            <div class="config-section-sub">Choose which policy should apply by default, by funnel stage, and by campaign key.</div>
+            <div id="routing-rule-default"></div>
+            <div style="margin-top:16px;">
+              <div class="form-label">Funnel Stage Rules</div>
+              <div id="routing-rule-stages"></div>
+            </div>
+            <div style="margin-top:16px;">
+              <div class="form-label">Campaign Rules</div>
+              <div id="routing-rule-campaigns"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1694,6 +1723,7 @@ let selectedConversationData = null;
 let contactNotes = [];
 let currentConversationFilter = 'all';
 let replyPolicies = [];
+let routingRules = [];
 
 // ================================================================
 //  NAVIGATION
@@ -1718,7 +1748,7 @@ function navigateTo(screen) {
   if (screen === 'overview') loadOverview();
   else if (screen === 'conversations') loadConversations();
   else if (screen === 'pipeline') loadPipeline();
-  else if (screen === 'broadcasts') loadReplyPolicies();
+  else if (screen === 'broadcasts') loadBroadcasts();
   else if (screen === 'followups') loadFollowups();
   else if (screen === 'botconfig') loadConfig();
   else if (screen === 'settings') loadSettings();
@@ -1804,10 +1834,15 @@ async function loadOverview() {
   try {
     const data = await api('GET', '/api/overview');
     const s = data.stats;
+    const operations = data.operations || {};
     document.getElementById('stat-leads').textContent = s.active_leads;
     document.getElementById('stat-pipeline').textContent = formatCurrency(s.pipeline_value);
     document.getElementById('stat-contacts').textContent = s.total_contacts;
     document.getElementById('stat-revenue').textContent = formatCurrency(s.total_revenue);
+    document.getElementById('ops-needs-reply').textContent = operations.needs_reply || 0;
+    document.getElementById('ops-ai-assist').textContent = operations.ai_assist_available || 0;
+    document.getElementById('ops-campaign-replies').textContent = operations.campaign_reply_conversations || 0;
+    document.getElementById('ops-bot-human').textContent = `${operations.bot_outbound_count || 0} / ${operations.human_outbound_count || 0}`;
     document.getElementById('notif-dot').style.display = (s.needs_reply || 0) > 0 ? 'block' : 'none';
 
     // Activity feed
@@ -1844,7 +1879,12 @@ async function loadOverview() {
 function generateInsight(data) {
   const strip = document.getElementById('insight-text');
   const s = data.stats;
-  if ((s.needs_reply || 0) > 0 || (s.unassigned_conversations || 0) > 0) {
+  const operations = data.operations || {};
+  if ((operations.ai_assist_available || 0) > 0) {
+    strip.innerHTML = `<strong>AI assist:</strong> <strong>${operations.ai_assist_available}</strong> conversations already have a draft ready for a human to review and send.`;
+  } else if ((operations.campaign_reply_conversations || 0) > 0) {
+    strip.innerHTML = `<strong>Campaign load:</strong> <strong>${operations.campaign_reply_conversations}</strong> campaign replies landed in the inbox during the current reporting window.`;
+  } else if ((s.needs_reply || 0) > 0 || (s.unassigned_conversations || 0) > 0) {
     strip.innerHTML = `<strong>Inbox health:</strong> <strong>${s.needs_reply || 0}</strong> conversations need replies and <strong>${s.unassigned_conversations || 0}</strong> are unassigned.`;
   } else if (s.active_leads === 0) {
     strip.innerHTML = '<strong>Getting started:</strong> Add your first contact to begin building your sales pipeline.';
@@ -1867,6 +1907,10 @@ async function loadConversations() {
     if (currentConversationFilter === 'unassigned') params.set('unassigned', 'true');
     if (currentConversationFilter === 'human_required') params.set('human_required', 'true');
     if (currentConversationFilter === 'assigned_to_me') params.set('assigned_to_me', 'true');
+    if (currentConversationFilter === 'campaigns') params.set('source_type', 'campaign');
+    if (currentConversationFilter === 'sales_queue') params.set('queue', 'sales');
+    if (currentConversationFilter === 'support_queue') params.set('queue', 'support');
+    if (currentConversationFilter === 'ai_assist') params.set('ai_assist', 'true');
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const data = await api('GET', '/api/conversations' + suffix);
     conversations = data.conversations || [];
@@ -1901,6 +1945,9 @@ function renderConversationList(list) {
           ${c.status==='snoozed'?'<span class="tag tag-cold">Snoozed</span>':''}
           ${c.status==='closed'?'<span class="tag tag-cold">Closed</span>':''}
           ${c.bot_mode?'':'<span class="tag tag-warm">👤 Human</span>'}
+          ${c.source_type==='campaign'?'<span class="tag tag-warm">📣 Campaign</span>':''}
+          ${c.human_queue?`<span class="tag tag-cold">Queue · ${esc(c.human_queue)}</span>`:''}
+          ${c.ai_assist_status==='available'?'<span class="tag tag-hot">✨ AI Draft</span>':''}
           ${c.assigned_user_name?`<span class="tag tag-cold">🧑 ${esc(c.assigned_user_name)}</span>`:''}
         </div>
       </div>
@@ -1933,6 +1980,7 @@ function renderConversationDetail(data) {
   const msgs = data.messages || [];
   const botMode = data.bot_mode;
   const conversation = data.conversation || {};
+  const assistReady = conversation.ai_assist_status === 'available' && (conversation.ai_assist_draft || '').trim();
 
   const detail = document.getElementById('conv-detail');
   detail.innerHTML = `
@@ -1947,11 +1995,17 @@ function renderConversationDetail(data) {
           ${botMode?'🤖 Bot Active':'👤 Human Mode'}
         </button>
         <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign To Me</button>
+        <button class="btn btn-sm ${assistReady ? 'btn-primary' : 'btn-ghost'}" onclick="requestConversationAiAssist('${conversation.conversation_id}')">
+          ${assistReady ? '♻️ Refresh Draft' : '✨ Get AI Draft'}
+        </button>
+        ${assistReady ? `<button class="btn btn-sm btn-ghost" onclick="sendAiAssistDraft('${conversation.conversation_id}')">Send Draft</button>` : ''}
         <div class="icon-btn" title="View Memory" onclick="navigateTo('pipeline')">🧠</div>
       </div>
     </div>
     <div style="padding:0 20px 12px;color:var(--text2);font-size:12px;">
       ${conversation.assigned_user_name ? `Assigned to ${esc(conversation.assigned_user_name)}` : 'Unassigned'} · ${conversation.status || 'open'}
+      ${conversation.human_queue ? ` · Queue ${esc(conversation.human_queue)}` : ''}
+      ${conversation.source_type === 'campaign' ? ` · Campaign ${esc(conversation.source_ref || 'broadcast_reply')}` : ''}
     </div>
     <div class="chat-area" id="chat-messages">
       ${msgs.length===0?'<div style="text-align:center;color:var(--text3);padding:40px;">No messages yet</div>':''}
@@ -1978,6 +2032,7 @@ function renderConversationDetail(data) {
   const c = data.contact;
   const mem = data.memory || {};
   const conversation = data.conversation || {};
+  const assistReady = conversation.ai_assist_status === 'available' && (conversation.ai_assist_draft || '').trim();
   const rightPanel = document.getElementById('conv-right');
   rightPanel.style.display = 'block';
 
@@ -2028,8 +2083,23 @@ function renderConversationDetail(data) {
         <div style="font-size:11px;color:var(--text3);padding-top:4px;">
           Reply owner: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
           ${conversation.human_queue ? ` · Queue: ${esc(conversation.human_queue)}` : ''}
+          ${conversation.source_type === 'campaign' ? ` · Campaign: ${esc(conversation.source_ref || 'broadcast_reply')}` : ''}
         </div>
       </div>
+    </div>
+    <div class="crm-section">
+      <div class="crm-title">AI Assist</div>
+      ${assistReady ? `
+        <div style="padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);font-size:12px;line-height:1.6;white-space:pre-wrap;">${esc(conversation.ai_assist_draft || '')}</div>
+        <div style="color:var(--text3);font-size:11px;margin-top:8px;">Draft ready ${conversation.ai_assist_updated_at ? `· ${timeAgo(conversation.ai_assist_updated_at)}` : ''}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+          <button class="btn btn-sm btn-primary" onclick="sendAiAssistDraft('${conversation.conversation_id}')">Send AI Draft</button>
+          <button class="btn btn-sm btn-ghost" onclick="requestConversationAiAssist('${conversation.conversation_id}')">Regenerate</button>
+        </div>
+      ` : `
+        <div style="color:var(--text3);font-size:12px;">No AI draft is ready for this conversation yet.</div>
+        <button class="btn btn-sm btn-ghost" style="margin-top:10px;width:100%;" onclick="requestConversationAiAssist('${conversation.conversation_id}')">Generate Draft</button>
+      `}
     </div>
     <div class="crm-section">
       <div class="crm-title">Internal Notes</div>
@@ -2093,17 +2163,27 @@ async function loadReplyPolicies() {
   }
 }
 
+async function loadRoutingRules() {
+  try {
+    const data = await api('GET', '/api/routing-rules');
+    routingRules = data.rules || [];
+    renderRoutingRules();
+  } catch(e) {
+    console.error('Load routing rules failed:', e);
+  }
+}
+
 function renderBroadcastUseCaseOptions() {
   const select = document.getElementById('broadcast-reply-use-case');
   if (!select) return;
-  const options = replyPolicies.length ? replyPolicies : [
-    { use_case_key: 'broadcast_reply', display_name: 'Broadcast Replies', reply_mode: 'bot_first' },
-  ];
-  select.innerHTML = options.map(policy => `
-    <option value="${policy.use_case_key}" ${policy.use_case_key === 'broadcast_reply' ? 'selected' : ''}>
+  const options = replyPolicies.length ? replyPolicies : [{ use_case_key: 'broadcast_reply', display_name: 'Broadcast Replies', reply_mode: 'bot_first' }];
+  select.innerHTML = `
+    <option value="">Use campaign rule</option>
+    ${options.map(policy => `
+    <option value="${policy.use_case_key}">
       ${esc(policy.display_name)} · ${formatReplyMode(policy.reply_mode)}
     </option>
-  `).join('');
+  `).join('')}`;
 }
 
 function renderReplyPolicies() {
@@ -2146,6 +2226,79 @@ function renderReplyPolicies() {
   `).join('');
 }
 
+function findRoutingRule(scopeType, scopeKey) {
+  return routingRules.find(rule => rule.scope_type === scopeType && rule.scope_key === scopeKey) || null;
+}
+
+function renderRoutingRules() {
+  renderDefaultRoutingRule();
+  renderStageRoutingRules();
+  renderCampaignRoutingRules();
+}
+
+function renderDefaultRoutingRule() {
+  const container = document.getElementById('routing-rule-default');
+  if (!container) return;
+  const rule = findRoutingRule('default', 'default');
+  container.innerHTML = `
+    <div style="border:1px solid var(--border);background:var(--surface2);border-radius:14px;padding:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;">Default inbound rule</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;">Used when no campaign rule or funnel-stage rule matches.</div>
+        </div>
+        <select class="form-input" id="routing-default-policy" style="max-width:260px;">
+          ${replyPolicies.map(policy => `<option value="${policy.use_case_key}" ${rule?.policy_use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button class="btn btn-sm btn-primary" onclick="saveRoutingRule('default','default','Default inbound','routing-default-policy')">Save Default Rule</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderStageRoutingRules() {
+  const container = document.getElementById('routing-rule-stages');
+  if (!container) return;
+  container.innerHTML = STAGES.map(stage => {
+    const rule = findRoutingRule('pipeline_stage', stage);
+    return `
+      <div style="display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--surface2);">
+        <div style="font-size:13px;font-weight:600;">${stage}</div>
+        <select class="form-input" id="routing-stage-${stage}">
+          ${replyPolicies.map(policy => `<option value="${policy.use_case_key}" ${rule?.policy_use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
+        </select>
+        <button class="btn btn-sm btn-ghost" onclick="saveRoutingRule('pipeline_stage', '${stage}', '${stage} stage', 'routing-stage-${stage}')">Save</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCampaignRoutingRules() {
+  const container = document.getElementById('routing-rule-campaigns');
+  if (!container) return;
+  const campaignRules = routingRules.filter(rule => rule.scope_type === 'campaign');
+  container.innerHTML = `
+    ${campaignRules.map(rule => `
+      <div style="display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--surface2);">
+        <div style="font-size:13px;font-weight:600;">${esc(rule.scope_key)}</div>
+        <select class="form-input" id="routing-campaign-${rule.scope_key}">
+          ${replyPolicies.map(policy => `<option value="${policy.use_case_key}" ${rule.policy_use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
+        </select>
+        <button class="btn btn-sm btn-ghost" onclick="saveRoutingRule('campaign', '${rule.scope_key}', '${rule.scope_key}', 'routing-campaign-${rule.scope_key}')">Save</button>
+      </div>
+    `).join('')}
+    <div style="display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:center;border:1px dashed var(--border2);border-radius:12px;padding:12px;background:var(--surface);">
+      <input class="form-input" id="routing-new-campaign-key" placeholder="campaign_key">
+      <select class="form-input" id="routing-new-campaign-policy">
+        ${replyPolicies.map(policy => `<option value="${policy.use_case_key}">${esc(policy.display_name)}</option>`).join('')}
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="saveNewCampaignRule()">Add Campaign Rule</button>
+    </div>
+  `;
+}
+
 async function saveReplyPolicy(useCaseKey) {
   try {
     const reply_mode = document.getElementById(`policy-mode-${useCaseKey}`).value;
@@ -2161,10 +2314,37 @@ async function saveReplyPolicy(useCaseKey) {
     });
     showToast('🧭', 'Reply policy saved');
     await loadReplyPolicies();
+    await loadRoutingRules();
     if (selectedConvId) await selectConversation(selectedConvId);
   } catch(e) {
     showToast('❌', 'Policy save failed: ' + e.message);
   }
+}
+
+async function saveRoutingRule(scopeType, scopeKey, displayName, selectId) {
+  try {
+    const policyUseCaseKey = document.getElementById(selectId)?.value;
+    await api('PUT', `/api/routing-rules/${encodeURIComponent(scopeType)}/${encodeURIComponent(scopeKey)}`, {
+      display_name: displayName,
+      policy_use_case_key: policyUseCaseKey,
+      active: true,
+    });
+    showToast('🧭', 'Routing rule saved');
+    await loadRoutingRules();
+  } catch(e) {
+    showToast('❌', 'Routing rule failed: ' + e.message);
+  }
+}
+
+async function saveNewCampaignRule() {
+  const rawKey = document.getElementById('routing-new-campaign-key')?.value || '';
+  const scopeKey = slugifyKey(rawKey);
+  if (!scopeKey) {
+    showToast('⚠️', 'Enter a campaign key first');
+    return;
+  }
+  await saveRoutingRule('campaign', scopeKey, rawKey.trim() || scopeKey, 'routing-new-campaign-policy');
+  document.getElementById('routing-new-campaign-key').value = '';
 }
 
 async function assignConversation(conversationId, userId, assignToMe = false) {
@@ -2222,6 +2402,47 @@ async function updateConversationStatus(conversationId, status) {
   } catch(e) {
     showToast('❌', 'Status update failed: ' + e.message);
   }
+}
+
+async function requestConversationAiAssist(conversationId, fallbackPrompt = '') {
+  try {
+    const currentData = selectedConversationData?.conversation?.conversation_id === conversationId ? selectedConversationData : null;
+    const latestInbound = fallbackPrompt || [...(currentData?.messages || [])].reverse().find(msg => msg.direction === 'inbound')?.content || '';
+    if (!latestInbound) {
+      showToast('⚠️', 'No inbound customer message found to draft against');
+      return;
+    }
+    const result = await api('POST', `/api/conversations/${conversationId}/ai-reply`, { message: latestInbound });
+    showToast('✨', 'AI draft queued');
+    if (result.job?.id) {
+      await pollJobUntilDone(result.job.id);
+    }
+    await selectConversation(conversationId);
+    await loadConversations();
+  } catch(e) {
+    showToast('❌', 'AI draft failed: ' + e.message);
+  }
+}
+
+async function sendAiAssistDraft(conversationId) {
+  try {
+    await api('POST', `/api/conversations/${conversationId}/ai-assist/send`, {});
+    showToast('✅', 'AI draft sent');
+    await selectConversation(conversationId);
+    await loadConversations();
+  } catch(e) {
+    showToast('❌', 'Send failed: ' + e.message);
+  }
+}
+
+async function pollJobUntilDone(jobId, maxAttempts = 15) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const data = await api('GET', `/api/jobs/${jobId}`);
+    const status = data.job?.status;
+    if (status === 'completed' || status === 'failed') return data.job;
+    await new Promise(resolve => setTimeout(resolve, 800));
+  }
+  return null;
 }
 
 function filterConversations() {
@@ -2383,6 +2604,7 @@ async function loadConfig() {
     document.getElementById('config-welcome').value = data.welcome_message || '';
   } catch(e) {}
   await loadReplyPolicies();
+  await loadRoutingRules();
   try {
     const kb = await api('GET', '/api/kb');
     document.getElementById('kb-content').value = kb.content || '';
@@ -2424,6 +2646,7 @@ async function loadSettings() {
   try {
     await loadTeamMembers();
     await loadReplyPolicies();
+    await loadRoutingRules();
     const data = await api('GET', '/health');
     if (data.whatsapp_configured) {
       document.getElementById('wa-dot').className = 'conn-dot connected';
@@ -2476,13 +2699,73 @@ async function submitNewContact() {
 async function sendBroadcast() {
   const msg = document.getElementById('broadcast-message').value.trim();
   if (!msg) { showToast('⚠️','Write a message first'); return; }
-  const replyUseCaseKey = document.getElementById('broadcast-reply-use-case')?.value || 'broadcast_reply';
+  const campaignKey = slugifyKey(document.getElementById('broadcast-campaign-key')?.value || '');
+  const replyUseCaseKey = document.getElementById('broadcast-reply-use-case')?.value || '';
   try {
-    const result = await api('POST', '/api/broadcasts', { message: msg, reply_use_case_key: replyUseCaseKey });
+    const result = await api('POST', '/api/broadcasts', {
+      message: msg,
+      campaign_key: campaignKey || undefined,
+      reply_use_case_key: replyUseCaseKey || undefined,
+    });
     showToast('📡', result.job ? `Broadcast queued (${result.job.id.slice(0, 8)})` : 'Broadcast queued');
+    document.getElementById('broadcast-message').value = '';
+    await loadBroadcasts();
   } catch(e) {
     showToast('❌', e.message);
   }
+}
+
+async function loadBroadcasts() {
+  try {
+    await Promise.all([loadReplyPolicies(), loadRoutingRules()]);
+    const [historyData, analyticsData] = await Promise.all([
+      api('GET', '/api/broadcasts/history'),
+      api('GET', '/api/analytics/inbox'),
+    ]);
+    const stats = historyData.stats || {};
+    const metrics = analyticsData.metrics || {};
+    document.getElementById('bc-total-sent').textContent = stats.total_messages_sent || 0;
+    document.getElementById('bc-delivery-rate').textContent = `${stats.avg_delivery_rate || 0}%`;
+    document.getElementById('bc-total-broadcasts').textContent = stats.total_broadcasts || 0;
+    document.getElementById('bc-campaign-replies').textContent = metrics.campaign_reply_conversations || 0;
+    renderBroadcastHistory(historyData.broadcasts || [], historyData.jobs || []);
+  } catch(e) {
+    console.error('Load broadcasts failed:', e);
+  }
+}
+
+function renderBroadcastHistory(broadcasts, jobs) {
+  const el = document.getElementById('broadcast-list');
+  if (!el) return;
+  if (!broadcasts.length && !jobs.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📡</div>
+      <div class="empty-title">No broadcasts yet</div>
+      <div class="empty-sub">Queued and completed campaigns will show up here.</div>
+    </div>`;
+    return;
+  }
+  const items = broadcasts.length ? broadcasts : jobs.map(job => ({
+    id: job.id,
+    message: job.payload?.message || '[template]',
+    target_count: (job.result?.sent || 0) + (job.result?.failed || 0),
+    sent: job.result?.sent || 0,
+    failed: job.result?.failed || 0,
+    created_at: job.created_at,
+    status: job.status,
+  }));
+  el.innerHTML = items.map(item => `
+    <div style="padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);margin-bottom:12px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;">${esc((item.message || '').slice(0, 90) || 'Broadcast')}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px;">${item.target_count || 0} targeted · ${item.sent || 0} sent · ${item.failed || 0} failed${item.campaign_key ? ` · ${esc(item.campaign_key)}` : ''}</div>
+        </div>
+        <span class="tag tag-cold">${esc(item.status || 'completed')}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">${timeAgo(item.created_at)}</div>
+    </div>
+  `).join('');
 }
 
 // ================================================================
@@ -2614,6 +2897,14 @@ function formatReplyMode(mode) {
 function capitalize(value) {
   if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function slugifyKey(value) {
+  return (value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 function initials(name) {

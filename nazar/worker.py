@@ -18,6 +18,8 @@ from core.contact_manager import (
     list_contacts,
     mark_conversation_handoff_required,
     save_message,
+    set_conversation_status,
+    set_conversation_ai_assist,
     set_conversation_use_case,
 )
 from core.conversation import (
@@ -29,7 +31,7 @@ from core.conversation import (
 from core.job_queue import claim_due_jobs, complete_job, fail_job
 from core.llm_router import call_llm_safe
 from core.outbound import log_broadcast
-from core.policy_store import resolve_reply_policy, should_force_human
+from core.policy_store import resolve_policy_for_context, resolve_reply_policy, should_force_human
 from core.transcription import TranscriptionError, transcribe_audio
 from core.workspace_store import get_workspace_config
 from server import download_whatsapp_media, send_template_message, send_whatsapp_message
@@ -87,6 +89,39 @@ async def _generate_bot_assist_reply(contact: dict, inbound_message: str) -> str
     )
 
 
+def _resolve_conversation_policy(contact: dict, conversation: dict) -> dict:
+    source_type = (conversation.get("source_type") or "").strip()
+    explicit_policy_key = conversation.get("use_case_key") if source_type == "conversation_override" else None
+    campaign_key = conversation.get("source_ref") if source_type == "campaign" else None
+    return resolve_policy_for_context(
+        pipeline_stage=contact.get("pipeline_stage"),
+        campaign_key=campaign_key,
+        explicit_policy_key=explicit_policy_key,
+    )
+
+
+def _apply_policy_to_conversation(conversation_id: str, conversation: dict, policy: dict, routing: dict) -> dict:
+    use_case_key = policy["use_case_key"]
+    source_type = conversation.get("source_type")
+    source_ref = conversation.get("source_ref")
+    if routing.get("scope_type") == "campaign":
+        source_type = "campaign"
+        source_ref = routing.get("scope_key")
+    elif routing.get("scope_type") == "conversation":
+        source_type = "conversation_override"
+        source_ref = routing.get("scope_key")
+    elif not source_type:
+        source_type = "direct_inbound"
+    return set_conversation_use_case(
+        conversation_id,
+        conversation.get("use_case_key") or use_case_key,
+        source_type=source_type,
+        source_ref=source_ref,
+        active_reply_policy_key=use_case_key,
+        human_queue=policy.get("fallback_queue"),
+    )
+
+
 async def _process_saved_inbound_text(payload: dict) -> dict:
     contact_id = payload.get("contact_id")
     conversation_id = payload.get("conversation_id")
@@ -98,29 +133,16 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
     conversation = get_conversation_record(conversation_id)
     if not contact or not conversation:
         raise ValueError("Inbound text job references missing contact or conversation")
-    policy = resolve_reply_policy(conversation.get("active_reply_policy_key") or conversation.get("use_case_key"))
-    if conversation.get("human_queue") != policy.get("fallback_queue"):
-        conversation = set_conversation_use_case(
-            conversation_id,
-            conversation.get("use_case_key") or policy["use_case_key"],
-            source_type=conversation.get("source_type"),
-            source_ref=conversation.get("source_ref"),
-            active_reply_policy_key=policy["use_case_key"],
-            human_queue=policy.get("fallback_queue"),
-        )
+    routing = _resolve_conversation_policy(contact, conversation)
+    policy = routing["policy"]
+    conversation = _apply_policy_to_conversation(conversation_id, conversation, policy, routing)
     if not conversation.get("bot_mode", True):
         return {"skipped": True, "reason": "bot_mode_off", "contact_id": contact_id}
     if policy.get("reply_mode") == "bot_assist":
         updated = mark_conversation_handoff_required(conversation_id, True)
-        updated = set_conversation_use_case(
-            conversation_id,
-            conversation.get("use_case_key") or policy["use_case_key"],
-            source_type=conversation.get("source_type"),
-            source_ref=conversation.get("source_ref"),
-            active_reply_policy_key=policy["use_case_key"],
-            human_queue=policy.get("fallback_queue"),
-        )
+        updated = _apply_policy_to_conversation(conversation_id, updated, policy, routing)
         suggested_reply = await _generate_bot_assist_reply(contact, inbound_message)
+        updated = set_conversation_ai_assist(conversation_id, suggested_reply, status="available")
         return {
             "contact_id": contact_id,
             "conversation_id": conversation_id,
@@ -131,14 +153,7 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
         }
     if policy.get("reply_mode") in {"human_first", "manual_only"} or should_force_human(policy, inbound_message) or should_handoff(inbound_message):
         updated = mark_conversation_handoff_required(conversation_id, True)
-        updated = set_conversation_use_case(
-            conversation_id,
-            conversation.get("use_case_key") or policy["use_case_key"],
-            source_type=conversation.get("source_type"),
-            source_ref=conversation.get("source_ref"),
-            active_reply_policy_key=policy["use_case_key"],
-            human_queue=policy.get("fallback_queue"),
-        )
+        updated = _apply_policy_to_conversation(conversation_id, updated, policy, routing)
         handoff_message_id = ""
         if policy.get("reply_mode") != "manual_only":
             handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
@@ -150,6 +165,7 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
                 sent_by="bot",
                 wa_message_id=handoff_message_id,
             )
+            updated = set_conversation_status(conversation_id, "needs_reply")
         return {
             "contact_id": contact_id,
             "conversation_id": conversation_id,
@@ -181,16 +197,9 @@ async def _process_inbound_voice(payload: dict) -> dict:
     conversation = get_conversation_record(inbound_record["conversation_id"])
     if not conversation:
         raise ValueError("Voice job failed to resolve conversation after saving transcript")
-    policy = resolve_reply_policy(conversation.get("active_reply_policy_key") or conversation.get("use_case_key"))
-    if conversation.get("human_queue") != policy.get("fallback_queue"):
-        conversation = set_conversation_use_case(
-            conversation["conversation_id"],
-            conversation.get("use_case_key") or policy["use_case_key"],
-            source_type=conversation.get("source_type"),
-            source_ref=conversation.get("source_ref"),
-            active_reply_policy_key=policy["use_case_key"],
-            human_queue=policy.get("fallback_queue"),
-        )
+    routing = _resolve_conversation_policy(contact, conversation)
+    policy = routing["policy"]
+    conversation = _apply_policy_to_conversation(conversation["conversation_id"], conversation, policy, routing)
     if not conversation.get("bot_mode", True):
         return {
             "contact_id": contact["contact_id"],
@@ -201,15 +210,9 @@ async def _process_inbound_voice(payload: dict) -> dict:
         }
     if policy.get("reply_mode") == "bot_assist":
         updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
-        updated = set_conversation_use_case(
-            conversation["conversation_id"],
-            conversation.get("use_case_key") or policy["use_case_key"],
-            source_type=conversation.get("source_type"),
-            source_ref=conversation.get("source_ref"),
-            active_reply_policy_key=policy["use_case_key"],
-            human_queue=policy.get("fallback_queue"),
-        )
+        updated = _apply_policy_to_conversation(conversation["conversation_id"], updated, policy, routing)
         suggested_reply = await _generate_bot_assist_reply(contact, transcript)
+        updated = set_conversation_ai_assist(conversation["conversation_id"], suggested_reply, status="available")
         return {
             "contact_id": contact["contact_id"],
             "conversation_id": conversation["conversation_id"],
@@ -221,14 +224,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
         }
     if policy.get("reply_mode") in {"human_first", "manual_only"} or should_force_human(policy, transcript) or should_handoff(transcript):
         updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
-        updated = set_conversation_use_case(
-            conversation["conversation_id"],
-            conversation.get("use_case_key") or policy["use_case_key"],
-            source_type=conversation.get("source_type"),
-            source_ref=conversation.get("source_ref"),
-            active_reply_policy_key=policy["use_case_key"],
-            human_queue=policy.get("fallback_queue"),
-        )
+        updated = _apply_policy_to_conversation(conversation["conversation_id"], updated, policy, routing)
         handoff_message_id = ""
         if policy.get("reply_mode") != "manual_only":
             handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
@@ -240,6 +236,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
                 sent_by="bot",
                 wa_message_id=handoff_message_id,
             )
+            updated = set_conversation_status(conversation["conversation_id"], "needs_reply")
         return {
             "contact_id": contact["contact_id"],
             "conversation_id": conversation["conversation_id"],
@@ -262,6 +259,7 @@ async def _execute_broadcast(job: dict) -> dict:
     filter_stage = payload.get("stage")
     filter_tag = payload.get("tag")
     contact_ids = payload.get("contact_ids") or []
+    campaign_key = (payload.get("campaign_key") or "").strip() or "broadcast_reply"
     reply_use_case_key = (payload.get("reply_use_case_key") or "broadcast_reply").strip() or "broadcast_reply"
     policy = resolve_reply_policy(reply_use_case_key)
 
@@ -290,13 +288,13 @@ async def _execute_broadcast(job: dict) -> dict:
             set_conversation_use_case(
                 outbound_record["conversation_id"],
                 reply_use_case_key,
-                source_type="broadcast",
-                source_ref=job["id"],
+                source_type="campaign",
+                source_ref=campaign_key,
                 active_reply_policy_key=policy["use_case_key"],
                 human_queue=policy.get("fallback_queue"),
             )
             results["sent"] += 1
-            results["details"].append({"phone": phone, "status": "sent"})
+            results["details"].append({"phone": phone, "status": "sent", "conversation_id": outbound_record["conversation_id"]})
         except Exception as exc:
             results["failed"] += 1
             results["details"].append({"phone": phone, "status": "failed", "error": str(exc)})
@@ -310,16 +308,25 @@ async def _execute_broadcast(job: dict) -> dict:
         failed=results["failed"],
         filter_stage=filter_stage,
         filter_tag=filter_tag,
+        campaign_key=campaign_key,
     )
+    results["campaign_key"] = campaign_key
+    results["reply_policy"] = policy["use_case_key"]
     return results
 
 
 async def _execute_ai_reply_suggestion(payload: dict) -> dict:
     contact_id = payload.get("contact_id")
+    conversation_id = payload.get("conversation_id")
     message = (payload.get("message") or "").strip()
     if not contact_id or not message:
         raise ValueError("AI reply job missing contact_id or message")
-    return await generate_reply_suggestion(contact_id, message)
+    result = await generate_reply_suggestion(contact_id, message)
+    if conversation_id and result.get("suggested_reply"):
+        set_conversation_ai_assist(conversation_id, result["suggested_reply"], status="available")
+    if conversation_id:
+        result["conversation_id"] = conversation_id
+    return result
 
 
 async def _execute_followup_draft(payload: dict) -> dict:

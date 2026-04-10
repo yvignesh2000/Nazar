@@ -173,6 +173,9 @@ def _serialize_conversation(conversation: Conversation, contact: Contact) -> dic
         "source_ref": conversation.source_ref,
         "active_reply_policy_key": conversation.active_reply_policy_key or conversation.use_case_key or "default_inbound",
         "human_queue": conversation.human_queue,
+        "ai_assist_status": conversation.ai_assist_status,
+        "ai_assist_draft": conversation.ai_assist_draft or "",
+        "ai_assist_updated_at": _to_iso(conversation.ai_assist_updated_at),
         "last_time": _to_iso(conversation.last_message_at),
         "last_inbound_at": _to_iso(conversation.last_inbound_at),
         "last_outbound_at": _to_iso(conversation.last_outbound_at),
@@ -235,6 +238,9 @@ def _ensure_conversation(session, contact: Contact) -> Conversation:
             source_ref=None,
             active_reply_policy_key="default_inbound",
             human_queue="sales",
+            ai_assist_status=None,
+            ai_assist_draft=None,
+            ai_assist_updated_at=None,
             last_message_at=last_message_at,
             last_inbound_at=contact.last_replied_at,
             last_outbound_at=contact.last_contacted_at,
@@ -604,6 +610,9 @@ def save_message(
         contact.total_messages = int(contact.total_messages or 0) + 1
         if direction == "outbound":
             contact.last_contacted_at = timestamp
+            conversation.ai_assist_draft = None
+            conversation.ai_assist_status = None
+            conversation.ai_assist_updated_at = None
         elif direction == "inbound":
             contact.last_replied_at = timestamp
 
@@ -724,6 +733,9 @@ def list_conversation_records(
     only_unassigned: bool = False,
     only_human_required: bool = False,
     only_needs_reply: bool = False,
+    queue: Optional[str] = None,
+    source_type: Optional[str] = None,
+    require_ai_assist: bool = False,
 ) -> list:
     initialize_storage()
     with session_scope() as session:
@@ -739,6 +751,12 @@ def list_conversation_records(
             query = query.where((Conversation.bot_mode.is_(False)) | (Conversation.handoff_required.is_(True)))
         if only_needs_reply:
             query = query.where(Conversation.status == "needs_reply")
+        if queue:
+            query = query.where(Conversation.human_queue == queue)
+        if source_type:
+            query = query.where(Conversation.source_type == source_type)
+        if require_ai_assist:
+            query = query.where(Conversation.ai_assist_status == "available")
         conversations = session.execute(
             query.order_by(Conversation.last_message_at.desc(), Conversation.updated_at.desc())
         ).scalars().all()
@@ -853,6 +871,21 @@ def set_conversation_use_case(
         )
         if human_queue is not None:
             conversation.human_queue = (human_queue or "").strip() or None
+        conversation.updated_at = _now()
+        session.flush()
+        return _serialize_conversation(conversation, contact)
+
+
+def set_conversation_ai_assist(identifier: str, draft: Optional[str], status: Optional[str] = None) -> dict:
+    initialize_storage()
+    with session_scope() as session:
+        conversation = _resolve_conversation(session, identifier)
+        if conversation is None:
+            raise FileNotFoundError(f"Conversation or contact {identifier} not found")
+        contact = _conversation_contact(session, conversation)
+        conversation.ai_assist_draft = (draft or "").strip() or None
+        conversation.ai_assist_status = status or ("available" if conversation.ai_assist_draft else None)
+        conversation.ai_assist_updated_at = _now() if conversation.ai_assist_draft else None
         conversation.updated_at = _now()
         session.flush()
         return _serialize_conversation(conversation, contact)

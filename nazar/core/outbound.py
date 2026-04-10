@@ -60,6 +60,7 @@ def log_broadcast(
     failed: int,
     filter_stage: Optional[str] = None,
     filter_tag: Optional[str] = None,
+    campaign_key: Optional[str] = None,
 ) -> dict:
     """
     Log a broadcast send for history and analytics.
@@ -76,6 +77,7 @@ def log_broadcast(
         "failed": failed,
         "filter_stage": filter_stage,
         "filter_tag": filter_tag,
+        "campaign_key": campaign_key,
         "delivery_rate": round(sent / max(target_count, 1) * 100, 1),
         "created_at": now,
         "status": "completed",

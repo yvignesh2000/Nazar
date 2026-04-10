@@ -43,7 +43,7 @@ from contact_manager import (
     get_conversation_history, import_contacts_csv, get_pipeline_summary,
     get_conversation_record, list_conversation_records, set_conversation_bot_mode,
     get_conversation_bot_mode, mark_conversation_handoff_required, assign_conversation,
-    set_conversation_use_case,
+    set_conversation_ai_assist, set_conversation_use_case,
     update_message_status_by_wa_id, set_conversation_status, get_conversation_metrics,
     list_contact_notes, add_contact_note,
     initialize_storage,
@@ -71,7 +71,17 @@ from digest_engine import (
     save_digest, get_digest_history,
 )
 from job_queue import enqueue_job, get_job, list_jobs
-from policy_store import get_reply_policy, initialize_reply_policies, list_reply_policies, resolve_reply_policy, upsert_reply_policy
+from policy_store import (
+    get_reply_policy,
+    get_routing_rule,
+    initialize_reply_policies,
+    list_reply_policies,
+    list_routing_rules,
+    resolve_policy_for_context,
+    resolve_reply_policy,
+    upsert_reply_policy,
+    upsert_routing_rule,
+)
 from workspace_store import get_membership_by_user_id, get_workspace_config, initialize_workspace_store, list_team_members, update_workspace_config
 
 # --- Logging ---
@@ -565,6 +575,9 @@ async def api_list_conversations(
     human_required: bool = False,
     needs_reply: bool = False,
     assigned_to_me: bool = False,
+    queue: str = None,
+    source_type: str = None,
+    ai_assist: bool = False,
 ):
     context = _require_roles(request, "agent")
     active_assigned_user_id = assigned_user_id
@@ -577,6 +590,9 @@ async def api_list_conversations(
             only_unassigned=unassigned,
             only_human_required=human_required,
             only_needs_reply=needs_reply,
+            queue=queue,
+            source_type=source_type,
+            require_ai_assist=ai_assist,
         )
     }
 
@@ -710,7 +726,7 @@ async def api_update_conversation_status(conversation_id: str, request: Request)
 async def api_update_conversation_use_case(conversation_id: str, request: Request):
     _require_roles(request, "agent")
     body = await request.json()
-    use_case_key = (body.get("use_case_key") or "").strip()
+    use_case_key = (body.get("use_case_key") or body.get("policy_use_case_key") or "").strip()
     if not use_case_key:
         raise HTTPException(400, "use_case_key is required")
     conversation = get_conversation_record(conversation_id)
@@ -721,7 +737,7 @@ async def api_update_conversation_use_case(conversation_id: str, request: Reques
         updated = set_conversation_use_case(
             conversation_id,
             use_case_key=policy["use_case_key"],
-            source_type=body.get("source_type") or conversation.get("source_type"),
+            source_type=body.get("source_type") or "conversation_override",
             source_ref=body.get("source_ref") or conversation.get("source_ref"),
             active_reply_policy_key=policy["use_case_key"],
             human_queue=policy.get("fallback_queue"),
@@ -764,7 +780,7 @@ async def api_queue_ai_reply(conversation_id: str, request: Request):
         raise HTTPException(400, "message is required")
     job = enqueue_job(
         "ai_reply_suggestion",
-        {"contact_id": conversation["contact_id"], "message": prompt},
+        {"contact_id": conversation["contact_id"], "conversation_id": conversation_id, "message": prompt},
         requested_by_user_id=_actor_user_id(request),
     )
     record_audit_event(
@@ -775,6 +791,33 @@ async def api_queue_ai_reply(conversation_id: str, request: Request):
         actor_user_id=_actor_user_id(request),
     )
     return {"queued": True, "job": job}
+
+
+@app.post("/api/conversations/{conversation_id}/ai-assist/send")
+async def api_send_ai_assist(conversation_id: str, request: Request):
+    _require_roles(request, "agent")
+    conversation = get_conversation_record(conversation_id)
+    if not conversation:
+        raise HTTPException(404, "Conversation not found")
+    contact = get_contact(conversation["contact_id"])
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    body = await request.json()
+    message = (body.get("message") or conversation.get("ai_assist_draft") or "").strip()
+    if not message:
+        raise HTTPException(400, "No AI assist draft available")
+    result = await send_whatsapp_message(contact["phone"], message)
+    wa_msg_id = ((result.get("messages") or [{}])[0]).get("id", "")
+    save_message(conversation_id, "outbound", message, sent_by="human_ai_assist", wa_message_id=wa_msg_id)
+    set_conversation_ai_assist(conversation_id, None, status=None)
+    record_audit_event(
+        "conversation",
+        conversation_id,
+        "ai_assist_sent",
+        {"wa_message_id": wa_msg_id},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"ok": True, "wa_message_id": wa_msg_id}
 
 
 @app.post("/api/contacts/{contact_id}/followup-draft")
@@ -940,8 +983,14 @@ async def api_broadcast(request: Request):
     filter_stage = body.get("stage")
     filter_tag = body.get("tag")
     contact_ids = body.get("contact_ids", [])
-    reply_use_case_key = (body.get("reply_use_case_key") or "broadcast_reply").strip() or "broadcast_reply"
-    reply_policy = resolve_reply_policy(reply_use_case_key)
+    campaign_key = (body.get("campaign_key") or "").strip() or "broadcast_reply"
+    explicit_policy_key = (body.get("reply_use_case_key") or "").strip() or None
+    routing = resolve_policy_for_context(
+        pipeline_stage=filter_stage,
+        campaign_key=campaign_key,
+        explicit_policy_key=explicit_policy_key,
+    )
+    reply_policy = routing["policy"]
 
     if not message and not template_name:
         raise HTTPException(400, "message or template required")
@@ -954,6 +1003,7 @@ async def api_broadcast(request: Request):
             "stage": filter_stage,
             "tag": filter_tag,
             "contact_ids": contact_ids,
+            "campaign_key": campaign_key,
             "reply_use_case_key": reply_policy["use_case_key"],
         },
         requested_by_user_id=_actor_user_id(request),
@@ -962,10 +1012,18 @@ async def api_broadcast(request: Request):
         "broadcast",
         job["id"],
         "queued",
-        {"kind": job["kind"], "contact_ids": len(contact_ids), "stage": filter_stage, "tag": filter_tag, "reply_use_case_key": reply_policy["use_case_key"]},
+        {
+            "kind": job["kind"],
+            "contact_ids": len(contact_ids),
+            "stage": filter_stage,
+            "tag": filter_tag,
+            "campaign_key": campaign_key,
+            "reply_use_case_key": reply_policy["use_case_key"],
+            "resolved_scope_type": routing["scope_type"],
+        },
         actor_user_id=_actor_user_id(request),
     )
-    return {"queued": True, "job": job, "reply_policy": reply_policy}
+    return {"queued": True, "job": job, "reply_policy": reply_policy, "routing": routing}
 
 
 # ====================================================================
@@ -1062,6 +1120,36 @@ async def api_upsert_reply_policy(use_case_key: str, request: Request):
         actor_user_id=_actor_user_id(request),
     )
     return {"policy": policy}
+
+
+@app.get("/api/routing-rules")
+async def api_list_routing_rules(request: Request, scope_type: str = None):
+    _require_roles(request, "agent")
+    return {"rules": list_routing_rules(scope_type=scope_type)}
+
+
+@app.get("/api/routing-rules/{scope_type}/{scope_key}")
+async def api_get_routing_rule(scope_type: str, scope_key: str, request: Request):
+    _require_roles(request, "agent")
+    rule = get_routing_rule(scope_type, scope_key)
+    if not rule:
+        raise HTTPException(404, "Routing rule not found")
+    return {"rule": rule}
+
+
+@app.put("/api/routing-rules/{scope_type}/{scope_key}")
+async def api_upsert_routing_rule(scope_type: str, scope_key: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    rule = upsert_routing_rule(scope_type, scope_key, body)
+    record_audit_event(
+        "routing_rule",
+        f"{scope_type}:{scope_key}",
+        "updated",
+        {"policy_use_case_key": rule["policy_use_case_key"]},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"rule": rule}
 
 
 
