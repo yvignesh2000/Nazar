@@ -11,6 +11,7 @@ nazar/data/contacts/
 nazar/data/chromadb/
 nazar/data/*.db
 nazar/data/*.db-*
+nazar/data/broadcasts.json
 
 # Python
 __pycache__/

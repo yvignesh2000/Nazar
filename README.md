@@ -14,6 +14,20 @@ Every competitor (WATI, Interakt, AiSensy, Gallabox...) is a UI wrapper around W
 | Pricing | ❌ Hidden markups, per-agent fees | ✅ Flat INR monthly. Zero per-message markup |
 | AI Compliance | ❌ Generic chatbots (banned Jan 2026) | ✅ Structured sales assistant (compliant) |
 
+## Reply Ownership Model
+
+Nazar now supports reply ownership by use case. This means you can configure who should handle replies for different workflows:
+
+- `Bot first`: AI replies automatically unless a handoff trigger fires
+- `Human first`: reply goes to the human queue first
+- `Human with AI assist`: AI drafts a response, but a human owns the conversation
+- `Manual only`: no bot reply is sent; the conversation is routed to a human queue
+
+Example:
+- Broadcast campaign replies can be bot-handled
+- Pricing negotiations can go straight to humans
+- Complaints can be routed to a support queue
+
 ## Architecture
 
 ```
@@ -71,6 +85,7 @@ nazar/
 │   ├── auth_store.py         ← Session auth + workspace roles
 │   ├── db.py                 ← SQLAlchemy models + DB bootstrap
 │   ├── job_queue.py          ← Persistent background job queue
+│   ├── policy_store.py       ← Reply ownership policies by use case
 │   ├── llm_router.py         ← Multi-provider LLM with failover
 │   ├── transcription.py      ← Voice note transcription (Groq Whisper)
 │   ├── encryption.py         ← Per-contact Fernet encryption
@@ -104,6 +119,7 @@ nazar/
 | POST | `/api/conversations/{id}/assign` | Assign or unassign owner |
 | POST | `/api/conversations/{id}/status` | Mark open / needs reply / snoozed / closed |
 | POST | `/api/conversations/{id}/ai-reply` | Queue AI reply suggestion |
+| POST | `/api/conversations/{id}/use-case` | Change conversation workflow / reply routing |
 | GET | `/api/contacts` | All contacts |
 | POST | `/api/contacts` | Create contact |
 | POST | `/api/contacts/import` | CSV import |
@@ -118,6 +134,8 @@ nazar/
 | POST | `/api/broadcasts` | Queue segment broadcast |
 | GET | `/api/jobs` | Background job list |
 | GET | `/api/jobs/{id}` | Background job status |
+| GET | `/api/reply-policies` | List reply ownership policies |
+| PUT | `/api/reply-policies/{key}` | Update who owns replies for a use case |
 | GET | `/api/templates` | Template library |
 | POST | `/api/templates` | Create template |
 | GET | `/api/team` | Team members |
@@ -135,6 +153,7 @@ Async processing:
 - Inbound WhatsApp text messages are now saved immediately and processed through the job queue
 - Voice notes are queued for transcription and reply generation in the worker
 - AI reply drafts, follow-up drafts, and contact summaries are also queued jobs
+- Reply ownership is enforced in the worker using the configured use-case policy
 
 ## Meta AI Chatbot Compliance
 

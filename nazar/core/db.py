@@ -106,6 +106,7 @@ class Workspace(Base):
     conversations = relationship("Conversation", back_populates="workspace", cascade="all, delete-orphan")
     templates = relationship("TemplateRecord", back_populates="workspace", cascade="all, delete-orphan")
     background_jobs = relationship("BackgroundJob", back_populates="workspace", cascade="all, delete-orphan")
+    reply_policies = relationship("ReplyPolicy", back_populates="workspace", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -209,6 +210,11 @@ class Conversation(Base):
     bot_mode = Column(Boolean, nullable=False, default=True)
     handoff_required = Column(Boolean, nullable=False, default=False)
     assigned_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    use_case_key = Column(String(64), nullable=False, default="default_inbound", index=True)
+    source_type = Column(String(64), nullable=False, default="direct_inbound", index=True)
+    source_ref = Column(String(64), nullable=True, index=True)
+    active_reply_policy_key = Column(String(64), nullable=False, default="default_inbound", index=True)
+    human_queue = Column(String(64), nullable=True, index=True)
     last_message_at = Column(DateTime(timezone=True), nullable=True, index=True)
     last_inbound_at = Column(DateTime(timezone=True), nullable=True, index=True)
     last_outbound_at = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -279,6 +285,25 @@ class TemplateRecord(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     workspace = relationship("Workspace", back_populates="templates")
+
+
+class ReplyPolicy(Base):
+    __tablename__ = "reply_policies"
+    __table_args__ = (UniqueConstraint("workspace_id", "use_case_key", name="uq_reply_policy_use_case"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    use_case_key = Column(String(64), nullable=False, index=True)
+    display_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    reply_mode = Column(String(32), nullable=False, default="bot_first", index=True)
+    fallback_queue = Column(String(64), nullable=False, default="sales")
+    force_human_keywords_json = Column(Text, nullable=False, default="[]")
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    workspace = relationship("Workspace", back_populates="reply_policies")
 
 
 class ContactNote(Base):

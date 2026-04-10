@@ -1422,6 +1422,11 @@ body {
           <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Select pipeline stages to target</div>
           <div id="broadcast-targets"></div>
         </div>
+        <div class="compose-area">
+          <div class="compose-label">When Customers Reply</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Choose which use case should own replies to this broadcast.</div>
+          <select class="form-input" id="broadcast-reply-use-case"></select>
+        </div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="sendBroadcast()">
           📡 Send Broadcast
         </button>
@@ -1541,6 +1546,11 @@ body {
               <div class="toggle-desc">Automatically adjust lead scores based on conversation signals</div>
             </div>
             <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
+            <div class="config-section-title" style="font-size:18px;">Reply Routing By Use Case</div>
+            <div class="config-section-sub">Decide whether the bot, a human, or a human with AI assist should own replies for each workflow.</div>
+            <div id="reply-policy-list"></div>
           </div>
         </div>
       </div>
@@ -1683,6 +1693,7 @@ let teamMembers = [];
 let selectedConversationData = null;
 let contactNotes = [];
 let currentConversationFilter = 'all';
+let replyPolicies = [];
 
 // ================================================================
 //  NAVIGATION
@@ -1707,6 +1718,7 @@ function navigateTo(screen) {
   if (screen === 'overview') loadOverview();
   else if (screen === 'conversations') loadConversations();
   else if (screen === 'pipeline') loadPipeline();
+  else if (screen === 'broadcasts') loadReplyPolicies();
   else if (screen === 'followups') loadFollowups();
   else if (screen === 'botconfig') loadConfig();
   else if (screen === 'settings') loadSettings();
@@ -1849,6 +1861,7 @@ function generateInsight(data) {
 async function loadConversations() {
   try {
     await loadTeamMembers();
+    await loadReplyPolicies();
     const params = new URLSearchParams();
     if (currentConversationFilter === 'needs_reply') params.set('needs_reply', 'true');
     if (currentConversationFilter === 'unassigned') params.set('unassigned', 'true');
@@ -1995,6 +2008,9 @@ function renderConversationDetail(data) {
     <div class="crm-section">
       <div class="crm-title">Quick Actions</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
+        <select class="form-input" onchange="updateConversationUseCase('${conversation.conversation_id}', this.value)" style="font-size:12px;">
+          ${(replyPolicies.length ? replyPolicies : [{use_case_key:'default_inbound',display_name:'General Inbound'}]).map(policy => `<option value="${policy.use_case_key}" ${conversation.use_case_key===policy.use_case_key?'selected':''}>Use case: ${esc(policy.display_name)}</option>`).join('')}
+        </select>
         <select class="form-input" onchange="assignConversation('${conversation.conversation_id}', this.value)" style="font-size:12px;">
           <option value="">Assign to team member</option>
           ${teamMembers.map(member => `<option value="${member.id}" ${conversation.assigned_user_id===member.id?'selected':''}>${esc(member.name)} · ${esc(member.role||'member')}</option>`).join('')}
@@ -2009,6 +2025,10 @@ function renderConversationDetail(data) {
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Qualified')">Move to Qualified</button>
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
+        <div style="font-size:11px;color:var(--text3);padding-top:4px;">
+          Reply owner: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
+          ${conversation.human_queue ? ` · Queue: ${esc(conversation.human_queue)}` : ''}
+        </div>
       </div>
     </div>
     <div class="crm-section">
@@ -2062,6 +2082,91 @@ async function loadTeamMembers() {
   }
 }
 
+async function loadReplyPolicies() {
+  try {
+    const data = await api('GET', '/api/reply-policies');
+    replyPolicies = data.policies || [];
+    renderReplyPolicies();
+    renderBroadcastUseCaseOptions();
+  } catch(e) {
+    console.error('Load reply policies failed:', e);
+  }
+}
+
+function renderBroadcastUseCaseOptions() {
+  const select = document.getElementById('broadcast-reply-use-case');
+  if (!select) return;
+  const options = replyPolicies.length ? replyPolicies : [
+    { use_case_key: 'broadcast_reply', display_name: 'Broadcast Replies', reply_mode: 'bot_first' },
+  ];
+  select.innerHTML = options.map(policy => `
+    <option value="${policy.use_case_key}" ${policy.use_case_key === 'broadcast_reply' ? 'selected' : ''}>
+      ${esc(policy.display_name)} · ${formatReplyMode(policy.reply_mode)}
+    </option>
+  `).join('');
+}
+
+function renderReplyPolicies() {
+  const container = document.getElementById('reply-policy-list');
+  if (!container) return;
+  if (!replyPolicies.length) {
+    container.innerHTML = '<div style="color:var(--text3);font-size:13px;">No reply policies configured yet.</div>';
+    return;
+  }
+  container.innerHTML = replyPolicies.map(policy => `
+    <div style="border:1px solid var(--border);background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;">${esc(policy.display_name)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${esc(policy.description || policy.use_case_key)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px;">Use case key: ${esc(policy.use_case_key)}</div>
+        </div>
+        <span class="tag tag-cold">${formatReplyMode(policy.reply_mode)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <div class="form-label">Reply owner</div>
+          <select class="form-input" id="policy-mode-${policy.use_case_key}">
+            ${['bot_first','human_first','bot_assist','manual_only'].map(mode => `<option value="${mode}" ${policy.reply_mode===mode?'selected':''}>${formatReplyMode(mode)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div class="form-label">Human queue</div>
+          <input class="form-input" id="policy-queue-${policy.use_case_key}" value="${esc(policy.fallback_queue || 'sales')}">
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div class="form-label">Force human keywords</div>
+        <input class="form-input" id="policy-keywords-${policy.use_case_key}" value="${esc((policy.force_human_keywords || []).join(', '))}" placeholder="complaint, refund, manager">
+      </div>
+      <div style="margin-top:10px;display:flex;justify-content:flex-end;">
+        <button class="btn btn-sm btn-primary" onclick="saveReplyPolicy('${policy.use_case_key}')">Save Policy</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveReplyPolicy(useCaseKey) {
+  try {
+    const reply_mode = document.getElementById(`policy-mode-${useCaseKey}`).value;
+    const fallback_queue = document.getElementById(`policy-queue-${useCaseKey}`).value.trim() || 'sales';
+    const force_human_keywords = document.getElementById(`policy-keywords-${useCaseKey}`).value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+    await api('PUT', `/api/reply-policies/${useCaseKey}`, {
+      reply_mode,
+      fallback_queue,
+      force_human_keywords,
+    });
+    showToast('🧭', 'Reply policy saved');
+    await loadReplyPolicies();
+    if (selectedConvId) await selectConversation(selectedConvId);
+  } catch(e) {
+    showToast('❌', 'Policy save failed: ' + e.message);
+  }
+}
+
 async function assignConversation(conversationId, userId, assignToMe = false) {
   try {
     await api('POST', `/api/conversations/${conversationId}/assign`, { user_id: userId || null, assign_to_me: assignToMe });
@@ -2070,6 +2175,17 @@ async function assignConversation(conversationId, userId, assignToMe = false) {
     await loadConversations();
   } catch(e) {
     showToast('❌', 'Assignment failed: ' + e.message);
+  }
+}
+
+async function updateConversationUseCase(conversationId, useCaseKey) {
+  try {
+    await api('POST', `/api/conversations/${conversationId}/use-case`, { use_case_key: useCaseKey });
+    showToast('🧭', 'Conversation routing updated');
+    if (selectedConvId === conversationId) await selectConversation(conversationId);
+    await loadConversations();
+  } catch(e) {
+    showToast('❌', 'Routing update failed: ' + e.message);
   }
 }
 
@@ -2266,6 +2382,7 @@ async function loadConfig() {
     document.getElementById('config-business-name').value = data.business_name || '';
     document.getElementById('config-welcome').value = data.welcome_message || '';
   } catch(e) {}
+  await loadReplyPolicies();
   try {
     const kb = await api('GET', '/api/kb');
     document.getElementById('kb-content').value = kb.content || '';
@@ -2306,6 +2423,7 @@ function selectTone(el) {
 async function loadSettings() {
   try {
     await loadTeamMembers();
+    await loadReplyPolicies();
     const data = await api('GET', '/health');
     if (data.whatsapp_configured) {
       document.getElementById('wa-dot').className = 'conn-dot connected';
@@ -2358,8 +2476,9 @@ async function submitNewContact() {
 async function sendBroadcast() {
   const msg = document.getElementById('broadcast-message').value.trim();
   if (!msg) { showToast('⚠️','Write a message first'); return; }
+  const replyUseCaseKey = document.getElementById('broadcast-reply-use-case')?.value || 'broadcast_reply';
   try {
-    const result = await api('POST', '/api/broadcasts', { message: msg });
+    const result = await api('POST', '/api/broadcasts', { message: msg, reply_use_case_key: replyUseCaseKey });
     showToast('📡', result.job ? `Broadcast queued (${result.job.id.slice(0, 8)})` : 'Broadcast queued');
   } catch(e) {
     showToast('❌', e.message);
@@ -2482,6 +2601,16 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
 }
 
+function formatReplyMode(mode) {
+  const map = {
+    bot_first: 'Bot first',
+    human_first: 'Human first',
+    bot_assist: 'Human with AI assist',
+    manual_only: 'Manual only',
+  };
+  return map[mode] || mode || 'Bot first';
+}
+
 function capitalize(value) {
   if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -2516,6 +2645,7 @@ function findContactIdFromConversationId(identifier) {
 async function bootstrapApp() {
   await ensureSession();
   await loadTeamMembers();
+  await loadReplyPolicies();
   loadOverview();
 }
 

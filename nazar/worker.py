@@ -18,6 +18,7 @@ from core.contact_manager import (
     list_contacts,
     mark_conversation_handoff_required,
     save_message,
+    set_conversation_use_case,
 )
 from core.conversation import (
     generate_reply_for_contact,
@@ -28,6 +29,7 @@ from core.conversation import (
 from core.job_queue import claim_due_jobs, complete_job, fail_job
 from core.llm_router import call_llm_safe
 from core.outbound import log_broadcast
+from core.policy_store import resolve_reply_policy, should_force_human
 from core.transcription import TranscriptionError, transcribe_audio
 from core.workspace_store import get_workspace_config
 from server import download_whatsapp_media, send_template_message, send_whatsapp_message
@@ -74,6 +76,17 @@ async def _send_ai_reply(contact: dict, conversation: dict, inbound_message: str
     }
 
 
+async def _generate_bot_assist_reply(contact: dict, inbound_message: str) -> str:
+    config = get_workspace_config()
+    return await generate_reply_for_contact(
+        contact["contact_id"],
+        inbound_message,
+        lambda messages: _llm_call(messages, phone=contact.get("phone", "")),
+        config=config,
+        include_current_message=False,
+    )
+
+
 async def _process_saved_inbound_text(payload: dict) -> dict:
     contact_id = payload.get("contact_id")
     conversation_id = payload.get("conversation_id")
@@ -85,23 +98,64 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
     conversation = get_conversation_record(conversation_id)
     if not contact or not conversation:
         raise ValueError("Inbound text job references missing contact or conversation")
+    policy = resolve_reply_policy(conversation.get("active_reply_policy_key") or conversation.get("use_case_key"))
+    if conversation.get("human_queue") != policy.get("fallback_queue"):
+        conversation = set_conversation_use_case(
+            conversation_id,
+            conversation.get("use_case_key") or policy["use_case_key"],
+            source_type=conversation.get("source_type"),
+            source_ref=conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
+        )
     if not conversation.get("bot_mode", True):
         return {"skipped": True, "reason": "bot_mode_off", "contact_id": contact_id}
-    if should_handoff(inbound_message):
+    if policy.get("reply_mode") == "bot_assist":
         updated = mark_conversation_handoff_required(conversation_id, True)
-        handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
-        handoff_message_id = _extract_wa_message_id(handoff_response)
-        save_message(
+        updated = set_conversation_use_case(
             conversation_id,
-            "outbound",
-            HANDOFF_MESSAGE,
-            sent_by="bot",
-            wa_message_id=handoff_message_id,
+            conversation.get("use_case_key") or policy["use_case_key"],
+            source_type=conversation.get("source_type"),
+            source_ref=conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
         )
+        suggested_reply = await _generate_bot_assist_reply(contact, inbound_message)
+        return {
+            "contact_id": contact_id,
+            "conversation_id": conversation_id,
+            "bot_assist": True,
+            "suggested_reply": suggested_reply,
+            "policy": policy,
+            "human_queue": updated.get("human_queue"),
+        }
+    if policy.get("reply_mode") in {"human_first", "manual_only"} or should_force_human(policy, inbound_message) or should_handoff(inbound_message):
+        updated = mark_conversation_handoff_required(conversation_id, True)
+        updated = set_conversation_use_case(
+            conversation_id,
+            conversation.get("use_case_key") or policy["use_case_key"],
+            source_type=conversation.get("source_type"),
+            source_ref=conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
+        )
+        handoff_message_id = ""
+        if policy.get("reply_mode") != "manual_only":
+            handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
+            handoff_message_id = _extract_wa_message_id(handoff_response)
+            save_message(
+                conversation_id,
+                "outbound",
+                HANDOFF_MESSAGE,
+                sent_by="bot",
+                wa_message_id=handoff_message_id,
+            )
         return {
             "contact_id": contact_id,
             "conversation_id": conversation_id,
             "handoff_required": True,
+            "policy": policy,
+            "human_queue": updated.get("human_queue"),
             "wa_message_id": handoff_message_id,
             "status": updated.get("status"),
         }
@@ -127,6 +181,16 @@ async def _process_inbound_voice(payload: dict) -> dict:
     conversation = get_conversation_record(inbound_record["conversation_id"])
     if not conversation:
         raise ValueError("Voice job failed to resolve conversation after saving transcript")
+    policy = resolve_reply_policy(conversation.get("active_reply_policy_key") or conversation.get("use_case_key"))
+    if conversation.get("human_queue") != policy.get("fallback_queue"):
+        conversation = set_conversation_use_case(
+            conversation["conversation_id"],
+            conversation.get("use_case_key") or policy["use_case_key"],
+            source_type=conversation.get("source_type"),
+            source_ref=conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
+        )
     if not conversation.get("bot_mode", True):
         return {
             "contact_id": contact["contact_id"],
@@ -135,22 +199,54 @@ async def _process_inbound_voice(payload: dict) -> dict:
             "skipped": True,
             "reason": "bot_mode_off",
         }
-    if should_handoff(transcript):
+    if policy.get("reply_mode") == "bot_assist":
         updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
-        handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
-        handoff_message_id = _extract_wa_message_id(handoff_response)
-        save_message(
+        updated = set_conversation_use_case(
             conversation["conversation_id"],
-            "outbound",
-            HANDOFF_MESSAGE,
-            sent_by="bot",
-            wa_message_id=handoff_message_id,
+            conversation.get("use_case_key") or policy["use_case_key"],
+            source_type=conversation.get("source_type"),
+            source_ref=conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
         )
+        suggested_reply = await _generate_bot_assist_reply(contact, transcript)
+        return {
+            "contact_id": contact["contact_id"],
+            "conversation_id": conversation["conversation_id"],
+            "transcript": transcript,
+            "bot_assist": True,
+            "suggested_reply": suggested_reply,
+            "policy": policy,
+            "human_queue": updated.get("human_queue"),
+        }
+    if policy.get("reply_mode") in {"human_first", "manual_only"} or should_force_human(policy, transcript) or should_handoff(transcript):
+        updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
+        updated = set_conversation_use_case(
+            conversation["conversation_id"],
+            conversation.get("use_case_key") or policy["use_case_key"],
+            source_type=conversation.get("source_type"),
+            source_ref=conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
+        )
+        handoff_message_id = ""
+        if policy.get("reply_mode") != "manual_only":
+            handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
+            handoff_message_id = _extract_wa_message_id(handoff_response)
+            save_message(
+                conversation["conversation_id"],
+                "outbound",
+                HANDOFF_MESSAGE,
+                sent_by="bot",
+                wa_message_id=handoff_message_id,
+            )
         return {
             "contact_id": contact["contact_id"],
             "conversation_id": conversation["conversation_id"],
             "transcript": transcript,
             "handoff_required": True,
+            "policy": policy,
+            "human_queue": updated.get("human_queue"),
             "wa_message_id": handoff_message_id,
             "status": updated.get("status"),
         }
@@ -166,6 +262,8 @@ async def _execute_broadcast(job: dict) -> dict:
     filter_stage = payload.get("stage")
     filter_tag = payload.get("tag")
     contact_ids = payload.get("contact_ids") or []
+    reply_use_case_key = (payload.get("reply_use_case_key") or "broadcast_reply").strip() or "broadcast_reply"
+    policy = resolve_reply_policy(reply_use_case_key)
 
     if not message and not template_name:
         raise ValueError("Broadcast job missing message or template")
@@ -188,7 +286,15 @@ async def _execute_broadcast(job: dict) -> dict:
                 response = await send_whatsapp_message(phone, message)
                 body = message
                 wa_message_id = _extract_wa_message_id(response)
-            save_message(contact["contact_id"], "outbound", body, sent_by="broadcast", wa_message_id=wa_message_id)
+            outbound_record = save_message(contact["contact_id"], "outbound", body, sent_by="broadcast", wa_message_id=wa_message_id)
+            set_conversation_use_case(
+                outbound_record["conversation_id"],
+                reply_use_case_key,
+                source_type="broadcast",
+                source_ref=job["id"],
+                active_reply_policy_key=policy["use_case_key"],
+                human_queue=policy.get("fallback_queue"),
+            )
             results["sent"] += 1
             results["details"].append({"phone": phone, "status": "sent"})
         except Exception as exc:

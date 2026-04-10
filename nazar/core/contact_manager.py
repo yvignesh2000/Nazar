@@ -168,6 +168,11 @@ def _serialize_conversation(conversation: Conversation, contact: Contact) -> dic
         "handoff_required": bool(conversation.handoff_required),
         "assigned_user_id": conversation.assigned_user_id,
         "assigned_user_name": assigned_name,
+        "use_case_key": conversation.use_case_key or "default_inbound",
+        "source_type": conversation.source_type or "direct_inbound",
+        "source_ref": conversation.source_ref,
+        "active_reply_policy_key": conversation.active_reply_policy_key or conversation.use_case_key or "default_inbound",
+        "human_queue": conversation.human_queue,
         "last_time": _to_iso(conversation.last_message_at),
         "last_inbound_at": _to_iso(conversation.last_inbound_at),
         "last_outbound_at": _to_iso(conversation.last_outbound_at),
@@ -225,6 +230,11 @@ def _ensure_conversation(session, contact: Contact) -> Conversation:
             status="open",
             bot_mode=True,
             handoff_required=False,
+            use_case_key="default_inbound",
+            source_type="direct_inbound",
+            source_ref=None,
+            active_reply_policy_key="default_inbound",
+            human_queue="sales",
             last_message_at=last_message_at,
             last_inbound_at=contact.last_replied_at,
             last_outbound_at=contact.last_contacted_at,
@@ -814,6 +824,35 @@ def assign_conversation(identifier: str, user_id: Optional[str]) -> dict:
             if membership is None:
                 raise ValueError("Assigned user is not an active member of this workspace")
         conversation.assigned_user_id = user_id
+        conversation.updated_at = _now()
+        session.flush()
+        return _serialize_conversation(conversation, contact)
+
+
+def set_conversation_use_case(
+    identifier: str,
+    use_case_key: str,
+    source_type: Optional[str] = None,
+    source_ref: Optional[str] = None,
+    active_reply_policy_key: Optional[str] = None,
+    human_queue: Optional[str] = None,
+) -> dict:
+    initialize_storage()
+    with session_scope() as session:
+        conversation = _resolve_conversation(session, identifier)
+        if conversation is None:
+            raise FileNotFoundError(f"Conversation or contact {identifier} not found")
+        contact = _conversation_contact(session, conversation)
+        conversation.use_case_key = (use_case_key or "default_inbound").strip() or "default_inbound"
+        if source_type is not None:
+            conversation.source_type = (source_type or "direct_inbound").strip() or "direct_inbound"
+        if source_ref is not None:
+            conversation.source_ref = (source_ref or "").strip() or None
+        conversation.active_reply_policy_key = (
+            (active_reply_policy_key or conversation.use_case_key).strip() or conversation.use_case_key
+        )
+        if human_queue is not None:
+            conversation.human_queue = (human_queue or "").strip() or None
         conversation.updated_at = _now()
         session.flush()
         return _serialize_conversation(conversation, contact)

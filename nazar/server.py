@@ -43,6 +43,7 @@ from contact_manager import (
     get_conversation_history, import_contacts_csv, get_pipeline_summary,
     get_conversation_record, list_conversation_records, set_conversation_bot_mode,
     get_conversation_bot_mode, mark_conversation_handoff_required, assign_conversation,
+    set_conversation_use_case,
     update_message_status_by_wa_id, set_conversation_status, get_conversation_metrics,
     list_contact_notes, add_contact_note,
     initialize_storage,
@@ -70,6 +71,7 @@ from digest_engine import (
     save_digest, get_digest_history,
 )
 from job_queue import enqueue_job, get_job, list_jobs
+from policy_store import get_reply_policy, initialize_reply_policies, list_reply_policies, resolve_reply_policy, upsert_reply_policy
 from workspace_store import get_membership_by_user_id, get_workspace_config, initialize_workspace_store, list_team_members, update_workspace_config
 
 # --- Logging ---
@@ -105,6 +107,7 @@ async def startup_event():
     init_db()
     initialize_storage()
     initialize_workspace_store()
+    initialize_reply_policies()
     logger.info(f"CRM storage ready ({get_storage_backend_name()})")
 
 
@@ -703,6 +706,38 @@ async def api_update_conversation_status(conversation_id: str, request: Request)
         raise HTTPException(404, str(exc))
 
 
+@app.post("/api/conversations/{conversation_id}/use-case")
+async def api_update_conversation_use_case(conversation_id: str, request: Request):
+    _require_roles(request, "agent")
+    body = await request.json()
+    use_case_key = (body.get("use_case_key") or "").strip()
+    if not use_case_key:
+        raise HTTPException(400, "use_case_key is required")
+    conversation = get_conversation_record(conversation_id)
+    if not conversation:
+        raise HTTPException(404, "Conversation not found")
+    policy = resolve_reply_policy(use_case_key)
+    try:
+        updated = set_conversation_use_case(
+            conversation_id,
+            use_case_key=policy["use_case_key"],
+            source_type=body.get("source_type") or conversation.get("source_type"),
+            source_ref=body.get("source_ref") or conversation.get("source_ref"),
+            active_reply_policy_key=policy["use_case_key"],
+            human_queue=policy.get("fallback_queue"),
+        )
+        record_audit_event(
+            "conversation",
+            conversation_id,
+            "use_case_changed",
+            {"use_case_key": policy["use_case_key"], "reply_mode": policy["reply_mode"]},
+            actor_user_id=_actor_user_id(request),
+        )
+        return {"conversation": updated, "policy": policy}
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc))
+
+
 # ====================================================================
 #  DASHBOARD API — MEMORY
 # ====================================================================
@@ -905,6 +940,8 @@ async def api_broadcast(request: Request):
     filter_stage = body.get("stage")
     filter_tag = body.get("tag")
     contact_ids = body.get("contact_ids", [])
+    reply_use_case_key = (body.get("reply_use_case_key") or "broadcast_reply").strip() or "broadcast_reply"
+    reply_policy = resolve_reply_policy(reply_use_case_key)
 
     if not message and not template_name:
         raise HTTPException(400, "message or template required")
@@ -917,6 +954,7 @@ async def api_broadcast(request: Request):
             "stage": filter_stage,
             "tag": filter_tag,
             "contact_ids": contact_ids,
+            "reply_use_case_key": reply_policy["use_case_key"],
         },
         requested_by_user_id=_actor_user_id(request),
     )
@@ -924,10 +962,10 @@ async def api_broadcast(request: Request):
         "broadcast",
         job["id"],
         "queued",
-        {"kind": job["kind"], "contact_ids": len(contact_ids), "stage": filter_stage, "tag": filter_tag},
+        {"kind": job["kind"], "contact_ids": len(contact_ids), "stage": filter_stage, "tag": filter_tag, "reply_use_case_key": reply_policy["use_case_key"]},
         actor_user_id=_actor_user_id(request),
     )
-    return {"queued": True, "job": job}
+    return {"queued": True, "job": job, "reply_policy": reply_policy}
 
 
 # ====================================================================
@@ -994,6 +1032,36 @@ async def api_get_kb(request: Request):
 async def api_team(request: Request):
     _require_roles(request, "agent")
     return {"team": list_team_members()}
+
+
+@app.get("/api/reply-policies")
+async def api_list_reply_policies(request: Request):
+    _require_roles(request, "agent")
+    return {"policies": list_reply_policies()}
+
+
+@app.get("/api/reply-policies/{use_case_key}")
+async def api_get_reply_policy(use_case_key: str, request: Request):
+    _require_roles(request, "agent")
+    policy = get_reply_policy(use_case_key)
+    if not policy:
+        raise HTTPException(404, "Reply policy not found")
+    return {"policy": policy}
+
+
+@app.put("/api/reply-policies/{use_case_key}")
+async def api_upsert_reply_policy(use_case_key: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    policy = upsert_reply_policy(use_case_key, body)
+    record_audit_event(
+        "reply_policy",
+        use_case_key,
+        "updated",
+        {"reply_mode": policy["reply_mode"], "fallback_queue": policy["fallback_queue"]},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"policy": policy}
 
 
 
