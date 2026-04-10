@@ -1,0 +1,15 @@
+{
+  "business_name": "Nazar Demo",
+  "bot_enabled": true,
+  "bot_persona": "professional",
+  "welcome_message": "Hi! Thanks for reaching out. How can I help you today?",
+  "handoff_message": "I'll connect you with a team member who can help with this directly.",
+  "memory_enabled": true,
+  "signal_detection": true,
+  "auto_lead_scoring": true,
+  "smart_handoff": true,
+  "whatsapp_connected": false,
+  "team": [
+    {"id": "owner", "name": "Admin", "role": "Owner", "status": "active"}
+  ]
+}

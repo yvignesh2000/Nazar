@@ -1,0 +1,42 @@
+# Environment & Secrets
+nazar/.env
+.env
+nazar/.master_secret
+nazar/.salt
+.master_secret
+.salt
+
+# Encrypted customer data (sensitive — never commit)
+nazar/data/contacts/
+nazar/data/chromadb/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Logs
+*.log
+
+# Lock files from contact manager
+*.lock

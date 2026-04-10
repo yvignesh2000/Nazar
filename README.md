@@ -1,49 +1,101 @@
-# Python Games
+# 🧿 Nazar — AI-Native WhatsApp CRM
 
-This repository contains three simple text-based games implemented in Python: "Guess the Number," "Hangman," and "Tic-Tac-Toe." These games are designed for learners to practice Python programming and can be enhanced with various coding challenges at the easy level.
+**The only WhatsApp Business tool with per-customer memory.**
 
-## Guess the Number
+Every competitor (WATI, Interakt, AiSensy, Gallabox...) is a UI wrapper around WhatsApp Business API. Every conversation starts fresh. Nazar remembers everything.
 
-### Description
-In the "Guess the Number" game, the player tries to guess a randomly generated number within a specified range.
+## What Makes Nazar Different
 
-### Easy-Level Coding Challenges
-1. **Limited Guesses**: Limit the number of guesses a player can make.
-2. **Feedback**: Provide feedback on the number of remaining attempts.
-3. **Randomize Secret Number**: Randomly choose the lower and upper limits for each game.
-4. **Error Handling**: Improve error handling for non-integer inputs.
-5. **Play Again**: Allow players to start a new game after winning or losing.
-6. **Display Range**: Show the number range at the beginning of the game.
-7. **Hint Button**: Add a hint button that provides simple clues.
-8. **Win Streak**: Track and display the player's consecutive wins.
-9. **Beginner Tips**: Offer tips or rules for new players.
-10. **Customizable Range**: Let the player choose the range of numbers to guess.
+| Feature | Competitors | Nazar |
+|---|---|---|
+| Customer Memory | ❌ Zero | ✅ Per-customer vector memory across all time |
+| CRM Pipeline | ❌ Chat inbox only | ✅ Full pipeline: New → Qualified → Proposal → Closed |
+| Broadcast Replies | ❌ Manual handling | ✅ AI handles reply threads using customer memory |
+| Pricing | ❌ Hidden markups, per-agent fees | ✅ Flat INR monthly. Zero per-message markup |
+| AI Compliance | ❌ Generic chatbots (banned Jan 2026) | ✅ Structured sales assistant (compliant) |
 
-## Hangman
+## Architecture
 
-### Description
-The "Hangman" game challenges the player to guess a hidden word by suggesting letters.
+```
+Dashboard (business team)
+  → compose/send message
+    → WhatsApp Cloud API → customer receives on WhatsApp
+      → customer replies → webhook → server.py
+        → AI generates contextual reply using customer memory
+          → sends reply + logs conversation + updates pipeline
+            → appears in dashboard in real-time
+```
 
-### Easy-Level Coding Challenges
-1. **More Words**: Expand the word list with additional words.
-2. **Extra Attempts**: Increase the number of incorrect attempts allowed.
-3. **Scoring System**: Create a basic scoring system.
-4. **Input Validation**: Implement input validation for letter guesses.
-5. **Replay Option**: Allow players to play again.
-6. **AI Opponent**: Develop a simple AI opponent for single-player mode.
-7. **User Interface**: Improve the user interface for better usability.
-8. **Custom Player Names**: Enable players to enter their names.
+## Quick Start
 
-## Tic-Tac-Toe
+```bash
+cd nazar
+cp .env.template .env
+# Fill in your WhatsApp Business API credentials
 
-### Description
-"Tic-Tac-Toe" is a classic two-player game where players take turns marking cells in a 3x3 grid to win.
+pip install fastapi uvicorn httpx chromadb pydantic cryptography python-dotenv
 
-### Easy-Level Coding Challenges
-1. **Replay Option**: Allow players to play multiple games in succession.
-2. **AI Opponent**: Create an easy-level AI opponent for single-player mode.
-3. **Scoring System**: Implement a basic scoring system to track wins and losses.
-4. **User Interface**: Improve the user interface with clear instructions.
-5. **Custom Player Names**: Enable players to input their names.
+python server.py
+# Dashboard: http://localhost:8001
+```
 
-Feel free to choose and implement these easy-level challenges to enhance the games further and practice your Python programming skills. Enjoy gaming and coding!
+## Project Structure
+
+```
+nazar/
+├── server.py                 ← FastAPI: webhook + REST API + serve frontend
+├── .env.template             ← Environment variable template
+├── agent/
+│   └── SOUL.md               ← Bot persona: structured sales assistant
+├── core/
+│   ├── llm_router.py         ← Multi-provider LLM with failover
+│   ├── transcription.py      ← Voice note transcription (Groq Whisper)
+│   ├── encryption.py         ← Per-contact Fernet encryption
+│   ├── contact_manager.py    ← Contacts CRUD, pipeline, CSV import/export
+│   ├── customer_memory.py    ← Per-customer ChromaDB vector memory
+│   ├── conversation.py       ← Inbound handling + AI reply generation
+│   ├── outbound.py           ← Send messages / broadcasts from dashboard
+│   ├── template_manager.py   ← Template library, auto-generation, approval tracking
+│   └── digest_engine.py      ← Follow-up reminders, scheduled reports
+├── frontend/
+│   └── index.html            ← Full dashboard (single-file, no build tools)
+└── data/
+    ├── config.json            ← Bot configuration
+    ├── knowledge_base.txt     ← Business knowledge base
+    └── contacts/              ← Encrypted per-contact data + ChromaDB
+```
+
+## API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/overview` | Dashboard stats |
+| GET | `/api/activity` | Live activity feed |
+| GET | `/api/conversations` | List conversations |
+| GET | `/api/conversations/{id}` | Full message history |
+| POST | `/api/conversations/{id}/send` | Send message from dashboard |
+| POST | `/api/conversations/{id}/handover` | Toggle bot/human mode |
+| GET | `/api/contacts` | All contacts |
+| POST | `/api/contacts` | Create contact |
+| POST | `/api/contacts/import` | CSV import |
+| PATCH | `/api/contacts/{id}` | Update contact/stage/tags |
+| GET | `/api/contacts/{id}/memory` | Memory summary |
+| GET | `/api/pipeline` | Contacts by stage with deal values |
+| GET | `/api/followups` | Pending follow-ups |
+| POST | `/api/broadcasts` | Send to segment |
+| GET | `/api/templates` | Template library |
+| POST | `/api/templates` | Create template |
+| GET | `/api/team` | Team members |
+| GET/PUT | `/api/config` | Bot configuration |
+| POST | `/api/kb/upload` | Upload knowledge base docs |
+| GET | `/` | Serve dashboard |
+
+Auth: `X-Nazar-Key` header for MVP.
+
+## Meta AI Chatbot Compliance
+
+Meta banned general-purpose AI chatbots on WhatsApp (Jan 2026). Nazar is **compliant** because it's a structured sales assistant — not open-ended chat. It responds about specific products/services, handles orders, manages follow-ups, and knows when to hand off to humans.
+
+## License
+
+Proprietary — All rights reserved.

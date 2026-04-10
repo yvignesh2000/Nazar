@@ -1,0 +1,132 @@
+[
+  {
+    "id": "tpl_welcome",
+    "name": "welcome_new_lead",
+    "category": "utility",
+    "body": "Hi {{1}}! Thanks for your interest in our services. I'm here to help you find the right solution. What are you looking for?",
+    "variables": [
+      "name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Welcome message for new leads",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_followup",
+    "name": "gentle_followup",
+    "category": "utility",
+    "body": "Hi {{1}}, just checking in! We discussed {{2}} recently. Do you have any questions or would you like to proceed?",
+    "variables": [
+      "name",
+      "topic"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Gentle follow-up for warm leads",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_demo_invite",
+    "name": "demo_invitation",
+    "category": "utility",
+    "body": "Hi {{1}}! Based on our conversation, I think a quick demo would help. Would you like to schedule a 15-minute walkthrough? I'm available this week.",
+    "variables": [
+      "name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Demo invitation for interested leads",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_proposal",
+    "name": "proposal_sent",
+    "category": "utility",
+    "body": "Hi {{1}}, I've prepared a proposal for {{2}} based on your requirements. Would you like me to walk you through it or shall I send it over?",
+    "variables": [
+      "name",
+      "company"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Notify about proposal readiness",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_seasonal",
+    "name": "seasonal_greeting",
+    "category": "marketing",
+    "body": "Hi {{1}}! Wishing you a wonderful season ahead. We have some exciting updates we'd love to share. Can I tell you more?",
+    "variables": [
+      "name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Seasonal/festive re-engagement",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_feedback",
+    "name": "feedback_request",
+    "category": "utility",
+    "body": "Hi {{1}}! It's been a while since we connected. How's everything going? We'd love to hear your feedback and see if there's anything we can help with.",
+    "variables": [
+      "name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Feedback request for won customers",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_hindi_welcome",
+    "name": "welcome_hindi",
+    "category": "utility",
+    "body": "नमस्ते {{1}}! हमारी सर्विसेज में आपकी रुचि के लिए धन्यवाद। मैं आपकी सही समाधान खोजने में मदद करने के लिए यहाँ हूँ। आपको क्या चाहिए?",
+    "variables": [
+      "name"
+    ],
+    "language": "hi",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Hindi welcome message",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_reengagement",
+    "name": "win_back",
+    "category": "marketing",
+    "body": "Hi {{1}}, we haven't heard from you in a while! We've made some improvements since we last spoke. Would you be open to a quick catch-up?",
+    "variables": [
+      "name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "description": "Win-back for dormant contacts",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  }
+]

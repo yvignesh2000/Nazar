@@ -1,0 +1,84 @@
+# Nazar — Product Knowledge Base
+# (Sample — Replace with your actual product info)
+
+## About Nazar
+
+Nazar is a WhatsApp Sales Intelligence Platform that helps businesses automate customer conversations, manage sales pipelines, and close more deals using AI.
+
+## Plans & Pricing
+
+### Starter Plan — ₹2,999/month
+- Up to 500 contacts
+- AI-powered auto-replies
+- Basic pipeline management
+- WhatsApp Business API integration
+- Email support
+
+### Growth Plan — ₹7,999/month
+- Up to 5,000 contacts
+- Everything in Starter
+- Per-customer AI memory
+- Broadcast messaging
+- Template library
+- Priority support
+- Team collaboration (up to 3 users)
+
+### Enterprise Plan — ₹14,999/month
+- Unlimited contacts
+- Everything in Growth
+- Custom AI persona training
+- Advanced analytics & attribution
+- API access
+- Dedicated account manager
+- Team collaboration (up to 10 users)
+- Custom integrations
+
+All plans include:
+- Zero per-message markup (pay Meta directly for WhatsApp)
+- INR billing with UPI, card, and bank transfer
+- 14-day free trial, no credit card required
+- Cancel anytime
+
+## Key Features
+
+### AI Memory
+Every customer interaction is remembered. The AI references past conversations naturally, so customers never have to repeat themselves. "Since you mentioned last time that quarterly billing works better..."
+
+### Smart Pipeline
+Visual Kanban board with stages: New → Qualified → Proposal → Negotiation → Won/Lost. Deal values, lead scoring, and AI-detected buying signals on every card.
+
+### Broadcasts
+Send personalized messages to segments. Unlike competitors, Nazar uses customer memory to personalize each message — not just "Hi {name}" but contextually relevant follow-ups.
+
+### Bot + Human Handoff
+AI handles routine conversations. When things get complex — custom pricing, complaints, negotiations — it seamlessly hands off to a human with full context.
+
+### WhatsApp Compliance
+Nazar is a structured sales assistant, fully compliant with Meta's Jan 2026 AI chatbot policy. Not a general-purpose chatbot.
+
+## FAQ
+
+Q: Is this compliant with Meta's WhatsApp policies?
+A: Yes. Nazar operates as a structured business tool for sales, support, and order management — all explicitly allowed.
+
+Q: Do I need a WhatsApp Business API account?
+A: Yes. We help you set it up. If you already have one (through Meta directly or a BSP), that works too.
+
+Q: Can I use my own phone number?
+A: Yes. You connect your WhatsApp Business phone number. Customers message your number as usual.
+
+Q: How does pricing compare to WATI/Interakt?
+A: We're typically 30-50% cheaper because we charge zero markup on WhatsApp messages. You pay Meta directly for messaging costs.
+
+Q: What languages does the AI support?
+A: Hindi, English, Hinglish, and most major Indian languages. The AI auto-detects and responds in the customer's language.
+
+Q: How secure is my data?
+A: All customer data is encrypted at rest with per-contact encryption keys. Even if someone accesses the database, individual customer data is unreadable without the master key.
+
+## Contact & Support
+
+- WhatsApp: +91 98765 43210
+- Email: support@nazar.app
+- Website: https://nazar.app
+- Office hours: Mon-Sat, 9 AM - 7 PM IST

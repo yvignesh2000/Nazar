@@ -1,0 +1,2345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nazar — Sales Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   NAZAR DESIGN SYSTEM — Dark-first, AI-native, Premium
+   ================================================================ */
+:root {
+  --bg: #09090b;
+  --surface: #0f0f12;
+  --surface2: #18181b;
+  --surface3: #1f1f23;
+  --border: #27272a;
+  --border2: #3f3f46;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --accent-glow: rgba(99,102,241,0.12);
+  --accent-glow2: rgba(99,102,241,0.25);
+  --green: #34d399;
+  --green-dim: rgba(52,211,153,0.1);
+  --green-glow: rgba(52,211,153,0.25);
+  --orange: #fb923c;
+  --orange-dim: rgba(251,146,60,0.1);
+  --red: #f43f5e;
+  --red-dim: rgba(244,63,94,0.1);
+  --yellow: #facc15;
+  --purple: #a78bfa;
+  --cyan: #22d3ee;
+  --text: #fafafa;
+  --text2: #a1a1aa;
+  --text3: #52525b;
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+  --radius: 10px;
+  --glass: rgba(15,15,18,0.75);
+  --glass-border: rgba(255,255,255,0.06);
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+::-webkit-scrollbar-thumb:hover { background:var(--border2); }
+
+/* FOCUS */
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+
+/* ================================================================
+   ANIMATIONS
+   ================================================================ */
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+@keyframes glow { 0%,100% { box-shadow:0 0 8px var(--accent-glow); } 50% { box-shadow:0 0 20px var(--accent-glow2); } }
+@keyframes slideRight { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes gradientShift { 0% { background-position:0% 50%; } 50% { background-position:100% 50%; } 100% { background-position:0% 50%; } }
+@keyframes countUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.fade-up { animation: fadeUp .35s ease-out forwards; }
+.d1{animation-delay:.05s;opacity:0}.d2{animation-delay:.1s;opacity:0}.d3{animation-delay:.15s;opacity:0}.d4{animation-delay:.2s;opacity:0}.d5{animation-delay:.25s;opacity:0}.d6{animation-delay:.3s;opacity:0}
+
+/* ================================================================
+   SIDEBAR
+   ================================================================ */
+.sidebar {
+  width:var(--sidebar-w);
+  min-height:100vh;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  flex-shrink:0;
+  z-index:30;
+}
+
+.logo {
+  padding:20px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  cursor:pointer;
+}
+.logo-mark {
+  width:36px; height:36px;
+  background:linear-gradient(135deg,var(--accent),#a78bfa);
+  border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+  box-shadow:0 0 24px rgba(99,102,241,.35);
+  position:relative;
+}
+.logo-mark::after {
+  content:'';
+  position:absolute;
+  inset:-2px;
+  border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),#a78bfa);
+  opacity:.2;
+  filter:blur(8px);
+  z-index:-1;
+}
+.logo-text {
+  font-weight:800;
+  font-size:22px;
+  letter-spacing:-1px;
+  background:linear-gradient(135deg,#fff 30%,var(--accent));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.logo-tag {
+  font-size:9px;
+  color:var(--accent);
+  background:var(--accent-glow);
+  border:1px solid rgba(99,102,241,.25);
+  border-radius:4px;
+  padding:1px 5px;
+  font-weight:600;
+  letter-spacing:.5px;
+  margin-left:2px;
+  margin-top:-10px;
+}
+
+.nav-section { padding:16px 12px 6px; }
+.nav-label {
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:1.5px;
+  color:var(--text3);
+  text-transform:uppercase;
+  padding:0 10px;
+  margin-bottom:6px;
+}
+.nav-item {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:9px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:13.5px;
+  font-weight:400;
+  color:var(--text2);
+  transition:all .15s ease;
+  margin-bottom:2px;
+  position:relative;
+  user-select:none;
+}
+.nav-item:hover { background:var(--surface2); color:var(--text); }
+.nav-item.active {
+  background:var(--accent-glow);
+  color:var(--text);
+  font-weight:500;
+}
+.nav-item.active::before {
+  content:'';
+  position:absolute;
+  left:0; top:20%; height:60%;
+  width:3px;
+  background:var(--accent);
+  border-radius:0 2px 2px 0;
+}
+.nav-icon { font-size:15px; width:20px; text-align:center; }
+.nav-badge {
+  margin-left:auto;
+  background:var(--red);
+  color:white;
+  font-size:10px;
+  font-weight:700;
+  min-width:18px; height:18px;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  padding:0 4px;
+}
+.nav-badge.green { background:var(--green); color:var(--bg); }
+
+.sidebar-bottom {
+  margin-top:auto;
+  padding:14px 12px;
+  border-top:1px solid var(--border);
+}
+.user-card {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+  border-radius:8px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+}
+.user-av {
+  width:32px; height:32px;
+  border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),#a78bfa);
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:700; color:white;
+}
+.user-info { flex:1; min-width:0; }
+.user-name { font-size:12.5px; font-weight:500; }
+.user-role { font-size:11px; color:var(--text2); }
+.status-dot {
+  width:8px; height:8px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 8px var(--green);
+}
+
+/* ================================================================
+   MAIN AREA
+   ================================================================ */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+
+.topbar {
+  height:var(--topbar-h);
+  display:flex;
+  align-items:center;
+  padding:0 24px;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  gap:16px;
+  flex-shrink:0;
+}
+.page-title {
+  font-size:15px;
+  font-weight:700;
+  letter-spacing:-.3px;
+}
+.topbar-sub { font-size:12px; color:var(--text3); }
+.topbar-search {
+  margin-left:auto;
+  display:flex; align-items:center;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:7px 12px;
+  gap:8px;
+  width:220px;
+  transition:border-color .15s;
+}
+.topbar-search:focus-within { border-color:var(--accent); }
+.topbar-search input {
+  background:none; border:none; outline:none;
+  color:var(--text); font-size:13px;
+  width:100%; font-family:inherit;
+}
+.topbar-search input::placeholder { color:var(--text3); }
+.topbar-kbd {
+  font-size:10px;
+  color:var(--text3);
+  background:var(--border);
+  border-radius:3px;
+  padding:1px 5px;
+  font-family:inherit;
+  flex-shrink:0;
+}
+
+.icon-btn {
+  width:34px; height:34px;
+  border-radius:8px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:15px;
+  transition:all .15s;
+  position:relative;
+  color:var(--text2);
+  flex-shrink:0;
+}
+.icon-btn:hover { background:var(--surface3); color:var(--text); border-color:var(--border2); }
+.notif-dot {
+  position:absolute; top:5px; right:5px;
+  width:6px; height:6px;
+  background:var(--red);
+  border-radius:50%;
+  border:1.5px solid var(--surface);
+}
+
+/* BUTTONS */
+.btn {
+  font-size:12.5px; font-weight:500;
+  padding:8px 16px;
+  border-radius:8px;
+  cursor:pointer;
+  font-family:inherit;
+  border:none;
+  transition:all .15s;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
+.btn-primary {
+  background:var(--accent);
+  color:white;
+  box-shadow:0 1px 2px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.btn-primary:hover { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 12px rgba(99,102,241,.3); }
+.btn-ghost {
+  background:transparent;
+  color:var(--text2);
+  border:1px solid var(--border);
+}
+.btn-ghost:hover { background:var(--surface2); color:var(--text); border-color:var(--border2); }
+.btn-green { background:var(--green); color:var(--bg); font-weight:600; }
+.btn-green:hover { opacity:.9; }
+.btn-sm { font-size:11.5px; padding:5px 10px; }
+.btn-danger { background:var(--red-dim); color:var(--red); border:1px solid rgba(244,63,94,.2); }
+.btn-danger:hover { background:rgba(244,63,94,.2); }
+
+/* ================================================================
+   SCREENS
+   ================================================================ */
+.screen { display:none; flex:1; overflow:hidden; }
+.screen.active { display:flex; }
+.content-scroll { flex:1; overflow-y:auto; padding:24px; }
+
+/* SHARED COMPONENTS */
+.card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden;
+  transition:border-color .15s;
+}
+.card:hover { border-color:var(--border2); }
+.card-head {
+  padding:14px 18px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.card-title {
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.2px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+/* CHIPS & TAGS */
+.chip {
+  font-size:10px; font-weight:600;
+  padding:2px 8px;
+  border-radius:20px;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+}
+.chip-accent { background:var(--accent-glow); color:var(--accent); border:1px solid rgba(99,102,241,.2); }
+.chip-green { background:var(--green-dim); color:var(--green); border:1px solid rgba(52,211,153,.2); }
+.chip-orange { background:var(--orange-dim); color:var(--orange); border:1px solid rgba(251,146,60,.2); }
+.chip-red { background:var(--red-dim); color:var(--red); border:1px solid rgba(244,63,94,.2); }
+
+.tag {
+  font-size:10.5px; padding:3px 8px; border-radius:20px;
+  font-weight:500; display:inline-flex; align-items:center; gap:3px;
+}
+.tag-hot { background:rgba(244,63,94,.1); color:#fb7185; border:1px solid rgba(244,63,94,.2); }
+.tag-warm { background:rgba(251,146,60,.1); color:var(--orange); border:1px solid rgba(251,146,60,.2); }
+.tag-cold { background:rgba(99,102,241,.08); color:#818cf8; border:1px solid rgba(99,102,241,.15); }
+.tag-won { background:var(--green-dim); color:var(--green); border:1px solid rgba(52,211,153,.2); }
+.tag-price { background:rgba(52,211,153,.06); color:#6ee7b7; border:1px solid rgba(52,211,153,.12); }
+
+/* GLASS EFFECT */
+.glass {
+  background:var(--glass);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid var(--glass-border);
+}
+
+/* AVATARS */
+.av { border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:white; flex-shrink:0; }
+.av-sm { width:32px; height:32px; font-size:11px; }
+.av-md { width:38px; height:38px; font-size:13px; }
+.av-lg { width:46px; height:46px; font-size:16px; }
+.av-1{background:linear-gradient(135deg,#6366f1,#a78bfa);}
+.av-2{background:linear-gradient(135deg,#059669,#22d3ee);}
+.av-3{background:linear-gradient(135deg,#d97706,#f43f5e);}
+.av-4{background:linear-gradient(135deg,#a78bfa,#ec4899);}
+.av-5{background:linear-gradient(135deg,#22d3ee,#6366f1);}
+.av-6{background:linear-gradient(135deg,#e11d48,#a855f7);}
+
+/* EMPTY STATE */
+.empty-state {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:60px 40px;
+  text-align:center;
+}
+.empty-icon {
+  width:80px; height:80px;
+  border-radius:20px;
+  background:linear-gradient(135deg,var(--accent-glow),rgba(167,139,250,.08));
+  border:1px solid rgba(99,102,241,.15);
+  display:flex; align-items:center; justify-content:center;
+  font-size:32px;
+  margin-bottom:20px;
+  animation:glow 3s ease-in-out infinite;
+}
+.empty-title { font-size:16px; font-weight:600; margin-bottom:8px; }
+.empty-sub { font-size:13px; color:var(--text2); max-width:320px; line-height:1.6; margin-bottom:20px; }
+
+/* ================================================================
+   SCREEN 1 — OVERVIEW
+   ================================================================ */
+.stats-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+  margin-bottom:20px;
+}
+.stat-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px;
+  position:relative;
+  overflow:hidden;
+  cursor:default;
+  transition:border-color .15s, transform .15s;
+}
+.stat-card:hover { border-color:var(--border2); transform:translateY(-2px); }
+.stat-glow {
+  position:absolute;
+  top:0; left:0; right:0; height:2px;
+}
+.stat-label {
+  font-size:11px;
+  font-weight:500;
+  color:var(--text2);
+  letter-spacing:.5px;
+  margin-bottom:10px;
+  text-transform:uppercase;
+}
+.stat-val {
+  font-size:28px;
+  font-weight:800;
+  letter-spacing:-1.5px;
+  line-height:1;
+  margin-bottom:8px;
+  animation:countUp .4s ease-out;
+}
+.stat-delta {
+  font-size:11.5px;
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.up { color:var(--green); }
+.down { color:var(--red); }
+.stat-icon {
+  position:absolute;
+  top:16px; right:16px;
+  font-size:22px;
+  opacity:.08;
+}
+
+/* AI INSIGHT STRIP */
+.insight-strip {
+  background:linear-gradient(135deg,rgba(99,102,241,.06),rgba(167,139,250,.06));
+  border:1px solid rgba(99,102,241,.15);
+  border-radius:var(--radius);
+  padding:14px 18px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-bottom:20px;
+  cursor:pointer;
+  transition:all .2s;
+  position:relative;
+  overflow:hidden;
+}
+.insight-strip::before {
+  content:'';
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:3px;
+  background:var(--accent);
+  border-radius:0 2px 2px 0;
+}
+.insight-strip:hover { border-color:rgba(99,102,241,.3); background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(167,139,250,.08)); }
+.ins-sparkle { font-size:20px; flex-shrink:0; }
+.ins-text { flex:1; font-size:13px; color:var(--text2); line-height:1.5; }
+.ins-text strong { color:var(--text); font-weight:500; }
+.ins-action { color:var(--accent); font-size:12px; font-weight:500; white-space:nowrap; }
+
+/* Overview grid */
+.overview-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+}
+.overview-grid .card { margin-bottom:0; }
+
+.activity-row {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 18px;
+  border-bottom:1px solid var(--border);
+  transition:background .12s;
+  cursor:pointer;
+}
+.activity-row:last-child { border-bottom:none; }
+.activity-row:hover { background:rgba(255,255,255,.02); }
+.activity-text { flex:1; font-size:12.5px; color:var(--text2); }
+.activity-text strong { color:var(--text); font-weight:500; }
+.activity-time { font-size:11px; color:var(--text3); white-space:nowrap; }
+
+/* Mini pipeline */
+.pipeline-mini { display:flex; gap:8px; padding:14px; }
+.pcol { flex:1; min-width:0; }
+.pcol-head {
+  font-size:10px; font-weight:600;
+  color:var(--text2); text-transform:uppercase;
+  letter-spacing:.6px;
+  padding:6px 8px;
+  border-radius:6px;
+  margin-bottom:6px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.pcol-cnt {
+  font-size:9px; padding:2px 6px;
+  border-radius:10px;
+  background:var(--surface2); color:var(--text3);
+}
+.pitem {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:7px;
+  padding:10px;
+  margin-bottom:5px;
+  cursor:pointer;
+  transition:all .15s;
+}
+.pitem:hover { border-color:var(--border2); transform:translateY(-1px); }
+.pitem-name { font-size:12px; font-weight:500; margin-bottom:3px; }
+.pitem-val { font-size:11px; color:var(--text2); }
+
+/* ================================================================
+   SCREEN 2 — CONVERSATIONS
+   ================================================================ */
+.conv-layout { display:flex; flex:1; overflow:hidden; }
+
+/* Conversation list */
+.conv-list {
+  width:320px; flex-shrink:0;
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.conv-search { padding:14px; border-bottom:1px solid var(--border); }
+.conv-search-input {
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:9px 12px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+  outline:none;
+  transition:border-color .15s;
+}
+.conv-search-input:focus { border-color:var(--accent); }
+.conv-search-input::placeholder { color:var(--text3); }
+
+.conv-filters {
+  display:flex; gap:6px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  overflow-x:auto;
+}
+.conv-filter {
+  font-size:11px; font-weight:500;
+  padding:5px 12px;
+  border-radius:20px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s;
+  border:1px solid transparent;
+}
+.conv-filter.active { background:var(--accent); color:white; }
+.conv-filter:not(.active) { background:var(--surface2); color:var(--text2); border-color:var(--border); }
+.conv-filter:not(.active):hover { background:var(--surface3); color:var(--text); }
+
+.conv-items { flex:1; overflow-y:auto; }
+.conv-item {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+  cursor:pointer;
+  transition:background .12s;
+  position:relative;
+}
+.conv-item:hover { background:rgba(255,255,255,.015); }
+.conv-item.selected { background:rgba(99,102,241,.06); border-right:2px solid var(--accent); }
+.conv-item-body { flex:1; min-width:0; }
+.conv-item-row1 { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+.conv-item-name { font-size:13.5px; font-weight:500; }
+.conv-item-time { font-size:10.5px; color:var(--text3); }
+.conv-item-preview { font-size:12px; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:6px; }
+.conv-item-tags { display:flex; gap:4px; flex-wrap:wrap; }
+
+/* Chat detail */
+.conv-detail { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.conv-detail-header {
+  padding:14px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:14px;
+  flex-shrink:0;
+}
+.conv-detail-name { font-size:15px; font-weight:700; letter-spacing:-.3px; }
+.conv-detail-sub { font-size:11.5px; color:var(--text2); margin-top:2px; }
+.conv-detail-actions { margin-left:auto; display:flex; gap:8px; }
+
+.chat-area { flex:1; overflow-y:auto; padding:18px 20px; }
+.chat-date-sep {
+  text-align:center; font-size:10.5px; color:var(--text3);
+  margin:14px 0;
+  display:flex; align-items:center; gap:10px;
+}
+.chat-date-sep::before, .chat-date-sep::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.bubble { margin-bottom:10px; max-width:75%; animation:fadeUp .2s ease-out; }
+.bubble.bot { margin-left:0; }
+.bubble.user { margin-left:auto; }
+.bubble-inner {
+  padding:10px 14px;
+  border-radius:14px;
+  font-size:13px;
+  line-height:1.6;
+}
+.bubble.bot .bubble-inner {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-bottom-left-radius:4px;
+}
+.bubble.user .bubble-inner {
+  background:rgba(99,102,241,.12);
+  border:1px solid rgba(99,102,241,.2);
+  border-bottom-right-radius:4px;
+}
+.bubble-time { font-size:10px; color:var(--text3); margin-top:4px; padding:0 2px; }
+.bubble.user .bubble-time { text-align:right; }
+
+/* AI Memory badge on bot messages */
+.mem-badge {
+  background:rgba(99,102,241,.08);
+  border:1px solid rgba(99,102,241,.15);
+  border-radius:6px;
+  padding:4px 10px;
+  margin:4px 0 8px;
+  font-size:11px;
+  color:#818cf8;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+}
+
+/* Signal indicators */
+.signal-dot {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:10px;
+  padding:2px 7px;
+  border-radius:20px;
+  margin-left:6px;
+}
+.signal-interest { background:var(--green-dim); color:var(--green); }
+.signal-objection { background:var(--orange-dim); color:var(--orange); }
+.signal-risk { background:var(--red-dim); color:var(--red); }
+
+/* Chat input */
+.chat-input-area {
+  padding:14px 18px;
+  border-top:1px solid var(--border);
+  display:flex; gap:10px;
+  align-items:center;
+  flex-shrink:0;
+  background:var(--surface);
+}
+.chat-inp {
+  flex:1;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 14px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+  outline:none;
+  transition:border-color .15s;
+}
+.chat-inp:focus { border-color:var(--accent); }
+.chat-inp::placeholder { color:var(--text3); }
+.send-btn {
+  width:38px; height:38px;
+  background:var(--accent);
+  border-radius:10px;
+  border:none;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  color:white; font-size:16px;
+  transition:all .15s;
+  box-shadow:0 2px 8px rgba(99,102,241,.3);
+}
+.send-btn:hover { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 16px rgba(99,102,241,.4); }
+
+/* Customer intel panel */
+.conv-right {
+  width:280px; flex-shrink:0;
+  border-left:1px solid var(--border);
+  overflow-y:auto;
+  padding:18px;
+}
+.crm-section { margin-bottom:20px; }
+.crm-title {
+  font-size:10px; font-weight:600;
+  color:var(--text3); text-transform:uppercase;
+  letter-spacing:1px; margin-bottom:10px;
+}
+.crm-field { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.crm-key { font-size:12px; color:var(--text2); }
+.crm-val { font-size:12px; font-weight:500; }
+
+/* AI Memory panel in conversation */
+.ai-mem-card {
+  background:linear-gradient(135deg,rgba(99,102,241,.06),rgba(167,139,250,.06));
+  border:1px solid rgba(99,102,241,.15);
+  border-radius:var(--radius);
+  padding:14px;
+  margin-bottom:16px;
+}
+.ai-mem-header {
+  font-size:10px; font-weight:700;
+  color:var(--accent); text-transform:uppercase;
+  letter-spacing:1px; margin-bottom:10px;
+  display:flex; align-items:center; gap:6px;
+}
+.ai-mem-text { font-size:12.5px; color:var(--text2); line-height:1.6; }
+.ai-mem-text strong { color:var(--text); font-weight:500; }
+
+.mem-signal {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:9px 12px;
+  margin-bottom:6px;
+  font-size:11.5px;
+  color:var(--text2);
+  line-height:1.5;
+}
+.mem-signal strong { color:var(--text); font-weight:500; }
+.mem-signal-time { font-size:10px; color:var(--text3); margin-top:3px; }
+
+/* ================================================================
+   SCREEN 3 — PIPELINE (KANBAN)
+   ================================================================ */
+.pipeline-layout { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+.pipeline-topbar {
+  padding:16px 24px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:16px;
+  flex-shrink:0;
+}
+.pipeline-stats { display:flex; gap:24px; }
+.ps-item { text-align:center; }
+.ps-val { font-size:20px; font-weight:800; letter-spacing:-1px; }
+.ps-label { font-size:10.5px; color:var(--text2); }
+
+.kanban-board {
+  flex:1;
+  display:flex;
+  gap:14px;
+  padding:20px 24px;
+  overflow-x:auto;
+}
+.kanban-col {
+  width:260px; flex-shrink:0;
+  display:flex; flex-direction:column;
+}
+.kanban-col-head {
+  padding:10px 14px;
+  border-radius:var(--radius);
+  margin-bottom:10px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.kch-title { font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:1px; }
+.kch-cnt { font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
+.kch-val { font-size:11px; color:var(--text2); margin-left:auto; margin-right:8px; }
+
+.kanban-cards { flex:1; overflow-y:auto; padding-right:2px; }
+.kcard {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px;
+  margin-bottom:8px;
+  cursor:pointer;
+  transition:all .2s;
+}
+.kcard:hover {
+  border-color:var(--border2);
+  transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(0,0,0,.3);
+}
+.kcard-name { font-size:13.5px; font-weight:500; margin-bottom:2px; }
+.kcard-company { font-size:11.5px; color:var(--text2); margin-bottom:8px; }
+.kcard-val { font-size:17px; font-weight:800; letter-spacing:-.5px; margin-bottom:8px; }
+.kcard-tags { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:10px; }
+.kcard-footer { display:flex; align-items:center; justify-content:space-between; }
+.kcard-date { font-size:10.5px; color:var(--text3); }
+
+/* Win probability ring */
+.win-ring {
+  width:28px; height:28px;
+  position:relative;
+}
+.win-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+.win-ring circle { fill:none; stroke-width:3; }
+.win-ring .bg { stroke:var(--border); }
+.win-ring .fg { stroke:var(--green); stroke-linecap:round; transition:stroke-dashoffset .5s ease; }
+.win-ring .pct {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:8px; font-weight:700; color:var(--text2);
+}
+
+.add-card {
+  border:1px dashed var(--border2);
+  border-radius:var(--radius);
+  padding:12px;
+  text-align:center;
+  font-size:12px;
+  color:var(--text3);
+  cursor:pointer;
+  transition:all .15s;
+}
+.add-card:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ================================================================
+   SCREEN 4 — BROADCASTS
+   ================================================================ */
+.broadcasts-layout { display:flex; flex:1; overflow:hidden; }
+.bc-list-panel { flex:1; overflow-y:auto; padding:24px; }
+.bc-stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+.bc-stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.bc-stat-val { font-size:24px; font-weight:800; letter-spacing:-1px; margin-bottom:4px; }
+.bc-stat-label { font-size:11px; color:var(--text2); }
+
+.bc-list { display:flex; flex-direction:column; gap:10px; }
+.bc-item {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px 18px;
+  display:flex; align-items:center; gap:14px;
+  cursor:pointer;
+  transition:border-color .15s;
+}
+.bc-item:hover { border-color:var(--border2); }
+.bc-item-icon {
+  width:42px; height:42px;
+  border-radius:var(--radius);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+  flex-shrink:0;
+}
+.bc-item-body { flex:1; }
+.bc-item-title { font-size:13.5px; font-weight:500; margin-bottom:3px; }
+.bc-item-sub { font-size:12px; color:var(--text2); }
+.bc-item-metrics { display:flex; gap:16px; margin-top:8px; }
+.bc-metric { font-size:11.5px; color:var(--text2); }
+.bc-metric strong { color:var(--text); font-weight:500; }
+
+/* Compose panel */
+.bc-compose {
+  width:340px; flex-shrink:0;
+  border-left:1px solid var(--border);
+  padding:20px;
+  overflow-y:auto;
+}
+.compose-title { font-size:14px; font-weight:700; margin-bottom:16px; }
+.compose-area {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px;
+  margin-bottom:16px;
+}
+.compose-label {
+  font-size:10px; font-weight:600;
+  color:var(--text3); text-transform:uppercase;
+  letter-spacing:.8px; margin-bottom:8px;
+}
+.compose-textarea {
+  width:100%; background:none; border:none; outline:none;
+  color:var(--text); font-size:13px;
+  font-family:inherit;
+  resize:none; min-height:100px;
+  line-height:1.6;
+}
+.compose-textarea::placeholder { color:var(--text3); }
+
+/* ================================================================
+   SCREEN 5 — FOLLOW-UPS
+   ================================================================ */
+.followups-layout { flex:1; overflow-y:auto; padding:24px; }
+.fu-cards { display:flex; flex-direction:column; gap:10px; }
+.fu-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px 18px;
+  display:flex; align-items:flex-start; gap:14px;
+  cursor:pointer;
+  transition:border-color .15s;
+}
+.fu-card:hover { border-color:var(--border2); }
+.fu-card.urgent { border-left:3px solid var(--red); }
+.fu-card.due-soon { border-left:3px solid var(--orange); }
+.fu-card.upcoming { border-left:3px solid var(--accent); }
+.fu-card-body { flex:1; }
+.fu-card-row1 { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.fu-card-name { font-size:13.5px; font-weight:500; }
+.fu-card-context { font-size:12.5px; color:var(--text2); margin-bottom:8px; line-height:1.5; }
+.fu-card-insight {
+  font-size:11.5px; color:#818cf8;
+  background:rgba(99,102,241,.06);
+  border:1px solid rgba(99,102,241,.12);
+  border-radius:6px;
+  padding:6px 10px;
+  margin-bottom:8px;
+}
+.fu-card-actions { display:flex; gap:7px; }
+.fu-priority {
+  font-size:10px; font-weight:600;
+  padding:3px 9px; border-radius:20px;
+}
+
+/* ================================================================
+   SCREEN 6 — BOT CONFIG
+   ================================================================ */
+.config-layout { display:flex; flex:1; overflow:hidden; }
+.config-nav {
+  width:220px; flex-shrink:0;
+  border-right:1px solid var(--border);
+  padding:18px 12px;
+  overflow-y:auto;
+}
+.config-nav-item {
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border-radius:8px;
+  cursor:pointer; font-size:13px;
+  color:var(--text2); transition:all .15s;
+  margin-bottom:2px;
+}
+.config-nav-item:hover { background:var(--surface2); color:var(--text); }
+.config-nav-item.active { background:var(--accent-glow); color:var(--text); font-weight:500; }
+
+.config-content { flex:1; overflow-y:auto; padding:28px; }
+.config-section-title { font-size:18px; font-weight:700; margin-bottom:4px; letter-spacing:-.3px; }
+.config-section-sub { font-size:13px; color:var(--text2); margin-bottom:28px; }
+
+.form-group { margin-bottom:22px; }
+.form-label {
+  font-size:11.5px; font-weight:500;
+  color:var(--text2); text-transform:uppercase;
+  letter-spacing:.5px; margin-bottom:8px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.form-input {
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:10px 14px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+  outline:none;
+  transition:border-color .15s;
+}
+.form-input:focus { border-color:var(--accent); }
+.form-input::placeholder { color:var(--text3); }
+.form-textarea { resize:vertical; min-height:90px; line-height:1.6; }
+
+.toggle-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  margin-bottom:8px;
+}
+.toggle-info { flex:1; }
+.toggle-label { font-size:13px; font-weight:500; margin-bottom:2px; }
+.toggle-desc { font-size:11.5px; color:var(--text2); }
+.toggle {
+  width:42px; height:24px;
+  background:var(--border2);
+  border-radius:20px;
+  position:relative;
+  cursor:pointer;
+  transition:background .2s;
+  flex-shrink:0;
+}
+.toggle.on { background:var(--accent); }
+.toggle::after {
+  content:'';
+  position:absolute;
+  width:18px; height:18px;
+  background:white;
+  border-radius:50%;
+  top:3px; left:3px;
+  transition:transform .2s;
+}
+.toggle.on::after { transform:translateX(18px); }
+
+/* ================================================================
+   SCREEN 7 — SETTINGS
+   ================================================================ */
+.settings-layout { flex:1; overflow-y:auto; padding:28px; max-width:700px; }
+.settings-section { margin-bottom:32px; }
+.settings-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+.settings-sub { font-size:13px; color:var(--text2); margin-bottom:20px; }
+.connection-status {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 16px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  margin-bottom:12px;
+}
+.conn-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.conn-dot.connected { background:var(--green); box-shadow:0 0 10px var(--green-glow); }
+.conn-dot.disconnected { background:var(--red); }
+.conn-label { font-size:13px; font-weight:500; }
+.conn-detail { font-size:11.5px; color:var(--text2); margin-left:auto; }
+
+/* ================================================================
+   COMMAND PALETTE (CMD+K)
+   ================================================================ */
+.cmd-overlay {
+  display:none;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.6);
+  backdrop-filter:blur(4px);
+  z-index:100;
+  justify-content:center;
+  padding-top:20vh;
+}
+.cmd-overlay.open { display:flex; }
+.cmd-box {
+  width:520px;
+  max-height:400px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 24px 64px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.05);
+  animation:fadeUp .15s ease-out;
+}
+.cmd-input-wrap {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--border);
+}
+.cmd-input-wrap .search-icon { font-size:16px; color:var(--text3); }
+.cmd-input {
+  flex:1;
+  background:none; border:none; outline:none;
+  color:var(--text); font-size:15px;
+  font-family:inherit;
+}
+.cmd-input::placeholder { color:var(--text3); }
+.cmd-results { max-height:300px; overflow-y:auto; padding:6px; }
+.cmd-result {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  transition:background .1s;
+}
+.cmd-result:hover, .cmd-result.active { background:var(--accent-glow); }
+.cmd-result-icon { font-size:14px; color:var(--text2); width:20px; text-align:center; }
+.cmd-result-text { font-size:13.5px; }
+.cmd-result-sub { font-size:11px; color:var(--text3); margin-left:auto; }
+
+/* ================================================================
+   TOAST NOTIFICATIONS
+   ================================================================ */
+.toast-container {
+  position:fixed;
+  bottom:24px; right:24px;
+  z-index:200;
+  display:flex; flex-direction:column;
+  gap:8px;
+}
+.toast {
+  display:flex; align-items:center; gap:10px;
+  padding:12px 16px;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  animation:slideRight .3s ease-out;
+  min-width:280px;
+}
+.toast-icon { font-size:18px; }
+.toast-text { font-size:13px; flex:1; }
+.toast-close { cursor:pointer; color:var(--text3); font-size:14px; }
+
+/* ================================================================
+   ONBOARDING WIZARD
+   ================================================================ */
+.onboarding-overlay {
+  display:none;
+  position:fixed; inset:0;
+  background:var(--bg);
+  z-index:300;
+  justify-content:center; align-items:center;
+}
+.onboarding-overlay.open { display:flex; }
+.onboarding-box {
+  width:520px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:40px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+}
+.ob-progress {
+  display:flex; gap:6px; margin-bottom:32px;
+}
+.ob-step {
+  flex:1; height:3px;
+  background:var(--border);
+  border-radius:3px;
+  transition:background .3s;
+}
+.ob-step.done { background:var(--accent); }
+.ob-step.current { background:var(--accent); animation:glow 2s ease-in-out infinite; }
+.ob-title { font-size:22px; font-weight:700; margin-bottom:8px; letter-spacing:-.5px; }
+.ob-sub { font-size:14px; color:var(--text2); margin-bottom:28px; line-height:1.6; }
+.ob-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:28px; }
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+@media (max-width:1200px) {
+  .conv-right { display:none; }
+  .stats-grid { grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:900px) {
+  .sidebar { width:60px; }
+  .logo-text, .logo-tag, .nav-label, .nav-item span, .user-info, .nav-badge { display:none; }
+  .nav-item { justify-content:center; padding:10px; }
+  .logo { justify-content:center; padding:16px 10px; }
+  .user-card { justify-content:center; padding:8px; }
+  .overview-grid { grid-template-columns:1fr; }
+}
+@media (max-width:600px) {
+  .sidebar { display:none; }
+  .conv-list { width:100%; }
+  .conv-detail { display:none; }
+  .stats-grid { grid-template-columns:1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo" onclick="navigateTo('overview')">
+    <div class="logo-mark">👁</div>
+    <span class="logo-text">nazar</span>
+    <span class="logo-tag">AI</span>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Main</div>
+    <div class="nav-item active" data-screen="overview" onclick="navigateTo('overview')">
+      <span class="nav-icon">📊</span>
+      <span>Overview</span>
+    </div>
+    <div class="nav-item" data-screen="conversations" onclick="navigateTo('conversations')">
+      <span class="nav-icon">💬</span>
+      <span>Conversations</span>
+      <span class="nav-badge" id="unread-badge" style="display:none">0</span>
+    </div>
+    <div class="nav-item" data-screen="pipeline" onclick="navigateTo('pipeline')">
+      <span class="nav-icon">🎯</span>
+      <span>Pipeline</span>
+    </div>
+    <div class="nav-item" data-screen="broadcasts" onclick="navigateTo('broadcasts')">
+      <span class="nav-icon">📡</span>
+      <span>Broadcasts</span>
+    </div>
+    <div class="nav-item" data-screen="followups" onclick="navigateTo('followups')">
+      <span class="nav-icon">🔔</span>
+      <span>Follow-ups</span>
+      <span class="nav-badge green" id="followup-badge" style="display:none">0</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Setup</div>
+    <div class="nav-item" data-screen="botconfig" onclick="navigateTo('botconfig')">
+      <span class="nav-icon">🤖</span>
+      <span>Bot Config</span>
+    </div>
+    <div class="nav-item" data-screen="settings" onclick="navigateTo('settings')">
+      <span class="nav-icon">⚙️</span>
+      <span>Settings</span>
+    </div>
+  </div>
+
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-av">A</div>
+      <div class="user-info">
+        <div class="user-name">Admin</div>
+        <div class="user-role">Owner</div>
+      </div>
+      <div class="status-dot"></div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="page-title" id="page-title">Overview</span>
+    <span class="topbar-sub" id="page-sub"></span>
+    <div class="topbar-search" onclick="openCmdPalette()">
+      <span style="color:var(--text3)">🔍</span>
+      <input type="text" placeholder="Search or command..." readonly>
+      <span class="topbar-kbd">⌘K</span>
+    </div>
+    <div class="icon-btn" title="Notifications">
+      🔔
+      <div class="notif-dot" id="notif-dot" style="display:none"></div>
+    </div>
+    <button class="btn btn-primary" onclick="openAddContactModal()">+ Add Contact</button>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: OVERVIEW
+       ============================================================ -->
+  <div class="screen active" id="screen-overview">
+    <div class="content-scroll">
+      <!-- Stats -->
+      <div class="stats-grid" id="overview-stats">
+        <div class="stat-card fade-up d1">
+          <div class="stat-glow" style="background:linear-gradient(90deg,var(--accent),transparent)"></div>
+          <div class="stat-label">Active Leads</div>
+          <div class="stat-val" id="stat-leads">0</div>
+          <div class="stat-delta up"><span>↑</span> Active pipeline</div>
+          <div class="stat-icon">🎯</div>
+        </div>
+        <div class="stat-card fade-up d2">
+          <div class="stat-glow" style="background:linear-gradient(90deg,var(--green),transparent)"></div>
+          <div class="stat-label">Pipeline Value</div>
+          <div class="stat-val" id="stat-pipeline">₹0</div>
+          <div class="stat-delta up"><span>↑</span> In progress</div>
+          <div class="stat-icon">💰</div>
+        </div>
+        <div class="stat-card fade-up d3">
+          <div class="stat-glow" style="background:linear-gradient(90deg,var(--purple),transparent)"></div>
+          <div class="stat-label">Total Contacts</div>
+          <div class="stat-val" id="stat-contacts">0</div>
+          <div class="stat-delta"><span style="color:var(--text3)">—</span> All time</div>
+          <div class="stat-icon">👥</div>
+        </div>
+        <div class="stat-card fade-up d4">
+          <div class="stat-glow" style="background:linear-gradient(90deg,var(--cyan),transparent)"></div>
+          <div class="stat-label">Revenue Won</div>
+          <div class="stat-val" id="stat-revenue">₹0</div>
+          <div class="stat-delta up"><span>↑</span> Closed deals</div>
+          <div class="stat-icon">🏆</div>
+        </div>
+      </div>
+
+      <!-- AI Insight Strip -->
+      <div class="insight-strip fade-up d3" id="insight-strip">
+        <span class="ins-sparkle">✨</span>
+        <div class="ins-text" id="insight-text">
+          <strong>AI Insight:</strong> Loading insights...
+        </div>
+        <span class="ins-action">View →</span>
+      </div>
+
+      <!-- Grid: Activity + Pipeline mini -->
+      <div class="overview-grid">
+        <div class="card fade-up d4">
+          <div class="card-head">
+            <div class="card-title">🕐 Recent Activity</div>
+          </div>
+          <div id="activity-feed">
+            <div class="empty-state" style="padding:40px 20px">
+              <div style="font-size:24px;margin-bottom:8px;">🔇</div>
+              <div style="font-size:13px;color:var(--text3)">No activity yet</div>
+            </div>
+          </div>
+        </div>
+        <div class="card fade-up d5">
+          <div class="card-head">
+            <div class="card-title">📈 Pipeline</div>
+          </div>
+          <div class="pipeline-mini" id="pipeline-mini">
+            <div class="empty-state" style="padding:40px 20px">
+              <div style="font-size:24px;margin-bottom:8px;">📋</div>
+              <div style="font-size:13px;color:var(--text3)">No deals yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: CONVERSATIONS
+       ============================================================ -->
+  <div class="screen" id="screen-conversations">
+    <div class="conv-layout">
+      <div class="conv-list">
+        <div class="conv-search">
+          <input class="conv-search-input" type="text" placeholder="Search conversations..." id="conv-search" oninput="filterConversations()">
+        </div>
+        <div class="conv-filters">
+          <div class="conv-filter active" onclick="filterByType(this,'all')">All</div>
+          <div class="conv-filter" onclick="filterByType(this,'bot')">🤖 Bot</div>
+          <div class="conv-filter" onclick="filterByType(this,'human')">👤 Human</div>
+          <div class="conv-filter" onclick="filterByType(this,'unread')">● Unread</div>
+        </div>
+        <div class="conv-items" id="conv-list-items">
+          <div class="empty-state">
+            <div class="empty-icon">💬</div>
+            <div class="empty-title">No conversations yet</div>
+            <div class="empty-sub">When customers message you on WhatsApp, conversations will appear here.</div>
+          </div>
+        </div>
+      </div>
+      <div class="conv-detail" id="conv-detail">
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:14px;">
+          Select a conversation to view
+        </div>
+      </div>
+      <div class="conv-right" id="conv-right" style="display:none">
+        <!-- Customer intel panel — populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: PIPELINE
+       ============================================================ -->
+  <div class="screen" id="screen-pipeline">
+    <div class="pipeline-layout">
+      <div class="pipeline-topbar">
+        <div class="pipeline-stats" id="pipeline-stats"></div>
+        <div style="margin-left:auto;">
+          <button class="btn btn-primary" onclick="openAddContactModal()">+ Add Deal</button>
+        </div>
+      </div>
+      <div class="kanban-board" id="kanban-board"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: BROADCASTS
+       ============================================================ -->
+  <div class="screen" id="screen-broadcasts">
+    <div class="broadcasts-layout">
+      <div class="bc-list-panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <div style="font-size:18px;font-weight:700;">Broadcasts</div>
+          <button class="btn btn-primary">+ New Broadcast</button>
+        </div>
+        <div class="bc-stats-row">
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)">0</div><div class="bc-stat-label">Total Sent</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)">0%</div><div class="bc-stat-label">Delivery Rate</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)">0%</div><div class="bc-stat-label">Read Rate</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)">0%</div><div class="bc-stat-label">Reply Rate</div></div>
+        </div>
+        <div class="bc-list" id="broadcast-list">
+          <div class="empty-state">
+            <div class="empty-icon">📡</div>
+            <div class="empty-title">No broadcasts yet</div>
+            <div class="empty-sub">Send personalized messages to segments of your contacts. AI will use customer memory to personalize each message.</div>
+            <button class="btn btn-primary">Create First Broadcast</button>
+          </div>
+        </div>
+      </div>
+      <div class="bc-compose">
+        <div class="compose-title">Compose Broadcast</div>
+        <div class="compose-area">
+          <div class="compose-label">Message</div>
+          <textarea class="compose-textarea" placeholder="Type your broadcast message..." id="broadcast-message"></textarea>
+        </div>
+        <div class="compose-area">
+          <div class="compose-label">Target Audience</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Select pipeline stages to target</div>
+          <div id="broadcast-targets"></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="sendBroadcast()">
+          📡 Send Broadcast
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: FOLLOW-UPS
+       ============================================================ -->
+  <div class="screen" id="screen-followups">
+    <div class="followups-layout">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:18px;font-weight:700;">Follow-ups</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px;">Contacts that need attention</div>
+        </div>
+      </div>
+      <div class="fu-cards" id="followup-cards">
+        <div class="empty-state">
+          <div class="empty-icon">✅</div>
+          <div class="empty-title">All caught up!</div>
+          <div class="empty-sub">No follow-ups needed right now. Great job staying on top of your pipeline.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: BOT CONFIG
+       ============================================================ -->
+  <div class="screen" id="screen-botconfig">
+    <div class="config-layout">
+      <div class="config-nav">
+        <div class="config-nav-item active" onclick="showConfigSection(this,'persona')">
+          <span>🎭</span> <span>Persona</span>
+        </div>
+        <div class="config-nav-item" onclick="showConfigSection(this,'knowledge')">
+          <span>📚</span> <span>Knowledge Base</span>
+        </div>
+        <div class="config-nav-item" onclick="showConfigSection(this,'behavior')">
+          <span>⚡</span> <span>Behavior</span>
+        </div>
+      </div>
+      <div class="config-content" id="config-content">
+        <!-- Persona section -->
+        <div id="config-persona">
+          <div class="config-section-title">Bot Persona</div>
+          <div class="config-section-sub">Define how your AI assistant communicates with customers.</div>
+          <div class="form-group">
+            <div class="form-label">Business Name</div>
+            <input class="form-input" type="text" placeholder="Your business name" id="config-business-name">
+          </div>
+          <div class="form-group">
+            <div class="form-label">Welcome Message</div>
+            <textarea class="form-input form-textarea" placeholder="First message sent to new contacts" id="config-welcome"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Bot Tone</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <div class="conv-filter active" onclick="selectTone(this)" data-tone="professional">Professional</div>
+              <div class="conv-filter" onclick="selectTone(this)" data-tone="friendly">Friendly</div>
+              <div class="conv-filter" onclick="selectTone(this)" data-tone="casual">Casual</div>
+            </div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Auto-reply</div>
+              <div class="toggle-desc">Bot automatically responds to incoming messages</div>
+            </div>
+            <div class="toggle on" id="toggle-autoreply" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Smart Handoff</div>
+              <div class="toggle-desc">Bot detects when to transfer to a human agent</div>
+            </div>
+            <div class="toggle on" id="toggle-handoff" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div style="margin-top:20px;">
+            <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+          </div>
+        </div>
+
+        <!-- Knowledge Base section (hidden by default) -->
+        <div id="config-knowledge" style="display:none">
+          <div class="config-section-title">Knowledge Base</div>
+          <div class="config-section-sub">Upload your product info, FAQs, and pricing. The bot uses this to answer customer questions.</div>
+          <div class="form-group">
+            <div class="form-label">Knowledge Content <span style="font-weight:400;text-transform:none;color:var(--text3)">Paste your product info, FAQ, pricing etc.</span></div>
+            <textarea class="form-input form-textarea" style="min-height:250px;" placeholder="Paste your product information, pricing, FAQs here..." id="kb-content"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="saveKnowledgeBase()">💾 Save Knowledge Base</button>
+        </div>
+
+        <!-- Behavior section (hidden by default) -->
+        <div id="config-behavior" style="display:none">
+          <div class="config-section-title">Bot Behavior</div>
+          <div class="config-section-sub">Fine-tune how the AI responds in different scenarios.</div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Memory Recall</div>
+              <div class="toggle-desc">Bot references past conversations with each customer</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Signal Detection</div>
+              <div class="toggle-desc">Detect buying signals, objections, and intent from messages</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">Auto Lead Scoring</div>
+              <div class="toggle-desc">Automatically adjust lead scores based on conversation signals</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: SETTINGS
+       ============================================================ -->
+  <div class="screen" id="screen-settings">
+    <div class="settings-layout">
+      <div class="settings-section">
+        <div class="settings-title">WhatsApp Connection</div>
+        <div class="settings-sub">Connect your WhatsApp Business API to start receiving messages.</div>
+        <div class="connection-status" id="wa-connection">
+          <div class="conn-dot disconnected" id="wa-dot"></div>
+          <span class="conn-label" id="wa-status">Not Connected</span>
+          <span class="conn-detail" id="wa-detail"></span>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Phone Number ID</div>
+          <input class="form-input" type="text" placeholder="Your WhatsApp Phone Number ID" id="settings-phone-id">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Access Token</div>
+          <input class="form-input" type="password" placeholder="WhatsApp Cloud API access token" id="settings-token">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Webhook URL</div>
+          <div class="connection-status" style="margin-bottom:0;">
+            <span class="conn-label" style="font-family:monospace;font-size:12px;color:var(--text2);" id="webhook-url">Configure your server URL</span>
+            <button class="btn btn-sm btn-ghost" onclick="copyWebhookUrl()">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-title">API Key</div>
+        <div class="settings-sub">Use this key to authenticate dashboard API requests.</div>
+        <div class="form-group">
+          <div class="form-label">Nazar API Key</div>
+          <input class="form-input" type="text" value="" id="settings-api-key" readonly style="font-family:monospace;font-size:12px;">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div class="cmd-overlay" id="cmd-palette" onclick="if(event.target===this)closeCmdPalette()">
+  <div class="cmd-box">
+    <div class="cmd-input-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="cmd-input" type="text" placeholder="Search contacts, actions..." id="cmd-input" oninput="searchCmd(this.value)">
+    </div>
+    <div class="cmd-results" id="cmd-results">
+      <div class="cmd-result" onclick="navigateTo('overview');closeCmdPalette()">
+        <span class="cmd-result-icon">📊</span>
+        <span class="cmd-result-text">Go to Overview</span>
+        <span class="cmd-result-sub">Dashboard</span>
+      </div>
+      <div class="cmd-result" onclick="navigateTo('conversations');closeCmdPalette()">
+        <span class="cmd-result-icon">💬</span>
+        <span class="cmd-result-text">Go to Conversations</span>
+        <span class="cmd-result-sub">Messages</span>
+      </div>
+      <div class="cmd-result" onclick="navigateTo('pipeline');closeCmdPalette()">
+        <span class="cmd-result-icon">🎯</span>
+        <span class="cmd-result-text">Go to Pipeline</span>
+        <span class="cmd-result-sub">Deals</span>
+      </div>
+      <div class="cmd-result" onclick="openAddContactModal();closeCmdPalette()">
+        <span class="cmd-result-icon">➕</span>
+        <span class="cmd-result-text">Add New Contact</span>
+        <span class="cmd-result-sub">Action</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ADD CONTACT MODAL -->
+<div class="cmd-overlay" id="add-contact-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="cmd-box" style="max-height:500px;">
+    <div class="cmd-input-wrap">
+      <span class="search-icon">👤</span>
+      <span style="font-size:15px;font-weight:600;">Add New Contact</span>
+    </div>
+    <div style="padding:20px;">
+      <div class="form-group">
+        <div class="form-label">Name</div>
+        <input class="form-input" type="text" placeholder="Contact name" id="add-name">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Phone Number</div>
+        <input class="form-input" type="text" placeholder="+91 98765 43210" id="add-phone">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Company</div>
+        <input class="form-input" type="text" placeholder="Company name (optional)" id="add-company">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Deal Value (₹)</div>
+        <input class="form-input" type="number" placeholder="0" id="add-deal-value">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="document.getElementById('add-contact-modal').classList.remove('open')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNewContact()">Add Contact</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   NAZAR FRONTEND — Vanilla JS Dashboard
+   ================================================================ */
+
+// CONFIG
+const API_BASE = window.location.origin;
+const API_KEY = 'nazar_dev_key'; // Default dev key
+const HEADERS = { 'Content-Type':'application/json', 'X-Nazar-Key':API_KEY };
+const STAGES = ['New','Qualified','Proposal','Negotiation','Won','Lost'];
+const STAGE_COLORS = {
+  'New':'var(--accent)','Qualified':'var(--orange)','Proposal':'var(--purple)',
+  'Negotiation':'var(--cyan)','Won':'var(--green)','Lost':'var(--red)',
+};
+
+// STATE
+let currentScreen = 'overview';
+let contacts = [];
+let conversations = [];
+let selectedConvId = null;
+let followups = [];
+
+// ================================================================
+//  NAVIGATION
+// ================================================================
+function navigateTo(screen) {
+  currentScreen = screen;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = document.getElementById('screen-' + screen);
+  if (el) el.classList.add('active');
+  const nav = document.querySelector(`.nav-item[data-screen="${screen}"]`);
+  if (nav) nav.classList.add('active');
+
+  const titles = {
+    overview:'Overview', conversations:'Conversations', pipeline:'Pipeline',
+    broadcasts:'Broadcasts', followups:'Follow-ups', botconfig:'Bot Config',
+    settings:'Settings'
+  };
+  document.getElementById('page-title').textContent = titles[screen] || screen;
+
+  // Load data for the screen
+  if (screen === 'overview') loadOverview();
+  else if (screen === 'conversations') loadConversations();
+  else if (screen === 'pipeline') loadPipeline();
+  else if (screen === 'followups') loadFollowups();
+  else if (screen === 'botconfig') loadConfig();
+  else if (screen === 'settings') loadSettings();
+}
+
+// ================================================================
+//  API CALLS
+// ================================================================
+async function api(method, path, body = null) {
+  try {
+    const opts = { method, headers: HEADERS };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(API_BASE + path, opts);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail || `API error ${resp.status}`);
+    }
+    return await resp.json();
+  } catch(e) {
+    console.error(`API ${method} ${path}:`, e);
+    throw e;
+  }
+}
+
+// ================================================================
+//  OVERVIEW
+// ================================================================
+async function loadOverview() {
+  try {
+    const data = await api('GET', '/api/overview');
+    const s = data.stats;
+    document.getElementById('stat-leads').textContent = s.active_leads;
+    document.getElementById('stat-pipeline').textContent = formatCurrency(s.pipeline_value);
+    document.getElementById('stat-contacts').textContent = s.total_contacts;
+    document.getElementById('stat-revenue').textContent = formatCurrency(s.total_revenue);
+
+    // Activity feed
+    const feed = document.getElementById('activity-feed');
+    if (data.recent_contacts && data.recent_contacts.length > 0) {
+      feed.innerHTML = data.recent_contacts.map(c => `
+        <div class="activity-row" onclick="navigateTo('conversations')">
+          <div class="av av-sm av-${hashColor(c.name)}">${initials(c.name)}</div>
+          <div class="activity-text"><strong>${esc(c.name||'Unknown')}</strong> · ${c.stage} ${c.deal_value?'· '+formatCurrency(c.deal_value):''}</div>
+          <span class="activity-time">${timeAgo(c.last_replied_at)}</span>
+        </div>
+      `).join('');
+    }
+
+    // Pipeline mini
+    const pmini = document.getElementById('pipeline-mini');
+    const pipeline = data.pipeline;
+    if (pipeline && Object.keys(pipeline).length > 0) {
+      pmini.innerHTML = STAGES.filter(s=>s!=='Lost').map(stage => {
+        const st = pipeline[stage] || {count:0};
+        return `<div class="pcol">
+          <div class="pcol-head">${stage} <span class="pcol-cnt">${st.count||0}</span></div>
+        </div>`;
+      }).join('');
+    }
+
+    // AI Insight
+    generateInsight(data);
+  } catch(e) {
+    console.error('Load overview failed:', e);
+  }
+}
+
+function generateInsight(data) {
+  const strip = document.getElementById('insight-text');
+  const s = data.stats;
+  if (s.active_leads === 0) {
+    strip.innerHTML = '<strong>Getting started:</strong> Add your first contact to begin building your sales pipeline.';
+  } else if (s.pipeline_value > 0) {
+    strip.innerHTML = `<strong>Pipeline health:</strong> You have <strong>${s.active_leads} active leads</strong> worth <strong>${formatCurrency(s.pipeline_value)}</strong> in your pipeline.`;
+  } else {
+    strip.innerHTML = `<strong>Tip:</strong> Add deal values to your contacts to track pipeline revenue.`;
+  }
+}
+
+// ================================================================
+//  CONVERSATIONS
+// ================================================================
+async function loadConversations() {
+  try {
+    const data = await api('GET', '/api/conversations');
+    conversations = data.conversations || [];
+    renderConversationList(conversations);
+  } catch(e) {
+    console.error('Load conversations failed:', e);
+  }
+}
+
+function renderConversationList(list) {
+  const el = document.getElementById('conv-list-items');
+  if (list.length === 0) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">💬</div>
+      <div class="empty-title">No conversations yet</div>
+      <div class="empty-sub">When customers message you on WhatsApp, conversations will appear here.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = list.map(c => `
+    <div class="conv-item ${selectedConvId===c.contact_id?'selected':''}" onclick="selectConversation('${c.contact_id}')">
+      <div class="av av-sm av-${hashColor(c.name)}">${initials(c.name)}</div>
+      <div class="conv-item-body">
+        <div class="conv-item-row1">
+          <span class="conv-item-name">${esc(c.name||'Unknown')}</span>
+          <span class="conv-item-time">${timeAgo(c.last_time)}</span>
+        </div>
+        <div class="conv-item-preview">${esc(c.last_message||'No messages')}</div>
+        <div class="conv-item-tags">
+          <span class="tag tag-${c.stage==='Won'?'won':c.lead_score>60?'hot':c.lead_score>30?'warm':'cold'}">${c.stage}</span>
+          ${c.bot_mode?'':'<span class="tag tag-warm">👤 Human</span>'}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function selectConversation(contactId) {
+  selectedConvId = contactId;
+  renderConversationList(conversations);
+
+  try {
+    const data = await api('GET', `/api/conversations/${contactId}?days=30`);
+    renderConversationDetail(data);
+    renderConversationIntel(data);
+  } catch(e) {
+    console.error('Load conversation failed:', e);
+  }
+}
+
+function renderConversationDetail(data) {
+  const c = data.contact;
+  const msgs = data.messages || [];
+  const botMode = data.bot_mode;
+
+  const detail = document.getElementById('conv-detail');
+  detail.innerHTML = `
+    <div class="conv-detail-header">
+      <div class="av av-md av-${hashColor(c.name)}">${initials(c.name)}</div>
+      <div>
+        <div class="conv-detail-name">${esc(c.name||'Unknown')}</div>
+        <div class="conv-detail-sub">${esc(c.phone)} · ${c.pipeline_stage}</div>
+      </div>
+      <div class="conv-detail-actions">
+        <button class="btn btn-sm ${botMode?'btn-ghost':'btn-primary'}" onclick="toggleBot('${c.contact_id}',${!botMode})">
+          ${botMode?'🤖 Bot Active':'👤 Human Mode'}
+        </button>
+        <div class="icon-btn" title="View Memory" onclick="navigateTo('pipeline')">🧠</div>
+      </div>
+    </div>
+    <div class="chat-area" id="chat-messages">
+      ${msgs.length===0?'<div style="text-align:center;color:var(--text3);padding:40px;">No messages yet</div>':''}
+      ${msgs.map(m => `
+        <div class="bubble ${m.direction==='inbound'?'user':'bot'}">
+          <div class="bubble-inner">${esc(m.content)}</div>
+          ${m.sent_by==='bot'&&m.direction==='outbound'?'<div class="mem-badge">🧠 AI Memory Used</div>':''}
+          <div class="bubble-time">${formatTime(m.timestamp)} ${m.sent_by?'· '+m.sent_by:''}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="chat-input-area">
+      <input class="chat-inp" type="text" placeholder="Type a message..." id="chat-input" onkeydown="if(event.key==='Enter')sendChatMessage('${c.contact_id}')">
+      <button class="send-btn" onclick="sendChatMessage('${c.contact_id}')">➤</button>
+    </div>
+  `;
+
+  // Scroll to bottom
+  const chatArea = document.getElementById('chat-messages');
+  if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function renderConversationIntel(data) {
+  const c = data.contact;
+  const mem = data.memory || {};
+  const rightPanel = document.getElementById('conv-right');
+  rightPanel.style.display = 'block';
+
+  rightPanel.innerHTML = `
+    <div class="ai-mem-card">
+      <div class="ai-mem-header">🧠 AI Memory</div>
+      <div class="ai-mem-text">
+        ${mem.total_embeddings?`<strong>${mem.total_embeddings}</strong> memories stored for this customer.`:'No memory data yet. Conversations will build the memory automatically.'}
+      </div>
+    </div>
+    <div class="crm-section">
+      <div class="crm-title">Contact Details</div>
+      <div class="crm-field"><span class="crm-key">Stage</span><span class="crm-val">${c.pipeline_stage}</span></div>
+      <div class="crm-field"><span class="crm-key">Deal Value</span><span class="crm-val">${formatCurrency(c.deal_value||0)}</span></div>
+      <div class="crm-field"><span class="crm-key">Lead Score</span><span class="crm-val">${c.lead_score||0}/100</span></div>
+      <div class="crm-field"><span class="crm-key">Company</span><span class="crm-val">${esc(c.company||'—')}</span></div>
+      <div class="crm-field"><span class="crm-key">Source</span><span class="crm-val">${esc(c.source||'—')}</span></div>
+      <div class="crm-field"><span class="crm-key">Messages</span><span class="crm-val">${c.total_messages||0}</span></div>
+    </div>
+    ${c.tags&&c.tags.length?`
+    <div class="crm-section">
+      <div class="crm-title">Tags</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        ${c.tags.map(t=>`<span class="chip chip-accent">${esc(t)}</span>`).join('')}
+      </div>
+    </div>`:''}
+    <div class="crm-section">
+      <div class="crm-title">Quick Actions</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Qualified')">Move to Qualified</button>
+        <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
+        <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
+      </div>
+    </div>
+  `;
+}
+
+async function sendChatMessage(contactId) {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  try {
+    await api('POST', `/api/conversations/${contactId}/send`, { message: msg });
+    showToast('✅', 'Message sent');
+    selectConversation(contactId);
+  } catch(e) {
+    showToast('❌', 'Failed to send: ' + e.message);
+  }
+}
+
+async function toggleBot(contactId, botOn) {
+  try {
+    await api('POST', `/api/conversations/${contactId}/handover`, { bot_mode: botOn });
+    showToast('🤖', botOn ? 'Bot activated' : 'Human mode activated');
+    selectConversation(contactId);
+  } catch(e) {
+    showToast('❌', 'Failed: ' + e.message);
+  }
+}
+
+async function moveContactStage(contactId, stage) {
+  try {
+    await api('PATCH', `/api/pipeline/${contactId}/move`, { stage });
+    showToast('🎯', `Moved to ${stage}`);
+    if (selectedConvId === contactId) selectConversation(contactId);
+  } catch(e) {
+    showToast('❌', 'Failed: ' + e.message);
+  }
+}
+
+function filterConversations() {
+  const q = document.getElementById('conv-search').value.toLowerCase();
+  const filtered = conversations.filter(c =>
+    (c.name||'').toLowerCase().includes(q) ||
+    (c.phone||'').includes(q) ||
+    (c.last_message||'').toLowerCase().includes(q)
+  );
+  renderConversationList(filtered);
+}
+
+function filterByType(el, type) {
+  document.querySelectorAll('.conv-filter').forEach(f => f.classList.remove('active'));
+  el.classList.add('active');
+  // Filter logic (simplified for MVP)
+  renderConversationList(conversations);
+}
+
+// ================================================================
+//  PIPELINE
+// ================================================================
+async function loadPipeline() {
+  try {
+    const data = await api('GET', '/api/pipeline');
+    renderPipeline(data);
+  } catch(e) {
+    console.error('Load pipeline failed:', e);
+  }
+}
+
+function renderPipeline(data) {
+  const board = document.getElementById('kanban-board');
+  const stages = data.stages || STAGES;
+  const pipeline = data.pipeline || {};
+
+  // Stats
+  const stats = document.getElementById('pipeline-stats');
+  let totalDeals = 0, totalValue = 0;
+  stages.forEach(s => { const d = pipeline[s]; if(d){ totalDeals+=d.count; totalValue+=d.total_value; }});
+  stats.innerHTML = `
+    <div class="ps-item"><div class="ps-val">${totalDeals}</div><div class="ps-label">Total Deals</div></div>
+    <div class="ps-item"><div class="ps-val">${formatCurrency(totalValue)}</div><div class="ps-label">Pipeline Value</div></div>
+  `;
+
+  // Kanban columns
+  board.innerHTML = stages.map(stage => {
+    const d = pipeline[stage] || { contacts:[], count:0, total_value:0 };
+    const color = STAGE_COLORS[stage] || 'var(--text2)';
+    return `
+      <div class="kanban-col">
+        <div class="kanban-col-head" style="background:${color}11;border:1px solid ${color}22;">
+          <span class="kch-title" style="color:${color}">${stage}</span>
+          <span class="kch-val">${formatCurrency(d.total_value)}</span>
+          <span class="kch-cnt" style="background:${color}22;color:${color}">${d.count}</span>
+        </div>
+        <div class="kanban-cards">
+          ${d.contacts.map(c => `
+            <div class="kcard" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${c.contact_id}'),100)">
+              <div class="kcard-name">${esc(c.name||'Unknown')}</div>
+              <div class="kcard-company">${esc(c.company||c.phone)}</div>
+              <div class="kcard-val">${formatCurrency(c.deal_value||0)}</div>
+              <div class="kcard-tags">
+                ${c.lead_score>60?'<span class="tag tag-hot">🔥 Hot</span>':c.lead_score>30?'<span class="tag tag-warm">Warm</span>':'<span class="tag tag-cold">Cold</span>'}
+              </div>
+              <div class="kcard-footer">
+                <span class="kcard-date">${timeAgo(c.last_contacted_at||c.created_at)}</span>
+                ${renderWinRing(c.lead_score||0)}
+              </div>
+            </div>
+          `).join('')}
+          <div class="add-card" onclick="openAddContactModal()">+ Add Deal</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderWinRing(score) {
+  const circumference = 2 * Math.PI * 10;
+  const offset = circumference - (score/100) * circumference;
+  return `<div class="win-ring">
+    <svg viewBox="0 0 24 24"><circle class="bg" cx="12" cy="12" r="10"/><circle class="fg" cx="12" cy="12" r="10" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/></svg>
+    <div class="pct">${score}</div>
+  </div>`;
+}
+
+// ================================================================
+//  FOLLOW-UPS
+// ================================================================
+async function loadFollowups() {
+  try {
+    const data = await api('GET', '/api/followups');
+    followups = data.followups || [];
+    renderFollowups(followups);
+    // Update badge
+    const badge = document.getElementById('followup-badge');
+    if (followups.length > 0) {
+      badge.style.display = 'flex';
+      badge.textContent = followups.length;
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {
+    console.error('Load followups failed:', e);
+  }
+}
+
+function renderFollowups(list) {
+  const el = document.getElementById('followup-cards');
+  if (list.length === 0) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">✅</div>
+      <div class="empty-title">All caught up!</div>
+      <div class="empty-sub">No follow-ups needed right now.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = list.map(f => {
+    const urgency = f.priority === 'high' ? 'urgent' : f.priority === 'medium' ? 'due-soon' : 'upcoming';
+    const pColor = f.priority === 'high' ? 'var(--red)' : f.priority === 'medium' ? 'var(--orange)' : 'var(--accent)';
+    return `
+      <div class="fu-card ${urgency}">
+        <div class="av av-md av-${hashColor(f.name)}">${initials(f.name)}</div>
+        <div class="fu-card-body">
+          <div class="fu-card-row1">
+            <span class="fu-card-name">${esc(f.name||'Unknown')}</span>
+            <span class="fu-priority" style="background:${pColor}15;color:${pColor};border:1px solid ${pColor}30;">${f.priority}</span>
+          </div>
+          <div class="fu-card-context">${f.stage} · ${formatCurrency(f.deal_value||0)} · Last contact: ${f.days_since_contact} days ago</div>
+          <div class="fu-card-insight">💡 Consider reaching out — it's been ${f.days_since_contact} days since the last interaction.</div>
+          <div class="fu-card-actions">
+            <button class="btn btn-sm btn-primary" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${f.contact_id}'),100)">💬 Message</button>
+            <button class="btn btn-sm btn-ghost" onclick="moveContactStage('${f.contact_id}','Qualified')">Move Stage</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ================================================================
+//  BOT CONFIG
+// ================================================================
+function showConfigSection(el, section) {
+  document.querySelectorAll('.config-nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('#config-content > div').forEach(d => d.style.display = 'none');
+  document.getElementById('config-' + section).style.display = 'block';
+}
+
+async function loadConfig() {
+  try {
+    const data = await api('GET', '/api/config');
+    document.getElementById('config-business-name').value = data.business_name || '';
+    document.getElementById('config-welcome').value = data.welcome_message || '';
+  } catch(e) {}
+  try {
+    const kb = await api('GET', '/api/kb');
+    document.getElementById('kb-content').value = kb.content || '';
+  } catch(e) {}
+}
+
+async function saveConfig() {
+  try {
+    await api('PUT', '/api/config', {
+      business_name: document.getElementById('config-business-name').value,
+      welcome_message: document.getElementById('config-welcome').value,
+      bot_enabled: document.getElementById('toggle-autoreply').classList.contains('on'),
+    });
+    showToast('✅', 'Configuration saved');
+  } catch(e) {
+    showToast('❌', 'Failed to save: ' + e.message);
+  }
+}
+
+async function saveKnowledgeBase() {
+  try {
+    const content = document.getElementById('kb-content').value;
+    await api('POST', '/api/kb/upload', { content });
+    showToast('✅', `Knowledge base saved (${content.length} chars)`);
+  } catch(e) {
+    showToast('❌', 'Failed to save: ' + e.message);
+  }
+}
+
+function selectTone(el) {
+  document.querySelectorAll('[data-tone]').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ================================================================
+//  SETTINGS
+// ================================================================
+async function loadSettings() {
+  try {
+    const data = await api('GET', '/health');
+    if (data.whatsapp_configured) {
+      document.getElementById('wa-dot').className = 'conn-dot connected';
+      document.getElementById('wa-status').textContent = 'Connected';
+    }
+    document.getElementById('webhook-url').textContent = window.location.origin + '/webhook';
+  } catch(e) {}
+}
+
+function copyWebhookUrl() {
+  navigator.clipboard.writeText(window.location.origin + '/webhook');
+  showToast('📋', 'Webhook URL copied');
+}
+
+// ================================================================
+//  ADD CONTACT
+// ================================================================
+function openAddContactModal() {
+  document.getElementById('add-contact-modal').classList.add('open');
+  setTimeout(() => document.getElementById('add-name').focus(), 100);
+}
+
+async function submitNewContact() {
+  const name = document.getElementById('add-name').value.trim();
+  const phone = document.getElementById('add-phone').value.trim();
+  const company = document.getElementById('add-company').value.trim();
+  const dealValue = parseInt(document.getElementById('add-deal-value').value) || 0;
+
+  if (!phone) { showToast('⚠️','Phone number is required'); return; }
+
+  try {
+    const data = await api('POST', '/api/contacts', { name, phone, company, deal_value: dealValue });
+    showToast('✅', `${name||'Contact'} added`);
+    document.getElementById('add-contact-modal').classList.remove('open');
+    document.getElementById('add-name').value = '';
+    document.getElementById('add-phone').value = '';
+    document.getElementById('add-company').value = '';
+    document.getElementById('add-deal-value').value = '';
+    // Refresh current screen
+    navigateTo(currentScreen);
+  } catch(e) {
+    showToast('❌', e.message);
+  }
+}
+
+// ================================================================
+//  BROADCAST
+// ================================================================
+async function sendBroadcast() {
+  const msg = document.getElementById('broadcast-message').value.trim();
+  if (!msg) { showToast('⚠️','Write a message first'); return; }
+  try {
+    const result = await api('POST', '/api/broadcasts', { message: msg });
+    showToast('📡', `Broadcast sent to ${result.sent} contacts`);
+  } catch(e) {
+    showToast('❌', e.message);
+  }
+}
+
+// ================================================================
+//  COMMAND PALETTE
+// ================================================================
+function openCmdPalette() {
+  document.getElementById('cmd-palette').classList.add('open');
+  setTimeout(() => document.getElementById('cmd-input').focus(), 50);
+}
+function closeCmdPalette() {
+  document.getElementById('cmd-palette').classList.remove('open');
+  document.getElementById('cmd-input').value = '';
+}
+
+async function searchCmd(query) {
+  const results = document.getElementById('cmd-results');
+  if (!query) {
+    // Default results
+    results.innerHTML = `
+      <div class="cmd-result" onclick="navigateTo('overview');closeCmdPalette()"><span class="cmd-result-icon">📊</span><span class="cmd-result-text">Go to Overview</span><span class="cmd-result-sub">Dashboard</span></div>
+      <div class="cmd-result" onclick="navigateTo('conversations');closeCmdPalette()"><span class="cmd-result-icon">💬</span><span class="cmd-result-text">Go to Conversations</span><span class="cmd-result-sub">Messages</span></div>
+      <div class="cmd-result" onclick="navigateTo('pipeline');closeCmdPalette()"><span class="cmd-result-icon">🎯</span><span class="cmd-result-text">Go to Pipeline</span><span class="cmd-result-sub">Deals</span></div>
+      <div class="cmd-result" onclick="openAddContactModal();closeCmdPalette()"><span class="cmd-result-icon">➕</span><span class="cmd-result-text">Add New Contact</span><span class="cmd-result-sub">Action</span></div>
+    `;
+    return;
+  }
+
+  const q = query.toLowerCase();
+  let items = [];
+
+  // Search contacts
+  try {
+    const data = await api('GET', '/api/contacts');
+    const matches = (data.contacts||[]).filter(c =>
+      (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)
+    ).slice(0, 5);
+    matches.forEach(c => {
+      items.push(`<div class="cmd-result" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${c.contact_id}'),100);closeCmdPalette()">
+        <span class="cmd-result-icon">👤</span>
+        <span class="cmd-result-text">${esc(c.name||c.phone)}</span>
+        <span class="cmd-result-sub">${c.pipeline_stage}</span>
+      </div>`);
+    });
+  } catch(e) {}
+
+  // Navigation results
+  const navItems = [
+    {name:'Overview',screen:'overview',icon:'📊'},
+    {name:'Conversations',screen:'conversations',icon:'💬'},
+    {name:'Pipeline',screen:'pipeline',icon:'🎯'},
+    {name:'Broadcasts',screen:'broadcasts',icon:'📡'},
+    {name:'Follow-ups',screen:'followups',icon:'🔔'},
+    {name:'Bot Config',screen:'botconfig',icon:'🤖'},
+    {name:'Settings',screen:'settings',icon:'⚙️'},
+  ].filter(n => n.name.toLowerCase().includes(q));
+  navItems.forEach(n => {
+    items.push(`<div class="cmd-result" onclick="navigateTo('${n.screen}');closeCmdPalette()">
+      <span class="cmd-result-icon">${n.icon}</span>
+      <span class="cmd-result-text">Go to ${n.name}</span>
+      <span class="cmd-result-sub">Navigate</span>
+    </div>`);
+  });
+
+  results.innerHTML = items.length ? items.join('') : '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">No results found</div>';
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openCmdPalette();
+  }
+  if (e.key === 'Escape') {
+    closeCmdPalette();
+    document.getElementById('add-contact-modal').classList.remove('open');
+  }
+});
+
+// ================================================================
+//  TOAST NOTIFICATIONS
+// ================================================================
+function showToast(icon, text, duration = 3000) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-text">${esc(text)}</span><span class="toast-close" onclick="this.parentElement.remove()">✕</span>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), duration);
+}
+
+// ================================================================
+//  UTILITIES
+// ================================================================
+function formatCurrency(val) {
+  if (!val) return '₹0';
+  if (val >= 10000000) return '₹' + (val/10000000).toFixed(1) + 'Cr';
+  if (val >= 100000) return '₹' + (val/100000).toFixed(1) + 'L';
+  if (val >= 1000) return '₹' + (val/1000).toFixed(1) + 'K';
+  return '₹' + val.toLocaleString('en-IN');
+}
+
+function timeAgo(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+}
+
+function initials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+}
+
+function hashColor(str) {
+  if (!str) return 1;
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) - h) + str.charCodeAt(i);
+  return (Math.abs(h) % 6) + 1;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// ================================================================
+//  INIT
+// ================================================================
+loadOverview();
+</script>
+</body>
+</html>
