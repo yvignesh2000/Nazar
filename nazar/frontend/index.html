@@ -1234,10 +1234,10 @@ body {
 
   <div class="sidebar-bottom">
     <div class="user-card">
-      <div class="user-av">A</div>
+      <div class="user-av" id="sidebar-user-av">A</div>
       <div class="user-info">
-        <div class="user-name">Admin</div>
-        <div class="user-role">Owner</div>
+        <div class="user-name" id="sidebar-user-name">Admin</div>
+        <div class="user-role" id="sidebar-user-role">Owner</div>
       </div>
       <div class="status-dot"></div>
     </div>
@@ -1347,9 +1347,10 @@ body {
         </div>
         <div class="conv-filters">
           <div class="conv-filter active" onclick="filterByType(this,'all')">All</div>
-          <div class="conv-filter" onclick="filterByType(this,'bot')">🤖 Bot</div>
-          <div class="conv-filter" onclick="filterByType(this,'human')">👤 Human</div>
-          <div class="conv-filter" onclick="filterByType(this,'unread')">● Unread</div>
+          <div class="conv-filter" onclick="filterByType(this,'needs_reply')">Needs Reply</div>
+          <div class="conv-filter" onclick="filterByType(this,'unassigned')">Unassigned</div>
+          <div class="conv-filter" onclick="filterByType(this,'human_required')">👤 Human</div>
+          <div class="conv-filter" onclick="filterByType(this,'assigned_to_me')">Mine</div>
         </div>
         <div class="conv-items" id="conv-list-items">
           <div class="empty-state">
@@ -1662,8 +1663,7 @@ body {
 
 // CONFIG
 const API_BASE = window.location.origin;
-const API_KEY = 'nazar_dev_key'; // Default dev key
-const HEADERS = { 'Content-Type':'application/json', 'X-Nazar-Key':API_KEY };
+const API_KEY = localStorage.getItem('nazar_api_key') || 'nazar_dev_key';
 const STAGES = ['New','Qualified','Proposal','Negotiation','Won','Lost'];
 const STAGE_COLORS = {
   'New':'var(--accent)','Qualified':'var(--orange)','Proposal':'var(--purple)',
@@ -1676,6 +1676,13 @@ let contacts = [];
 let conversations = [];
 let selectedConvId = null;
 let followups = [];
+let authToken = localStorage.getItem('nazar_auth_token') || '';
+let currentUser = null;
+let currentWorkspace = null;
+let teamMembers = [];
+let selectedConversationData = null;
+let contactNotes = [];
+let currentConversationFilter = 'all';
 
 // ================================================================
 //  NAVIGATION
@@ -1705,12 +1712,66 @@ function navigateTo(screen) {
   else if (screen === 'settings') loadSettings();
 }
 
+function setAuthContext(data) {
+  currentUser = data?.user || null;
+  currentWorkspace = data?.workspace || null;
+  updateCurrentUserUI();
+}
+
+function updateCurrentUserUI() {
+  const userName = currentUser?.name || 'Admin';
+  const role = currentUser?.role || 'owner';
+  const initialsText = initials(userName || 'A');
+  const workspaceName = currentWorkspace?.name || 'Nazar';
+  document.getElementById('sidebar-user-av').textContent = initialsText;
+  document.getElementById('sidebar-user-name').textContent = userName;
+  document.getElementById('sidebar-user-role').textContent = `${capitalize(role)} · ${workspaceName}`;
+  document.getElementById('page-sub').textContent = currentWorkspace ? `${workspaceName} workspace` : '';
+}
+
 // ================================================================
 //  API CALLS
 // ================================================================
+function getHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  else headers['X-Nazar-Key'] = API_KEY;
+  return headers;
+}
+
+async function ensureSession() {
+  if (authToken) {
+    try {
+      const resp = await fetch(API_BASE + '/api/auth/me', { headers: getHeaders() });
+      if (resp.ok) {
+        const data = await resp.json();
+        setAuthContext(data);
+        return;
+      }
+    } catch(e) {}
+  }
+
+  try {
+    const resp = await fetch(API_BASE + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ api_key: API_KEY }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      authToken = data.token || '';
+      setAuthContext(data);
+      localStorage.setItem('nazar_auth_token', authToken);
+      localStorage.setItem('nazar_api_key', API_KEY);
+    }
+  } catch(e) {
+    console.error('Session bootstrap failed:', e);
+  }
+}
+
 async function api(method, path, body = null) {
   try {
-    const opts = { method, headers: HEADERS };
+    const opts = { method, headers: getHeaders() };
     if (body) opts.body = JSON.stringify(body);
     const resp = await fetch(API_BASE + path, opts);
     if (!resp.ok) {
@@ -1735,6 +1796,7 @@ async function loadOverview() {
     document.getElementById('stat-pipeline').textContent = formatCurrency(s.pipeline_value);
     document.getElementById('stat-contacts').textContent = s.total_contacts;
     document.getElementById('stat-revenue').textContent = formatCurrency(s.total_revenue);
+    document.getElementById('notif-dot').style.display = (s.needs_reply || 0) > 0 ? 'block' : 'none';
 
     // Activity feed
     const feed = document.getElementById('activity-feed');
@@ -1770,7 +1832,9 @@ async function loadOverview() {
 function generateInsight(data) {
   const strip = document.getElementById('insight-text');
   const s = data.stats;
-  if (s.active_leads === 0) {
+  if ((s.needs_reply || 0) > 0 || (s.unassigned_conversations || 0) > 0) {
+    strip.innerHTML = `<strong>Inbox health:</strong> <strong>${s.needs_reply || 0}</strong> conversations need replies and <strong>${s.unassigned_conversations || 0}</strong> are unassigned.`;
+  } else if (s.active_leads === 0) {
     strip.innerHTML = '<strong>Getting started:</strong> Add your first contact to begin building your sales pipeline.';
   } else if (s.pipeline_value > 0) {
     strip.innerHTML = `<strong>Pipeline health:</strong> You have <strong>${s.active_leads} active leads</strong> worth <strong>${formatCurrency(s.pipeline_value)}</strong> in your pipeline.`;
@@ -1784,7 +1848,14 @@ function generateInsight(data) {
 // ================================================================
 async function loadConversations() {
   try {
-    const data = await api('GET', '/api/conversations');
+    await loadTeamMembers();
+    const params = new URLSearchParams();
+    if (currentConversationFilter === 'needs_reply') params.set('needs_reply', 'true');
+    if (currentConversationFilter === 'unassigned') params.set('unassigned', 'true');
+    if (currentConversationFilter === 'human_required') params.set('human_required', 'true');
+    if (currentConversationFilter === 'assigned_to_me') params.set('assigned_to_me', 'true');
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const data = await api('GET', '/api/conversations' + suffix);
     conversations = data.conversations || [];
     renderConversationList(conversations);
   } catch(e) {
@@ -1803,7 +1874,7 @@ function renderConversationList(list) {
     return;
   }
   el.innerHTML = list.map(c => `
-    <div class="conv-item ${selectedConvId===c.contact_id?'selected':''}" onclick="selectConversation('${c.contact_id}')">
+    <div class="conv-item ${selectedConvId===c.conversation_id?'selected':''}" onclick="selectConversation('${c.conversation_id}')">
       <div class="av av-sm av-${hashColor(c.name)}">${initials(c.name)}</div>
       <div class="conv-item-body">
         <div class="conv-item-row1">
@@ -1813,21 +1884,32 @@ function renderConversationList(list) {
         <div class="conv-item-preview">${esc(c.last_message||'No messages')}</div>
         <div class="conv-item-tags">
           <span class="tag tag-${c.stage==='Won'?'won':c.lead_score>60?'hot':c.lead_score>30?'warm':'cold'}">${c.stage}</span>
+          ${c.status==='needs_reply'?'<span class="tag tag-hot">Needs Reply</span>':''}
+          ${c.status==='snoozed'?'<span class="tag tag-cold">Snoozed</span>':''}
+          ${c.status==='closed'?'<span class="tag tag-cold">Closed</span>':''}
           ${c.bot_mode?'':'<span class="tag tag-warm">👤 Human</span>'}
+          ${c.assigned_user_name?`<span class="tag tag-cold">🧑 ${esc(c.assigned_user_name)}</span>`:''}
         </div>
       </div>
     </div>
   `).join('');
 }
 
-async function selectConversation(contactId) {
-  selectedConvId = contactId;
+async function selectConversation(conversationId) {
+  selectedConvId = conversationId;
   renderConversationList(conversations);
 
   try {
-    const data = await api('GET', `/api/conversations/${contactId}?days=30`);
+    const [data, notesData] = await Promise.all([
+      api('GET', `/api/conversations/${conversationId}?days=30`),
+      api('GET', `/api/contacts/${findContactIdFromConversationId(conversationId) || conversationId}/notes`),
+    ]);
+    selectedConversationData = data;
+    selectedConvId = data?.conversation?.conversation_id || conversationId;
+    contactNotes = notesData.notes || [];
+    renderConversationList(conversations);
     renderConversationDetail(data);
-    renderConversationIntel(data);
+    renderConversationIntel(data, contactNotes);
   } catch(e) {
     console.error('Load conversation failed:', e);
   }
@@ -1837,6 +1919,7 @@ function renderConversationDetail(data) {
   const c = data.contact;
   const msgs = data.messages || [];
   const botMode = data.bot_mode;
+  const conversation = data.conversation || {};
 
   const detail = document.getElementById('conv-detail');
   detail.innerHTML = `
@@ -1847,11 +1930,15 @@ function renderConversationDetail(data) {
         <div class="conv-detail-sub">${esc(c.phone)} · ${c.pipeline_stage}</div>
       </div>
       <div class="conv-detail-actions">
-        <button class="btn btn-sm ${botMode?'btn-ghost':'btn-primary'}" onclick="toggleBot('${c.contact_id}',${!botMode})">
+        <button class="btn btn-sm ${botMode?'btn-ghost':'btn-primary'}" onclick="toggleBot('${conversation.conversation_id}',${!botMode})">
           ${botMode?'🤖 Bot Active':'👤 Human Mode'}
         </button>
+        <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign To Me</button>
         <div class="icon-btn" title="View Memory" onclick="navigateTo('pipeline')">🧠</div>
       </div>
+    </div>
+    <div style="padding:0 20px 12px;color:var(--text2);font-size:12px;">
+      ${conversation.assigned_user_name ? `Assigned to ${esc(conversation.assigned_user_name)}` : 'Unassigned'} · ${conversation.status || 'open'}
     </div>
     <div class="chat-area" id="chat-messages">
       ${msgs.length===0?'<div style="text-align:center;color:var(--text3);padding:40px;">No messages yet</div>':''}
@@ -1859,13 +1946,13 @@ function renderConversationDetail(data) {
         <div class="bubble ${m.direction==='inbound'?'user':'bot'}">
           <div class="bubble-inner">${esc(m.content)}</div>
           ${m.sent_by==='bot'&&m.direction==='outbound'?'<div class="mem-badge">🧠 AI Memory Used</div>':''}
-          <div class="bubble-time">${formatTime(m.timestamp)} ${m.sent_by?'· '+m.sent_by:''}</div>
+          <div class="bubble-time">${formatTime(m.timestamp)} ${m.sent_by?'· '+m.sent_by:''}${m.delivery_status?' · '+m.delivery_status:''}</div>
         </div>
       `).join('')}
     </div>
     <div class="chat-input-area">
-      <input class="chat-inp" type="text" placeholder="Type a message..." id="chat-input" onkeydown="if(event.key==='Enter')sendChatMessage('${c.contact_id}')">
-      <button class="send-btn" onclick="sendChatMessage('${c.contact_id}')">➤</button>
+      <input class="chat-inp" type="text" placeholder="Type a message..." id="chat-input" onkeydown="if(event.key==='Enter')sendChatMessage('${conversation.conversation_id}')">
+      <button class="send-btn" onclick="sendChatMessage('${conversation.conversation_id}')">➤</button>
     </div>
   `;
 
@@ -1874,9 +1961,10 @@ function renderConversationDetail(data) {
   if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
 }
 
-function renderConversationIntel(data) {
+ function renderConversationIntel(data, notes) {
   const c = data.contact;
   const mem = data.memory || {};
+  const conversation = data.conversation || {};
   const rightPanel = document.getElementById('conv-right');
   rightPanel.style.display = 'block';
 
@@ -1895,6 +1983,7 @@ function renderConversationIntel(data) {
       <div class="crm-field"><span class="crm-key">Company</span><span class="crm-val">${esc(c.company||'—')}</span></div>
       <div class="crm-field"><span class="crm-key">Source</span><span class="crm-val">${esc(c.source||'—')}</span></div>
       <div class="crm-field"><span class="crm-key">Messages</span><span class="crm-val">${c.total_messages||0}</span></div>
+      <div class="crm-field"><span class="crm-key">Assigned</span><span class="crm-val">${esc(conversation.assigned_user_name||'Unassigned')}</span></div>
     </div>
     ${c.tags&&c.tags.length?`
     <div class="crm-section">
@@ -1906,36 +1995,95 @@ function renderConversationIntel(data) {
     <div class="crm-section">
       <div class="crm-title">Quick Actions</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
+        <select class="form-input" onchange="assignConversation('${conversation.conversation_id}', this.value)" style="font-size:12px;">
+          <option value="">Assign to team member</option>
+          ${teamMembers.map(member => `<option value="${member.id}" ${conversation.assigned_user_id===member.id?'selected':''}>${esc(member.name)} · ${esc(member.role||'member')}</option>`).join('')}
+        </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign to me</button>
+          <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '')">Unassign</button>
+        </div>
+        <select class="form-input" onchange="updateConversationStatus('${conversation.conversation_id}', this.value)" style="font-size:12px;">
+          ${['open','needs_reply','snoozed','closed'].map(status => `<option value="${status}" ${conversation.status===status?'selected':''}>${status.replace('_',' ')}</option>`).join('')}
+        </select>
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Qualified')">Move to Qualified</button>
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
       </div>
     </div>
+    <div class="crm-section">
+      <div class="crm-title">Internal Notes</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+        ${(notes||[]).length ? notes.map(note => `
+          <div style="padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:12px;line-height:1.5;">
+            <div style="color:var(--text);">${esc(note.body)}</div>
+            <div style="color:var(--text2);margin-top:6px;">${esc(note.author_name || 'Team')} ${note.mentions?.length ? `· mentions ${note.mentions.map(esc).join(', ')}` : ''}</div>
+            <div style="color:var(--text3);margin-top:4px;">${timeAgo(note.created_at)}</div>
+          </div>
+        `).join('') : '<div style="color:var(--text3);font-size:12px;">No notes yet.</div>'}
+      </div>
+      <textarea class="form-input" id="contact-note-input" placeholder="Add internal note... Use @name for mentions." style="min-height:84px;resize:vertical;"></textarea>
+      <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="addInternalNote('${c.contact_id}')">Add Note</button>
+    </div>
   `;
 }
 
-async function sendChatMessage(contactId) {
+async function sendChatMessage(conversationId) {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg) return;
   input.value = '';
 
   try {
-    await api('POST', `/api/conversations/${contactId}/send`, { message: msg });
+    await api('POST', `/api/conversations/${conversationId}/send`, { message: msg });
     showToast('✅', 'Message sent');
-    selectConversation(contactId);
+    selectConversation(conversationId);
   } catch(e) {
     showToast('❌', 'Failed to send: ' + e.message);
   }
 }
 
-async function toggleBot(contactId, botOn) {
+async function toggleBot(conversationId, botOn) {
   try {
-    await api('POST', `/api/conversations/${contactId}/handover`, { bot_mode: botOn });
+    await api('POST', `/api/conversations/${conversationId}/handover`, { bot_mode: botOn });
     showToast('🤖', botOn ? 'Bot activated' : 'Human mode activated');
-    selectConversation(contactId);
+    selectConversation(conversationId);
   } catch(e) {
     showToast('❌', 'Failed: ' + e.message);
+  }
+}
+
+async function loadTeamMembers() {
+  try {
+    const data = await api('GET', '/api/team');
+    teamMembers = data.team || [];
+  } catch(e) {
+    console.error('Load team failed:', e);
+  }
+}
+
+async function assignConversation(conversationId, userId, assignToMe = false) {
+  try {
+    await api('POST', `/api/conversations/${conversationId}/assign`, { user_id: userId || null, assign_to_me: assignToMe });
+    showToast('🧑', userId || assignToMe ? 'Conversation assigned' : 'Assignment cleared');
+    if (selectedConvId === conversationId) await selectConversation(conversationId);
+    await loadConversations();
+  } catch(e) {
+    showToast('❌', 'Assignment failed: ' + e.message);
+  }
+}
+
+async function addInternalNote(contactId) {
+  const input = document.getElementById('contact-note-input');
+  const body = (input?.value || '').trim();
+  if (!body) return;
+  try {
+    await api('POST', `/api/contacts/${contactId}/notes`, { body });
+    input.value = '';
+    showToast('📝', 'Note added');
+    await selectConversation(contactId);
+  } catch(e) {
+    showToast('❌', 'Note failed: ' + e.message);
   }
 }
 
@@ -1946,6 +2094,17 @@ async function moveContactStage(contactId, stage) {
     if (selectedConvId === contactId) selectConversation(contactId);
   } catch(e) {
     showToast('❌', 'Failed: ' + e.message);
+  }
+}
+
+async function updateConversationStatus(conversationId, status) {
+  try {
+    await api('POST', `/api/conversations/${conversationId}/status`, { status });
+    showToast('🗂️', `Conversation marked ${status.replace('_', ' ')}`);
+    if (selectedConvId === conversationId) await selectConversation(conversationId);
+    await loadConversations();
+  } catch(e) {
+    showToast('❌', 'Status update failed: ' + e.message);
   }
 }
 
@@ -1962,8 +2121,11 @@ function filterConversations() {
 function filterByType(el, type) {
   document.querySelectorAll('.conv-filter').forEach(f => f.classList.remove('active'));
   el.classList.add('active');
-  // Filter logic (simplified for MVP)
-  renderConversationList(conversations);
+  currentConversationFilter = type;
+  selectedConvId = null;
+  document.getElementById('conv-detail').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:14px;">Select a conversation to view</div>';
+  document.getElementById('conv-right').style.display = 'none';
+  loadConversations();
 }
 
 // ================================================================
@@ -2143,12 +2305,14 @@ function selectTone(el) {
 // ================================================================
 async function loadSettings() {
   try {
+    await loadTeamMembers();
     const data = await api('GET', '/health');
     if (data.whatsapp_configured) {
       document.getElementById('wa-dot').className = 'conn-dot connected';
       document.getElementById('wa-status').textContent = 'Connected';
     }
     document.getElementById('webhook-url').textContent = window.location.origin + '/webhook';
+    document.getElementById('settings-api-key').value = API_KEY;
   } catch(e) {}
 }
 
@@ -2196,7 +2360,7 @@ async function sendBroadcast() {
   if (!msg) { showToast('⚠️','Write a message first'); return; }
   try {
     const result = await api('POST', '/api/broadcasts', { message: msg });
-    showToast('📡', `Broadcast sent to ${result.sent} contacts`);
+    showToast('📡', result.job ? `Broadcast queued (${result.job.id.slice(0, 8)})` : 'Broadcast queued');
   } catch(e) {
     showToast('❌', e.message);
   }
@@ -2318,6 +2482,11 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
 }
 
+function capitalize(value) {
+  if (!value) return '';
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function initials(name) {
   if (!name) return '?';
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
@@ -2336,10 +2505,21 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function findContactIdFromConversationId(identifier) {
+  const match = conversations.find(c => c.conversation_id === identifier || c.contact_id === identifier);
+  return match?.contact_id || selectedConversationData?.contact?.contact_id || null;
+}
+
 // ================================================================
 //  INIT
 // ================================================================
-loadOverview();
+async function bootstrapApp() {
+  await ensureSession();
+  await loadTeamMembers();
+  loadOverview();
+}
+
+bootstrapApp();
 </script>
 </body>
 </html>

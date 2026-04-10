@@ -9,6 +9,8 @@ nazar/.salt
 # Encrypted customer data (sensitive — never commit)
 nazar/data/contacts/
 nazar/data/chromadb/
+nazar/data/*.db
+nazar/data/*.db-*
 
 # Python
 __pycache__/

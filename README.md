@@ -21,9 +21,10 @@ Dashboard (business team)
   → compose/send message
     → WhatsApp Cloud API → customer receives on WhatsApp
       → customer replies → webhook → server.py
-        → AI generates contextual reply using customer memory
-          → sends reply + logs conversation + updates pipeline
-            → appears in dashboard in real-time
+        → save inbound event + queue job
+          → worker.py processes AI, transcription, broadcasts, and follow-up jobs
+            → sends reply + logs conversation + updates pipeline
+              → appears in dashboard in real-time
 ```
 
 ## Quick Start
@@ -33,32 +34,57 @@ cd nazar
 cp .env.template .env
 # Fill in your WhatsApp Business API credentials
 
-pip install fastapi uvicorn httpx chromadb pydantic cryptography python-dotenv
+pip install -r requirements.txt
 
+# Local dev shortcut only if you do not want to run migrations yet
+export NAZAR_ALLOW_SCHEMA_CREATE=1
 python server.py
-# Dashboard: http://localhost:8001
+
+# Migration-first flow (recommended)
+cd ..
+alembic upgrade head
+cd nazar
+python server.py
+
+# Optional worker for queued broadcasts
+python worker.py
 ```
+
+Database:
+- Defaults to local SQLite at `nazar/data/nazar.db`
+- Set `DATABASE_URL` to Postgres for a real multi-instance deployment
+- The app now expects a migration-managed schema by default
+- `NAZAR_ALLOW_SCHEMA_CREATE=1` is a local bootstrap fallback, not the long-term production path
+- If legacy file-based contacts exist locally, they are imported into the database on first boot
 
 ## Project Structure
 
 ```
 nazar/
 ├── server.py                 ← FastAPI: webhook + REST API + serve frontend
+├── worker.py                 ← Background worker for queued jobs
 ├── .env.template             ← Environment variable template
 ├── agent/
 │   └── SOUL.md               ← Bot persona: structured sales assistant
 ├── core/
+│   ├── analytics_store.py    ← Inbox/team operational analytics
+│   ├── auth_store.py         ← Session auth + workspace roles
+│   ├── db.py                 ← SQLAlchemy models + DB bootstrap
+│   ├── job_queue.py          ← Persistent background job queue
 │   ├── llm_router.py         ← Multi-provider LLM with failover
 │   ├── transcription.py      ← Voice note transcription (Groq Whisper)
 │   ├── encryption.py         ← Per-contact Fernet encryption
-│   ├── contact_manager.py    ← Contacts CRUD, pipeline, CSV import/export
+│   ├── contact_manager.py    ← Contacts CRUD + conversation-first inbox state
 │   ├── customer_memory.py    ← Per-customer ChromaDB vector memory
 │   ├── conversation.py       ← Inbound handling + AI reply generation
 │   ├── outbound.py           ← Send messages / broadcasts from dashboard
-│   ├── template_manager.py   ← Template library, auto-generation, approval tracking
+│   ├── template_manager.py   ← Template library, approval tracking
+│   ├── workspace_store.py    ← Workspace config + team memberships
 │   └── digest_engine.py      ← Follow-up reminders, scheduled reports
 ├── frontend/
 │   └── index.html            ← Full dashboard (single-file, no build tools)
+├── alembic/
+│   └── versions/             ← Database migrations
 └── data/
     ├── config.json            ← Bot configuration
     ├── knowledge_base.txt     ← Business knowledge base
@@ -75,22 +101,40 @@ nazar/
 | GET | `/api/conversations/{id}` | Full message history |
 | POST | `/api/conversations/{id}/send` | Send message from dashboard |
 | POST | `/api/conversations/{id}/handover` | Toggle bot/human mode |
+| POST | `/api/conversations/{id}/assign` | Assign or unassign owner |
+| POST | `/api/conversations/{id}/status` | Mark open / needs reply / snoozed / closed |
+| POST | `/api/conversations/{id}/ai-reply` | Queue AI reply suggestion |
 | GET | `/api/contacts` | All contacts |
 | POST | `/api/contacts` | Create contact |
 | POST | `/api/contacts/import` | CSV import |
 | PATCH | `/api/contacts/{id}` | Update contact/stage/tags |
+| GET | `/api/contacts/{id}/notes` | Internal notes |
+| POST | `/api/contacts/{id}/notes` | Add internal note |
 | GET | `/api/contacts/{id}/memory` | Memory summary |
+| POST | `/api/contacts/{id}/followup-draft` | Queue AI follow-up draft |
+| POST | `/api/contacts/{id}/summary/refresh` | Queue AI customer summary |
 | GET | `/api/pipeline` | Contacts by stage with deal values |
 | GET | `/api/followups` | Pending follow-ups |
-| POST | `/api/broadcasts` | Send to segment |
+| POST | `/api/broadcasts` | Queue segment broadcast |
+| GET | `/api/jobs` | Background job list |
+| GET | `/api/jobs/{id}` | Background job status |
 | GET | `/api/templates` | Template library |
 | POST | `/api/templates` | Create template |
 | GET | `/api/team` | Team members |
 | GET/PUT | `/api/config` | Bot configuration |
 | POST | `/api/kb/upload` | Upload knowledge base docs |
+| GET | `/api/analytics/inbox` | Team inbox analytics |
 | GET | `/` | Serve dashboard |
 
-Auth: `X-Nazar-Key` header for MVP.
+Auth:
+- UI now boots a bearer session through `/api/auth/login`
+- `Authorization: Bearer <token>` is the primary mode
+- `X-Nazar-Key` still exists as a transitional fallback for local/dev compatibility
+
+Async processing:
+- Inbound WhatsApp text messages are now saved immediately and processed through the job queue
+- Voice notes are queued for transcription and reply generation in the worker
+- AI reply drafts, follow-up drafts, and contact summaries are also queued jobs
 
 ## Meta AI Chatbot Compliance
 

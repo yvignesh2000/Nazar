@@ -1,36 +1,30 @@
 """
 Nazar — WhatsApp Template Manager
 
-Manages WhatsApp message templates:
-1. Template library — pre-tested, high-approval-rate templates
-2. Template CRUD — create, edit, delete, track usage
-3. Approval status tracking (pending → approved → rejected)
-4. Auto-suggestion based on customer context
-5. Variable interpolation for template sends
-
-WhatsApp Business API requires pre-approved templates for
-initiating conversations outside the 24-hour window. This module
-manages the template lifecycle.
-
-Storage: data/templates.json
+Database-backed template library with legacy file import on first boot.
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
+
+from sqlalchemy import select
+
+from db import TemplateRecord, Workspace, default_workspace_slug, init_db, session_scope
 
 logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
 DATA_DIR = Path(__file__).parent.parent / "data"
+LEGACY_TEMPLATES_PATH = DATA_DIR / "templates.json"
 
-# Template categories allowed by Meta
 TEMPLATE_CATEGORIES = ["marketing", "utility", "authentication"]
 
-# Pre-built template library with high approval rates
 DEFAULT_TEMPLATES = [
     {
         "id": "tpl_welcome",
@@ -146,80 +140,110 @@ DEFAULT_TEMPLATES = [
     },
 ]
 
-
-# ---------------------------------------------------------------------------
-# Storage helpers
-# ---------------------------------------------------------------------------
-
-def _templates_path() -> Path:
-    """Path to templates storage."""
-    return DATA_DIR / "templates.json"
+_initialized = False
 
 
-def _load_templates() -> list:
-    """Load templates from disk. Initializes with defaults if missing."""
-    path = _templates_path()
-    if path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    # Initialize with default library
-    _save_templates(DEFAULT_TEMPLATES)
-    return DEFAULT_TEMPLATES.copy()
+def _workspace(session) -> Workspace:
+    workspace = session.execute(
+        select(Workspace).where(Workspace.slug == default_workspace_slug())
+    ).scalar_one_or_none()
+    if workspace is None:
+        workspace = session.execute(select(Workspace)).scalar_one()
+    return workspace
 
 
-def _save_templates(templates: list):
-    """Save templates to disk."""
-    path = _templates_path()
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(templates, ensure_ascii=False, indent=2), encoding="utf-8")
+def _parse_ts(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=IST)
 
 
-# ---------------------------------------------------------------------------
-# Template CRUD
-# ---------------------------------------------------------------------------
+def _serialize_template(record: TemplateRecord) -> dict:
+    return {
+        "id": record.id,
+        "name": record.name,
+        "category": record.category,
+        "body": record.body,
+        "variables": json.loads(record.variables_json or "[]"),
+        "language": record.language,
+        "approval_status": record.approval_status,
+        "usage_count": int(record.usage_count or 0),
+        "reply_rate": float(record.reply_rate or 0.0),
+        "description": record.description or "",
+        "created_at": record.created_at.isoformat(),
+        "updated_at": record.updated_at.isoformat(),
+    }
 
-def list_templates(
-    category: Optional[str] = None,
-    status: Optional[str] = None,
-) -> list:
-    """
-    List all templates, optionally filtered by category or approval status.
 
-    Args:
-        category: Filter by "marketing", "utility", or "authentication".
-        status: Filter by "pending", "approved", or "rejected".
+def _seed_templates(session, workspace_id: str, templates: list[dict]) -> None:
+    for template in templates:
+        session.add(
+            TemplateRecord(
+                id=template["id"],
+                workspace_id=workspace_id,
+                name=template["name"],
+                category=template["category"],
+                body=template["body"],
+                variables_json=json.dumps(template.get("variables", []), ensure_ascii=False),
+                language=template.get("language", "en"),
+                approval_status=template.get("approval_status", "pending"),
+                usage_count=int(template.get("usage_count", 0)),
+                reply_rate=float(template.get("reply_rate", 0.0)),
+                description=template.get("description", ""),
+                created_at=_parse_ts(template.get("created_at", datetime.now(IST).isoformat())),
+                updated_at=_parse_ts(template.get("updated_at", datetime.now(IST).isoformat())),
+            )
+        )
 
-    Returns:
-        List of template dicts.
-    """
-    templates = _load_templates()
 
-    if category:
-        templates = [t for t in templates if t.get("category") == category]
-    if status:
-        templates = [t for t in templates if t.get("approval_status") == status]
+def initialize_template_store() -> None:
+    global _initialized
+    if _initialized:
+        return
+    init_db()
+    with session_scope() as session:
+        workspace = _workspace(session)
+        existing = session.execute(
+            select(TemplateRecord).where(TemplateRecord.workspace_id == workspace.id)
+        ).scalars().first()
+        if existing is None:
+            templates = DEFAULT_TEMPLATES
+            if LEGACY_TEMPLATES_PATH.exists():
+                try:
+                    templates = json.loads(LEGACY_TEMPLATES_PATH.read_text(encoding="utf-8"))
+                except Exception as exc:
+                    logger.warning(f"Failed to import legacy templates: {exc}")
+            _seed_templates(session, workspace.id, templates)
+    _initialized = True
 
-    return templates
+
+def list_templates(category: Optional[str] = None, status: Optional[str] = None) -> list:
+    initialize_template_store()
+    with session_scope() as session:
+        workspace = _workspace(session)
+        query = select(TemplateRecord).where(TemplateRecord.workspace_id == workspace.id)
+        if category:
+            query = query.where(TemplateRecord.category == category)
+        if status:
+            query = query.where(TemplateRecord.approval_status == status)
+        records = session.execute(query.order_by(TemplateRecord.created_at.asc())).scalars().all()
+        return [_serialize_template(record) for record in records]
 
 
 def get_template(template_id: str) -> Optional[dict]:
-    """Get a template by ID. Returns None if not found."""
-    templates = _load_templates()
-    for t in templates:
-        if t["id"] == template_id:
-            return t
-    return None
+    initialize_template_store()
+    with session_scope() as session:
+        record = session.execute(select(TemplateRecord).where(TemplateRecord.id == template_id)).scalar_one_or_none()
+        return _serialize_template(record) if record else None
 
 
 def get_template_by_name(name: str) -> Optional[dict]:
-    """Get a template by name. Returns None if not found."""
-    templates = _load_templates()
-    for t in templates:
-        if t["name"] == name:
-            return t
-    return None
+    initialize_template_store()
+    with session_scope() as session:
+        workspace = _workspace(session)
+        record = session.execute(
+            select(TemplateRecord).where(TemplateRecord.workspace_id == workspace.id, TemplateRecord.name == name)
+        ).scalar_one_or_none()
+        return _serialize_template(record) if record else None
 
 
 def create_template(
@@ -230,125 +254,86 @@ def create_template(
     language: str = "en",
     description: str = "",
 ) -> dict:
-    """
-    Create a new template.
-
-    Args:
-        name: Template name (unique, lowercase, underscores).
-        body: Template body text with {{1}}, {{2}} variables.
-        category: "marketing", "utility", or "authentication".
-        variables: List of variable names for documentation.
-        language: ISO language code.
-        description: Human-readable description.
-
-    Returns:
-        The created template dict.
-
-    Raises:
-        ValueError: If name is duplicate or category is invalid.
-    """
+    initialize_template_store()
     if category not in TEMPLATE_CATEGORIES:
-        raise ValueError(
-            f"Invalid category '{category}'. Must be one of: {TEMPLATE_CATEGORIES}"
-        )
+        raise ValueError(f"Invalid category '{category}'. Must be one of: {TEMPLATE_CATEGORIES}")
 
-    templates = _load_templates()
-
-    # Check for duplicate name
-    for t in templates:
-        if t["name"] == name:
+    with session_scope() as session:
+        workspace = _workspace(session)
+        existing = session.execute(
+            select(TemplateRecord).where(TemplateRecord.workspace_id == workspace.id, TemplateRecord.name == name)
+        ).scalar_one_or_none()
+        if existing is not None:
             raise ValueError(f"Template with name '{name}' already exists")
 
-    now = datetime.now(IST).isoformat()
-    template = {
-        "id": f"tpl_{uuid.uuid4().hex[:8]}",
-        "name": name,
-        "category": category,
-        "body": body,
-        "variables": variables or [],
-        "language": language,
-        "approval_status": "pending",
-        "usage_count": 0,
-        "reply_rate": 0.0,
-        "description": description,
-        "created_at": now,
-        "updated_at": now,
-    }
-
-    templates.append(template)
-    _save_templates(templates)
-
-    logger.info(f"Template created: {name} (id={template['id']})")
-    return template
+        now = datetime.now(IST)
+        record = TemplateRecord(
+            id=f"tpl_{uuid.uuid4().hex[:8]}",
+            workspace_id=workspace.id,
+            name=name,
+            category=category,
+            body=body,
+            variables_json=json.dumps(variables or [], ensure_ascii=False),
+            language=language,
+            approval_status="pending",
+            usage_count=0,
+            reply_rate=0.0,
+            description=description,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(record)
+        session.flush()
+        logger.info(f"Template created: {name} (id={record.id})")
+        return _serialize_template(record)
 
 
 def update_template(template_id: str, **fields) -> dict:
-    """
-    Update fields on an existing template.
+    initialize_template_store()
+    with session_scope() as session:
+        record = session.execute(select(TemplateRecord).where(TemplateRecord.id == template_id)).scalar_one_or_none()
+        if record is None:
+            raise ValueError(f"Template '{template_id}' not found")
 
-    Returns the updated template dict.
-    Raises ValueError if template not found.
-    """
-    templates = _load_templates()
+        if "category" in fields and fields["category"] not in TEMPLATE_CATEGORIES:
+            raise ValueError(f"Invalid category. Must be one of: {TEMPLATE_CATEGORIES}")
 
-    for i, t in enumerate(templates):
-        if t["id"] == template_id:
-            # Validate category if provided
-            if "category" in fields and fields["category"] not in TEMPLATE_CATEGORIES:
-                raise ValueError(
-                    f"Invalid category. Must be one of: {TEMPLATE_CATEGORIES}"
-                )
-            t.update(fields)
-            t["updated_at"] = datetime.now(IST).isoformat()
-            templates[i] = t
-            _save_templates(templates)
-            logger.info(f"Template updated: {t['name']} ({template_id})")
-            return t
-
-    raise ValueError(f"Template '{template_id}' not found")
+        for key in ("name", "category", "body", "language", "approval_status", "description"):
+            if key in fields:
+                setattr(record, key, fields[key])
+        if "variables" in fields:
+            record.variables_json = json.dumps(fields["variables"] or [], ensure_ascii=False)
+        if "usage_count" in fields:
+            record.usage_count = int(fields["usage_count"] or 0)
+        if "reply_rate" in fields:
+            record.reply_rate = float(fields["reply_rate"] or 0.0)
+        record.updated_at = datetime.now(IST)
+        session.flush()
+        logger.info(f"Template updated: {record.name} ({template_id})")
+        return _serialize_template(record)
 
 
 def delete_template(template_id: str):
-    """Delete a template by ID."""
-    templates = _load_templates()
-    templates = [t for t in templates if t["id"] != template_id]
-    _save_templates(templates)
-    logger.info(f"Template deleted: {template_id}")
+    initialize_template_store()
+    with session_scope() as session:
+        record = session.execute(select(TemplateRecord).where(TemplateRecord.id == template_id)).scalar_one_or_none()
+        if record is not None:
+            session.delete(record)
+            logger.info(f"Template deleted: {template_id}")
 
 
 def increment_usage(template_id: str):
-    """Increment the usage count for a template."""
-    templates = _load_templates()
-    for t in templates:
-        if t["id"] == template_id:
-            t["usage_count"] = t.get("usage_count", 0) + 1
-            t["updated_at"] = datetime.now(IST).isoformat()
-            break
-    _save_templates(templates)
+    initialize_template_store()
+    with session_scope() as session:
+        record = session.execute(select(TemplateRecord).where(TemplateRecord.id == template_id)).scalar_one_or_none()
+        if record is not None:
+            record.usage_count = int(record.usage_count or 0) + 1
+            record.updated_at = datetime.now(IST)
 
-
-# ---------------------------------------------------------------------------
-# Template rendering
-# ---------------------------------------------------------------------------
 
 def render_template(template: dict, contact: dict) -> str:
-    """
-    Render a template body with contact data.
-
-    Replaces {{1}}, {{2}}, etc. with values from the contact
-    based on the template's variable definitions.
-
-    Args:
-        template: Template dict with body and variables.
-        contact: Contact profile dict.
-
-    Returns:
-        Rendered message string.
-    """
     body = template.get("body", "")
     variables = template.get("variables", [])
-
-    # Map variable names to contact fields
     var_map = {
         "name": contact.get("name") or "there",
         "company": contact.get("company") or "your company",
@@ -357,37 +342,17 @@ def render_template(template: dict, contact: dict) -> str:
         "deal_value": f"₹{contact.get('deal_value', 0):,.0f}",
         "topic": contact.get("notes") or "our discussion",
     }
-
-    for i, var_name in enumerate(variables, start=1):
-        placeholder = "{{" + str(i) + "}}"
-        value = var_map.get(var_name, "")
-        body = body.replace(placeholder, value)
-
+    for index, var_name in enumerate(variables, start=1):
+        body = body.replace("{{" + str(index) + "}}", var_map.get(var_name, ""))
     return body
 
 
-# ---------------------------------------------------------------------------
-# Template suggestions
-# ---------------------------------------------------------------------------
-
-def suggest_template(
-    contact: dict,
-    memory_summary: Optional[dict] = None,
-) -> Optional[dict]:
-    """
-    Suggest the best template for a contact based on their pipeline stage
-    and memory signals.
-
-    Returns the best matching template dict, or None.
-    """
+def suggest_template(contact: dict, memory_summary: Optional[dict] = None) -> Optional[dict]:
     stage = contact.get("pipeline_stage", "New")
-    templates = _load_templates()
-    approved = [t for t in templates if t.get("approval_status") == "approved"]
-
+    approved = [template for template in list_templates(status="approved") if template.get("approval_status") == "approved"]
     if not approved:
         return None
 
-    # Stage-based suggestion mapping
     stage_suggestions = {
         "New": ["welcome_new_lead", "welcome_hindi"],
         "Qualified": ["demo_invitation", "gentle_followup"],
@@ -397,28 +362,23 @@ def suggest_template(
         "Lost": ["win_back", "seasonal_greeting"],
     }
 
-    preferred_names = stage_suggestions.get(stage, ["gentle_followup"])
-
-    for name in preferred_names:
-        for t in approved:
-            if t["name"] == name:
-                return t
-
-    # Fallback: return any approved template
-    return approved[0] if approved else None
+    for name in stage_suggestions.get(stage, ["gentle_followup"]):
+        for template in approved:
+            if template["name"] == name:
+                return template
+    return approved[0]
 
 
 def get_template_stats() -> dict:
-    """Get aggregate template statistics."""
-    templates = _load_templates()
+    templates = list_templates()
     return {
         "total": len(templates),
-        "approved": len([t for t in templates if t.get("approval_status") == "approved"]),
-        "pending": len([t for t in templates if t.get("approval_status") == "pending"]),
-        "rejected": len([t for t in templates if t.get("approval_status") == "rejected"]),
-        "total_usage": sum(t.get("usage_count", 0) for t in templates),
+        "approved": len([template for template in templates if template.get("approval_status") == "approved"]),
+        "pending": len([template for template in templates if template.get("approval_status") == "pending"]),
+        "rejected": len([template for template in templates if template.get("approval_status") == "rejected"]),
+        "total_usage": sum(template.get("usage_count", 0) for template in templates),
         "categories": {
-            cat: len([t for t in templates if t.get("category") == cat])
-            for cat in TEMPLATE_CATEGORIES
+            category: len([template for template in templates if template.get("category") == category])
+            for category in TEMPLATE_CATEGORIES
         },
     }

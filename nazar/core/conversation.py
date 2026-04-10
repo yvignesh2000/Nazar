@@ -78,6 +78,7 @@ def _build_messages(
     system_prompt: str,
     recent_messages: list,
     current_message: str,
+    include_current_message: bool = True,
 ) -> list:
     """Build the message array for the LLM call."""
     messages = [{"role": "system", "content": system_prompt}]
@@ -87,10 +88,66 @@ def _build_messages(
         role = "user" if msg.get("direction") == "inbound" else "assistant"
         messages.append({"role": role, "content": msg["content"]})
 
-    # Add current message
-    messages.append({"role": "user", "content": current_message})
+    if include_current_message:
+        messages.append({"role": "user", "content": current_message})
 
     return messages
+
+
+def get_or_create_contact_for_phone(phone: str) -> dict:
+    from contact_manager import get_contact_by_phone, create_contact
+
+    contact = get_contact_by_phone(phone)
+    if contact is None:
+        contact = create_contact(name="", phone=phone, source="whatsapp_inbound")
+        logger.info(f"New contact created for {phone}: {contact['contact_id']}")
+    return contact
+
+
+async def generate_reply_for_contact(
+    contact_id: str,
+    current_message: str,
+    llm_call: Callable,
+    config: Optional[dict] = None,
+    include_current_message: bool = True,
+) -> str:
+    from contact_manager import get_contact, get_conversation_history
+    from customer_memory import get_relevant_context
+
+    if config is None:
+        config = _load_config()
+
+    contact = get_contact(contact_id)
+    if not contact:
+        raise ValueError(f"Contact {contact_id} not found")
+
+    memory_context = get_relevant_context(contact_id, current_message)
+    recent = get_conversation_history(contact_id, days=7)
+    knowledge_base = _load_knowledge_base()
+    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, config)
+    messages = _build_messages(
+        system_prompt,
+        recent,
+        current_message,
+        include_current_message=include_current_message,
+    )
+    return await llm_call(messages)
+
+
+def persist_memory_and_signals(contact_id: str, contact: dict, inbound_message: str, outbound_message: str) -> dict:
+    from customer_memory import add_message as add_to_memory, extract_signals_from_message, add_signal
+
+    now = datetime.now(IST).isoformat()
+    add_to_memory(contact_id, "inbound", inbound_message, timestamp=now)
+    add_to_memory(contact_id, "outbound", outbound_message, timestamp=now)
+
+    signals = extract_signals_from_message(inbound_message, "inbound")
+    for sig in signals:
+        add_signal(contact_id, sig["type"], sig["content"], timestamp=now)
+
+    if signals:
+        _auto_score(contact_id, contact, signals)
+    return {"signals": signals, "timestamp": now}
 
 
 async def handle_inbound(
@@ -111,68 +168,24 @@ async def handle_inbound(
     Returns:
         AI-generated response string
     """
-    from contact_manager import (
-        get_contact_by_phone, create_contact, save_message,
-        get_conversation_history, update_contact,
-    )
-    from customer_memory import (
-        get_relevant_context, add_message as add_to_memory,
-        extract_signals_from_message, add_signal,
-    )
+    from contact_manager import save_message
 
     if config is None:
         config = _load_config()
 
-    now = datetime.now(IST).isoformat()
-
-    # 1. Get or create contact
-    contact = get_contact_by_phone(phone)
-    if contact is None:
-        contact = create_contact(name="", phone=phone, source="whatsapp_inbound")
-        logger.info(f"New contact created for {phone}: {contact['contact_id']}")
-
+    contact = get_or_create_contact_for_phone(phone)
     contact_id = contact["contact_id"]
 
-    # 2. Save inbound message
     save_message(contact_id, "inbound", message)
-
-    # 3. Get memory context
-    memory_context = get_relevant_context(contact_id, message)
-
-    # 4. Get recent conversation history
-    recent = get_conversation_history(contact_id, days=7)
-
-    # 5. Load knowledge base
-    knowledge_base = _load_knowledge_base()
-
-    # 6. Build prompt and call LLM
-    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, config)
-    messages = _build_messages(system_prompt, recent, message)
-
-    response = await llm_call(messages)
-
-    # 7. Save outbound response
-    save_message(contact_id, "outbound", response, sent_by="bot")
-
-    # 8. Add both messages to vector memory
-    add_to_memory(contact_id, "inbound", message, timestamp=now)
-    add_to_memory(contact_id, "outbound", response, timestamp=now)
-
-    # 9. Extract and store signals
-    signals = extract_signals_from_message(message, "inbound")
-    for sig in signals:
-        add_signal(contact_id, sig["type"], sig["content"], timestamp=now)
-
-    # 10. Update contact stats
-    update_contact(
+    response = await generate_reply_for_contact(
         contact_id,
-        total_messages=contact.get("total_messages", 0) + 2,
-        last_replied_at=now,
+        message,
+        llm_call,
+        config=config,
+        include_current_message=False,
     )
-
-    # 11. Auto-update lead score based on signals
-    if signals:
-        _auto_score(contact_id, contact, signals)
+    save_message(contact_id, "outbound", response, sent_by="bot")
+    persist_memory_and_signals(contact_id, contact, message, response)
 
     logger.info(f"[{phone}] Handled inbound, response: {response[:60]}...")
     return response
@@ -229,25 +242,8 @@ async def generate_ai_reply(
     Generate an AI reply without the full inbound pipeline.
     Used for dashboard-initiated AI suggestions.
     """
-    from contact_manager import get_contact, get_conversation_history
-    from customer_memory import get_relevant_context
-
-    if config is None:
-        config = _load_config()
-
-    contact = get_contact(contact_id)
-    if not contact:
-        return "Contact not found."
-
-    memory_context = get_relevant_context(contact_id, message)
-    recent = get_conversation_history(contact_id, days=7)
-    knowledge_base = _load_knowledge_base()
-
-    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, config)
-    messages = _build_messages(system_prompt, recent, message)
-
     from llm_router import call_llm_safe
-    return await call_llm_safe(messages, tier="sonnet")
+    return await generate_reply_for_contact(contact_id, message, lambda messages: call_llm_safe(messages, tier="sonnet"), config=config)
 
 
 def should_handoff(message: str) -> bool:
