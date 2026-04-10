@@ -1,0 +1,1 @@
+{"configurations":[{"request":"launch","console":"integratedTerminal","name":"Python: Current File","program":"${file}","type":"python"}],"version":"2.0.0"}
