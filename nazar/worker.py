@@ -34,11 +34,12 @@ from core.contact_manager import (
 )
 from core.conversation import (
     generate_reply_for_contact,
+    get_or_create_contact_for_channel,
     get_or_create_contact_for_phone,
     persist_memory_and_signals,
     should_handoff,
 )
-from core.job_queue import claim_due_jobs, complete_job, fail_job
+from core.job_queue import claim_due_jobs, complete_job, enqueue_job, fail_job
 from core.llm_router import call_llm_safe
 from core.outbound import log_broadcast
 from core.policy_store import (
@@ -47,20 +48,28 @@ from core.policy_store import (
     resolve_reply_policy,
     should_force_human,
 )
+from core.telegram_adapter import (
+    get_updates as get_telegram_updates,
+    load_update_offset,
+    normalize_text_update,
+    save_update_offset,
+    telegram_ready,
+)
+from core.template_manager import get_template_by_name, increment_usage, render_template
 from core.transcription import TranscriptionError, transcribe_audio
 from core.workspace_store import get_workspace_config
-from server import download_whatsapp_media, send_template_message, send_whatsapp_message
+from server import (
+    _extract_provider_message_id,
+    download_whatsapp_media,
+    send_contact_message,
+    send_template_message,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nazar.worker")
 
 HANDOFF_MESSAGE = "I'll connect you with a team member who can help. They'll be with you shortly!"
 TRANSCRIPTION_FAILURE_MESSAGE = "I couldn't process that voice note. Could you type it out instead?"
-
-
-def _extract_wa_message_id(response: dict) -> str:
-    return ((response.get("messages") or [{}])[0]).get("id", "")
-
 
 async def _llm_call(messages, phone: str = ""):
     return await call_llm_safe(messages, tier="sonnet", phone=phone)
@@ -75,8 +84,8 @@ async def _send_ai_reply(contact: dict, conversation: dict, inbound_message: str
         config=config,
         include_current_message=False,
     )
-    wa_response = await send_whatsapp_message(contact["phone"], response_text)
-    wa_message_id = _extract_wa_message_id(wa_response)
+    provider_response = await send_contact_message(contact, response_text)
+    wa_message_id = _extract_provider_message_id(provider_response)
     save_message(
         conversation["conversation_id"],
         "outbound",
@@ -102,6 +111,11 @@ async def _generate_bot_assist_reply(contact: dict, inbound_message: str) -> str
         config=config,
         include_current_message=False,
     )
+
+
+async def _send_handoff_message(contact: dict) -> str:
+    response = await send_contact_message(contact, HANDOFF_MESSAGE)
+    return _extract_provider_message_id(response)
 
 
 def _resolve_conversation_policy(contact: dict, conversation: dict) -> dict:
@@ -186,8 +200,7 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
         updated = _apply_policy_to_conversation(conversation_id, updated, policy, routing)
         handoff_message_id = ""
         if reply_mode != "manual_only":
-            handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
-            handoff_message_id = _extract_wa_message_id(handoff_response)
+            handoff_message_id = await _send_handoff_message(contact)
             save_message(
                 conversation_id,
                 "outbound",
@@ -222,7 +235,8 @@ async def _process_inbound_voice(payload: dict) -> dict:
         audio_bytes, mime_type = await download_whatsapp_media(media_id)
         transcript = await transcribe_audio(audio_bytes, mime_type)
     except TranscriptionError:
-        await send_whatsapp_message(phone, TRANSCRIPTION_FAILURE_MESSAGE)
+        temp_contact = {"phone": phone, "channel": "whatsapp"}
+        await send_contact_message(temp_contact, TRANSCRIPTION_FAILURE_MESSAGE)
         return {"phone": phone, "transcription_failed": True}
 
     contact = get_or_create_contact_for_phone(phone)
@@ -264,8 +278,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
         updated = _apply_policy_to_conversation(conversation["conversation_id"], updated, policy, routing)
         handoff_message_id = ""
         if reply_mode != "manual_only":
-            handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
-            handoff_message_id = _extract_wa_message_id(handoff_response)
+            handoff_message_id = await _send_handoff_message(contact)
             save_message(
                 conversation["conversation_id"],
                 "outbound",
@@ -316,14 +329,21 @@ async def _execute_broadcast(job: dict) -> dict:
     for contact in targets:
         phone = contact["phone"]
         try:
-            if template_name:
+            if template_name and (contact.get("channel") or "whatsapp") == "whatsapp":
                 response = await send_template_message(phone, template_name)
                 body = f"[template: {template_name}]"
-                wa_message_id = _extract_wa_message_id(response)
+                wa_message_id = _extract_provider_message_id(response)
             else:
-                response = await send_whatsapp_message(phone, message)
-                body = message
-                wa_message_id = _extract_wa_message_id(response)
+                if template_name:
+                    template = get_template_by_name(template_name)
+                    if not template:
+                        raise ValueError(f"Template {template_name} not found")
+                    body = render_template(template, contact)
+                    increment_usage(template["id"])
+                else:
+                    body = message
+                response = await send_contact_message(contact, body)
+                wa_message_id = _extract_provider_message_id(response)
             outbound_record = save_message(contact["contact_id"], "outbound", body, sent_by="broadcast", wa_message_id=wa_message_id)
             set_conversation_use_case(
                 outbound_record["conversation_id"],
@@ -408,6 +428,54 @@ async def process_job(job: dict) -> dict:
     raise ValueError(f"Unsupported job kind: {kind}")
 
 
+async def poll_telegram_once() -> list[dict]:
+    if not telegram_ready():
+        return []
+    offset = load_update_offset()
+    updates = await get_telegram_updates(offset=offset, timeout=2)
+    results = []
+    for update in updates:
+        normalized = normalize_text_update(update)
+        next_offset = int(update.get("update_id", 0)) + 1
+        save_update_offset(next_offset)
+        if not normalized:
+            continue
+        chat_id = normalized["chat_id"]
+        text = normalized["text"]
+        contact = get_or_create_contact_for_channel(
+            "telegram",
+            chat_id,
+            name=normalized.get("name") or "",
+            source="telegram_inbound",
+        )
+        conversation = get_conversation_record(contact["contact_id"])
+        external_message_id = str(normalized.get("message_id") or "")
+        if conversation and not conversation.get("bot_mode", True):
+            save_message(contact["contact_id"], "inbound", text, wa_message_id=external_message_id)
+            results.append({"contact_id": contact["contact_id"], "queued": False, "reason": "bot_mode_off"})
+            continue
+        inbound_record = save_message(contact["contact_id"], "inbound", text, wa_message_id=external_message_id)
+        queued = enqueue_job(
+            "process_saved_inbound_text",
+            {
+                "contact_id": contact["contact_id"],
+                "conversation_id": inbound_record["conversation_id"],
+                "phone": contact["phone"],
+                "message": text,
+                "wa_message_id": external_message_id,
+                "channel": "telegram",
+            },
+        )
+        results.append(
+            {
+                "contact_id": contact["contact_id"],
+                "conversation_id": inbound_record["conversation_id"],
+                "job_id": queued["id"],
+            }
+        )
+    return results
+
+
 async def process_available_jobs_once(limit: int = 10) -> list[dict]:
     jobs = claim_due_jobs(limit=limit)
     results = []
@@ -429,6 +497,10 @@ async def run_worker_loop() -> None:
     batch_size = int(os.environ.get("NAZAR_WORKER_BATCH_SIZE", "5"))
     logger.info("Nazar worker started")
     while True:
+        try:
+            await poll_telegram_once()
+        except Exception:
+            logger.exception("Telegram poll failed")
         results = await process_available_jobs_once(limit=batch_size)
         if not results:
             await asyncio.sleep(poll_interval)

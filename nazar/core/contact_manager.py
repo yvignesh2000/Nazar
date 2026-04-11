@@ -67,6 +67,14 @@ _CONTACT_FIELDS = {
 }
 
 
+def infer_contact_channel(phone: str, source: Optional[str] = None) -> str:
+    raw = str(phone or "").strip().lower()
+    src = str(source or "").strip().lower()
+    if raw.startswith("telegram:") or src.startswith("telegram"):
+        return "telegram"
+    return "whatsapp"
+
+
 def normalize_phone(phone: str) -> str:
     cleaned = re.sub(r"[\s\-\(\)\.]", "", phone or "")
     if cleaned and cleaned[0] != "+" and cleaned[0].isdigit():
@@ -117,10 +125,12 @@ def _workspace_id(session) -> str:
 
 
 def _serialize_contact(contact: Contact) -> dict:
+    channel = infer_contact_channel(contact.phone, contact.source)
     return {
         "contact_id": contact.id,
         "name": contact.name or "",
         "phone": contact.phone,
+        "channel": channel,
         "company": contact.company,
         "pipeline_stage": contact.pipeline_stage,
         "deal_value": float(contact.deal_value or 0),
@@ -154,11 +164,13 @@ def _serialize_message(message: ConversationMessage) -> dict:
 
 def _serialize_conversation(conversation: Conversation, contact: Contact) -> dict:
     assigned_name = conversation.assigned_user.name if conversation.assigned_user is not None else None
+    channel = infer_contact_channel(contact.phone, contact.source)
     return {
         "conversation_id": conversation.id,
         "contact_id": contact.id,
         "name": contact.name or "Unknown",
         "phone": contact.phone,
+        "channel": channel,
         "stage": contact.pipeline_stage,
         "tags": _tags_from_json(contact.tags_json),
         "lead_score": int(contact.lead_score or 0),

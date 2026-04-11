@@ -12,6 +12,7 @@ nazar/data/chromadb/
 nazar/data/*.db
 nazar/data/*.db-*
 nazar/data/broadcasts.json
+nazar/data/telegram_state.json
 
 # Python
 __pycache__/

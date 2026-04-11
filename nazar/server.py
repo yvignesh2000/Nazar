@@ -11,6 +11,7 @@ FastAPI server that:
 
 import os
 import re
+import ssl
 # Fix OpenBLAS thread limit issue in constrained environments
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -25,6 +26,10 @@ from pathlib import Path
 from typing import Optional
 
 import aiohttp
+try:
+    import certifi
+except Exception:
+    certifi = None
 from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File, Form
 from fastapi.responses import PlainTextResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -87,6 +92,13 @@ from policy_store import (
     upsert_routing_rule,
 )
 from simulator import SIMULATOR_SCENARIOS, simulate_broadcast_run_async, simulate_inbound_event_async
+from telegram_adapter import (
+    send_telegram_message,
+    telegram_bot_token,
+    telegram_bot_username,
+    telegram_chat_id,
+    telegram_ready,
+)
 from workspace_store import get_membership_by_user_id, get_workspace_config, initialize_workspace_store, list_team_members, update_workspace_config
 
 # --- Logging ---
@@ -99,10 +111,9 @@ logger = logging.getLogger("nazar")
 IST = timezone(timedelta(hours=5, minutes=30))
 
 # --- Config ---
-WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WA_PHONE_NUMBER_ID", "")
-WHATSAPP_ACCESS_TOKEN = os.environ.get("WA_ACCESS_TOKEN", "")
-WHATSAPP_VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "nazar_verify_2026")
-WA_API_URL = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+ENV_WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WA_PHONE_NUMBER_ID", "")
+ENV_WHATSAPP_ACCESS_TOKEN = os.environ.get("WA_ACCESS_TOKEN", "")
+ENV_WHATSAPP_VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "nazar_verify_2026")
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -130,6 +141,74 @@ def _log_task_error(task: asyncio.Task):
     """Callback to log unhandled exceptions from fire-and-forget tasks."""
     if not task.cancelled() and task.exception():
         logger.error(f"Background task failed: {task.exception()}", exc_info=task.exception())
+
+
+def _whatsapp_config() -> dict:
+    config = get_workspace_config()
+    phone_number_id = (
+        config.get("whatsapp_phone_number_id")
+        or config.get("wa_phone_number_id")
+        or ENV_WHATSAPP_PHONE_NUMBER_ID
+        or ""
+    ).strip()
+    access_token = (
+        config.get("whatsapp_access_token")
+        or config.get("wa_access_token")
+        or ENV_WHATSAPP_ACCESS_TOKEN
+        or ""
+    ).strip()
+    verify_token = (
+        config.get("whatsapp_verify_token")
+        or config.get("wa_verify_token")
+        or ENV_WHATSAPP_VERIFY_TOKEN
+        or "nazar_verify_2026"
+    ).strip()
+    test_number = (
+        config.get("whatsapp_test_number")
+        or config.get("wa_test_number")
+        or ""
+    ).strip()
+    return {
+        "phone_number_id": phone_number_id,
+        "access_token": access_token,
+        "verify_token": verify_token,
+        "test_number": test_number,
+        "api_url": f"https://graph.facebook.com/v21.0/{phone_number_id}/messages" if phone_number_id else "",
+    }
+
+
+def _whatsapp_ready() -> bool:
+    config = _whatsapp_config()
+    return bool(config["phone_number_id"] and config["access_token"])
+
+
+def _mask_secret(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if len(raw) <= 8:
+        return "•" * len(raw)
+    return f"{raw[:4]}…{raw[-4:]}"
+
+
+def _contact_channel(contact: dict) -> str:
+    return (contact.get("channel") or ("telegram" if str(contact.get("phone") or "").startswith("telegram:") else "whatsapp")).strip()
+
+
+def _extract_provider_message_id(response: dict) -> str:
+    if "messages" in response:
+        return ((response.get("messages") or [{}])[0]).get("id", "")
+    result = response.get("result") or {}
+    return str(result.get("message_id") or "")
+
+
+def _tls_context():
+    if certifi is None:
+        return None
+    try:
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
 
 
 # ====================================================================
@@ -228,8 +307,11 @@ async def api_auth_me(request: Request):
 
 async def send_whatsapp_message(phone: str, text: str) -> dict:
     """Send a text message via WhatsApp Cloud API."""
+    config = _whatsapp_config()
+    if not (config["phone_number_id"] and config["access_token"]):
+        raise HTTPException(503, "WhatsApp is not configured")
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {config['access_token']}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -238,18 +320,35 @@ async def send_whatsapp_message(phone: str, text: str) -> dict:
         "type": "text",
         "text": {"body": text},
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(WA_API_URL, headers=headers, json=payload) as resp:
-            result = await resp.json()
-            if resp.status != 200:
-                logger.error(f"WhatsApp send failed: {result}")
-            return result
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                config["api_url"],
+                headers=headers,
+                json=payload,
+                ssl=_tls_context(),
+            ) as resp:
+                result = await resp.json()
+                if resp.status != 200:
+                    logger.error(f"WhatsApp send failed: {result}")
+                    detail = result.get("error", {}).get("message") or result
+                    raise HTTPException(resp.status, f"WhatsApp send failed: {detail}")
+                return result
+    except aiohttp.ClientConnectorCertificateError as exc:
+        raise HTTPException(
+            502,
+            "WhatsApp send failed because this machine cannot verify Meta's SSL certificate. "
+            "Install Python certificates or use a runtime with a valid CA bundle."
+        ) from exc
 
 
 async def send_template_message(phone: str, template_name: str, language: str = "en", components: list = None) -> dict:
     """Send a template message via WhatsApp Cloud API."""
+    config = _whatsapp_config()
+    if not (config["phone_number_id"] and config["access_token"]):
+        raise HTTPException(503, "WhatsApp is not configured")
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {config['access_token']}",
         "Content-Type": "application/json",
     }
     template_obj = {
@@ -265,18 +364,42 @@ async def send_template_message(phone: str, template_name: str, language: str = 
         "type": "template",
         "template": template_obj,
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(WA_API_URL, headers=headers, json=payload) as resp:
-            result = await resp.json()
-            if resp.status != 200:
-                logger.error(f"Template send failed: {result}")
-            return result
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                config["api_url"],
+                headers=headers,
+                json=payload,
+                ssl=_tls_context(),
+            ) as resp:
+                result = await resp.json()
+                if resp.status != 200:
+                    logger.error(f"Template send failed: {result}")
+                    detail = result.get("error", {}).get("message") or result
+                    raise HTTPException(resp.status, f"Template send failed: {detail}")
+                return result
+    except aiohttp.ClientConnectorCertificateError as exc:
+        raise HTTPException(
+            502,
+            "WhatsApp template send failed because this machine cannot verify Meta's SSL certificate. "
+            "Install Python certificates or use a runtime with a valid CA bundle."
+        ) from exc
+
+
+async def send_contact_message(contact: dict, text: str) -> dict:
+    channel = _contact_channel(contact)
+    if channel == "telegram":
+        return await send_telegram_message(contact["phone"], text)
+    return await send_whatsapp_message(contact["phone"], text)
 
 
 async def mark_as_read(message_id: str):
     """Mark a WhatsApp message as read."""
+    config = _whatsapp_config()
+    if not (config["phone_number_id"] and config["access_token"]):
+        return
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {config['access_token']}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -285,7 +408,12 @@ async def mark_as_read(message_id: str):
         "message_id": message_id,
     }
     async with aiohttp.ClientSession() as session:
-        async with session.post(WA_API_URL, headers=headers, json=payload) as resp:
+        async with session.post(
+            config["api_url"],
+            headers=headers,
+            json=payload,
+            ssl=_tls_context(),
+        ) as resp:
             if resp.status != 200:
                 err = await resp.text()
                 logger.error(f"Mark read failed for {message_id}: {err}")
@@ -293,10 +421,13 @@ async def mark_as_read(message_id: str):
 
 async def download_whatsapp_media(media_id: str) -> tuple:
     """Download media from WhatsApp Cloud API. Returns (bytes, mime_type)."""
-    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    config = _whatsapp_config()
+    if not config["access_token"]:
+        raise Exception("WhatsApp is not configured")
+    headers = {"Authorization": f"Bearer {config['access_token']}"}
     async with aiohttp.ClientSession() as session:
         meta_url = f"https://graph.facebook.com/v21.0/{media_id}"
-        async with session.get(meta_url, headers=headers) as resp:
+        async with session.get(meta_url, headers=headers, ssl=_tls_context()) as resp:
             if resp.status != 200:
                 raise Exception(f"Media metadata fetch failed: {resp.status}")
             meta = await resp.json()
@@ -304,7 +435,7 @@ async def download_whatsapp_media(media_id: str) -> tuple:
         download_url = meta.get("url", "")
         mime_type = meta.get("mime_type", "audio/ogg")
 
-        async with session.get(download_url, headers=headers) as resp:
+        async with session.get(download_url, headers=headers, ssl=_tls_context()) as resp:
             if resp.status != 200:
                 raise Exception(f"Media download failed: {resp.status}")
             data = await resp.read()
@@ -323,7 +454,7 @@ async def webhook_verify(request: Request):
     token = params.get("hub.verify_token", "")
     challenge = params.get("hub.challenge", "")
 
-    if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN:
+    if mode == "subscribe" and token == _whatsapp_config()["verify_token"]:
         logger.info("Webhook verified successfully")
         return PlainTextResponse(challenge)
     raise HTTPException(status_code=403, detail="Verification failed")
@@ -662,15 +793,10 @@ async def api_send_message(conversation_id: str, request: Request):
     if not contact:
         raise HTTPException(404, "Contact not found")
 
-    phone = contact["phone"]
-
-    # Send via WhatsApp
-    result = await send_whatsapp_message(phone, text)
+    result = await send_contact_message(contact, text)
 
     # Save to conversation history
-    wa_msg_id = ""
-    if "messages" in result:
-        wa_msg_id = result["messages"][0].get("id", "")
+    wa_msg_id = _extract_provider_message_id(result)
 
     save_message(conversation["conversation_id"], "outbound", text, sent_by="human", wa_message_id=wa_msg_id)
     memory_add_message(contact["contact_id"], "outbound", text)
@@ -713,6 +839,8 @@ async def api_assign_conversation(conversation_id: str, request: Request):
     _require_roles(request, "agent")
     body = await request.json()
     user_id = body.get("user_id")
+    if user_id is None:
+        user_id = body.get("assigned_user_id")
     if body.get("assign_to_me"):
         user_id = _actor_user_id(request)
     try:
@@ -836,8 +964,8 @@ async def api_send_ai_assist(conversation_id: str, request: Request):
     message = (body.get("message") or conversation.get("ai_assist_draft") or "").strip()
     if not message:
         raise HTTPException(400, "No AI assist draft available")
-    result = await send_whatsapp_message(contact["phone"], message)
-    wa_msg_id = ((result.get("messages") or [{}])[0]).get("id", "")
+    result = await send_contact_message(contact, message)
+    wa_msg_id = _extract_provider_message_id(result)
     save_message(conversation_id, "outbound", message, sent_by="human_ai_assist", wa_message_id=wa_msg_id)
     set_conversation_ai_assist(conversation_id, None, status=None)
     record_audit_event(
@@ -1154,7 +1282,15 @@ async def api_simulate_broadcast(request: Request):
 async def api_get_config(request: Request):
     _require_roles(request, "admin", "owner")
     config = get_workspace_config()
-    config["whatsapp_connected"] = bool(WHATSAPP_ACCESS_TOKEN)
+    wa = _whatsapp_config()
+    config["whatsapp_connected"] = _whatsapp_ready()
+    config["whatsapp_phone_number_id"] = wa["phone_number_id"]
+    config["whatsapp_verify_token"] = wa["verify_token"]
+    config["whatsapp_test_number"] = wa["test_number"]
+    config["whatsapp_access_token_present"] = bool(wa["access_token"])
+    config["whatsapp_access_token_masked"] = _mask_secret(wa["access_token"])
+    config["telegram_connected"] = telegram_ready()
+    config["telegram_bot_username"] = telegram_bot_username()
     return config
 
 
@@ -1162,8 +1298,18 @@ async def api_get_config(request: Request):
 async def api_update_config(request: Request):
     _require_roles(request, "admin", "owner")
     body = await request.json()
+    if "whatsapp_access_token" in body and not str(body.get("whatsapp_access_token") or "").strip():
+        body.pop("whatsapp_access_token")
     updated = update_workspace_config(body)
-    updated["whatsapp_connected"] = bool(WHATSAPP_ACCESS_TOKEN)
+    wa = _whatsapp_config()
+    updated["whatsapp_connected"] = _whatsapp_ready()
+    updated["whatsapp_phone_number_id"] = wa["phone_number_id"]
+    updated["whatsapp_verify_token"] = wa["verify_token"]
+    updated["whatsapp_test_number"] = wa["test_number"]
+    updated["whatsapp_access_token_present"] = bool(wa["access_token"])
+    updated["whatsapp_access_token_masked"] = _mask_secret(wa["access_token"])
+    updated["telegram_connected"] = telegram_ready()
+    updated["telegram_bot_username"] = telegram_bot_username()
     record_audit_event(
         "workspace",
         updated.get("business_name") or "default",
@@ -1172,6 +1318,60 @@ async def api_update_config(request: Request):
         actor_user_id=_actor_user_id(request),
     )
     return updated
+
+
+@app.get("/api/whatsapp/status")
+async def api_whatsapp_status(request: Request):
+    _require_roles(request, "admin", "owner")
+    wa = _whatsapp_config()
+    recent_jobs = list_jobs(limit=25)
+    failed_jobs = [job for job in recent_jobs if job.get("status") == "failed"]
+    queued_jobs = [job for job in recent_jobs if job.get("status") == "queued"]
+    inbound_jobs = [job for job in recent_jobs if job.get("kind") in {"inbound_saved_text", "inbound_voice"}]
+    return {
+        "configured": _whatsapp_ready(),
+        "webhook_url": f"{request.base_url}webhook",
+        "phone_number_id": wa["phone_number_id"],
+        "verify_token": wa["verify_token"],
+        "test_number": wa["test_number"],
+        "access_token_present": bool(wa["access_token"]),
+        "access_token_masked": _mask_secret(wa["access_token"]),
+        "llm": llm_health(),
+        "queue": {
+            "queued_jobs": len(queued_jobs),
+            "failed_jobs": len(failed_jobs),
+            "recent_inbound_jobs": len(inbound_jobs),
+        },
+    }
+
+
+@app.get("/api/telegram/status")
+async def api_telegram_status(request: Request):
+    _require_roles(request, "admin", "owner")
+    recent_jobs = list_jobs(limit=50)
+    poll_jobs = [job for job in recent_jobs if job.get("kind") == "telegram_poll"]
+    return {
+        "configured": telegram_ready(),
+        "bot_username": telegram_bot_username(),
+        "recent_poll_jobs": len(poll_jobs),
+    }
+
+
+@app.post("/api/whatsapp/test-send")
+async def api_whatsapp_test_send(request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    phone = (body.get("phone") or _whatsapp_config()["test_number"] or "").strip()
+    mode = (body.get("mode") or "template").strip().lower()
+    if not phone:
+        raise HTTPException(400, "test phone number is required")
+    if mode == "text":
+        text = (body.get("message") or "Hello from Nazar. This is a connection test.").strip()
+        result = await send_whatsapp_message(phone, text)
+        return {"ok": True, "mode": "text", "result": result}
+    template_name = (body.get("template_name") or "hello_world").strip()
+    result = await send_template_message(phone, template_name)
+    return {"ok": True, "mode": "template", "template_name": template_name, "result": result}
 
 
 # ====================================================================
@@ -1474,7 +1674,8 @@ async def health():
         "status": "ok",
         "service": "nazar",
         "storage_backend": get_storage_backend_name(),
-        "whatsapp_configured": bool(WHATSAPP_ACCESS_TOKEN),
+        "whatsapp_configured": _whatsapp_ready(),
+        "telegram_configured": telegram_ready(),
         "time": datetime.now(IST).isoformat(),
     }
 

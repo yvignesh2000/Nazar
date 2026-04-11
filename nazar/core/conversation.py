@@ -94,14 +94,33 @@ def _build_messages(
     return messages
 
 
-def get_or_create_contact_for_phone(phone: str) -> dict:
-    from contact_manager import get_contact_by_phone, create_contact
+def _channel_address(channel: str, identifier: str) -> str:
+    if channel == "telegram":
+        return f"telegram:{str(identifier).strip()}"
+    return identifier
 
-    contact = get_contact_by_phone(phone)
+
+def get_or_create_contact_for_channel(
+    channel: str,
+    identifier: str,
+    *,
+    name: str = "",
+    source: Optional[str] = None,
+) -> dict:
+    from contact_manager import get_contact_by_phone, create_contact, update_contact
+
+    address = _channel_address(channel, identifier)
+    contact = get_contact_by_phone(address)
     if contact is None:
-        contact = create_contact(name="", phone=phone, source="whatsapp_inbound")
-        logger.info(f"New contact created for {phone}: {contact['contact_id']}")
+        contact = create_contact(name=name or "", phone=address, source=source or f"{channel}_inbound")
+        logger.info(f"New {channel} contact created for {address}: {contact['contact_id']}")
+    elif name and not (contact.get("name") or "").strip():
+        contact = update_contact(contact["contact_id"], name=name)
     return contact
+
+
+def get_or_create_contact_for_phone(phone: str) -> dict:
+    return get_or_create_contact_for_channel("whatsapp", phone, source="whatsapp_inbound")
 
 
 async def generate_reply_for_contact(

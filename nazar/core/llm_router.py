@@ -80,6 +80,7 @@ _provider_health = {
 
 # Cool-down: retry a failed provider after this many seconds
 RETRY_AFTER_SECONDS = 120
+FAILURE_THRESHOLD = 3
 
 
 def _ssl_context():
@@ -121,10 +122,16 @@ def _is_provider_available(provider: str) -> bool:
 def _mark_failure(provider: str):
     """Mark a provider as failed."""
     health = _provider_health[provider]
-    health["healthy"] = False
-    health["last_failure"] = time.time()
     health["consecutive_failures"] += 1
-    print(f"⚠️ Provider {provider} marked unhealthy (failures: {health['consecutive_failures']})")
+    health["last_failure"] = time.time()
+    if health["consecutive_failures"] >= FAILURE_THRESHOLD:
+        health["healthy"] = False
+        print(f"⚠️ Provider {provider} marked unhealthy (failures: {health['consecutive_failures']})")
+    else:
+        print(
+            f"⚠️ Provider {provider} request failed "
+            f"(transient {health['consecutive_failures']}/{FAILURE_THRESHOLD})"
+        )
 
 
 def _mark_success(provider: str):

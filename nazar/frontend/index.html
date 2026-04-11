@@ -501,7 +501,80 @@ body {
 .ins-text strong { color:var(--text); font-weight:500; }
 .ins-action { color:var(--accent); font-size:12px; font-weight:500; white-space:nowrap; }
 
-/* Overview grid */
+/* Dashboard */
+.dashboard-shell {
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+.dashboard-top {
+  display:grid;
+  grid-template-columns:1.25fr .95fr;
+  gap:18px;
+}
+.focus-card {
+  background:
+    radial-gradient(circle at top right, rgba(99,102,241,.18), transparent 36%),
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)),
+    var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:24px;
+  position:relative;
+  overflow:hidden;
+}
+.focus-kicker {
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  color:var(--accent-hover);
+  font-weight:700;
+  margin-bottom:12px;
+}
+.focus-title {
+  font-size:28px;
+  line-height:1.05;
+  letter-spacing:-1px;
+  font-weight:800;
+  max-width:16ch;
+  margin-bottom:12px;
+}
+.focus-body {
+  color:var(--text2);
+  font-size:14px;
+  line-height:1.65;
+  max-width:58ch;
+}
+.focus-actions {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:18px;
+}
+.dashboard-stats {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+.dashboard-operating {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+}
+.ops-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+  cursor:pointer;
+  transition:border-color .15s, transform .15s, background .15s;
+}
+.ops-card:hover { border-color:var(--border2); transform:translateY(-1px); background:var(--surface2); }
+.ops-label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.8px; margin-bottom:10px; }
+.ops-value { font-size:30px; font-weight:800; letter-spacing:-1.2px; margin-bottom:6px; }
+.ops-meta { font-size:12px; color:var(--text2); line-height:1.45; }
+
+/* Shared overview grid */
 .overview-grid {
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -855,16 +928,70 @@ body {
 .add-card:hover { border-color:var(--accent); color:var(--accent); }
 
 /* ================================================================
-   SCREEN 4 — BROADCASTS
+   SCREEN 4 — CAMPAIGNS
    ================================================================ */
-.broadcasts-layout { display:flex; flex:1; overflow:hidden; }
-.bc-list-panel { flex:1; overflow-y:auto; padding:24px; }
+.broadcasts-layout { flex:1; overflow-y:auto; padding:24px; }
+.campaigns-page { max-width:1180px; margin:0 auto; }
+.campaigns-grid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:16px;
+}
+.campaign-summary-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:18px;
+  cursor:pointer;
+  transition:border-color .15s, transform .15s, background .15s;
+}
+.campaign-summary-card:hover { border-color:var(--border2); transform:translateY(-1px); background:var(--surface2); }
+.campaign-summary-top {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.campaign-summary-title { font-size:15px; font-weight:700; }
+.campaign-summary-sub { font-size:12px; color:var(--text2); margin-top:4px; line-height:1.45; }
+.campaign-summary-metrics {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-top:14px;
+}
+.campaign-summary-metric {
+  padding:10px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:var(--surface2);
+}
+.campaign-summary-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; }
+.campaign-summary-value { font-size:16px; font-weight:700; }
+.campaign-summary-footer { margin-top:14px; font-size:11px; color:var(--text3); }
 .bc-stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
 .bc-stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
 .bc-stat-val { font-size:24px; font-weight:800; letter-spacing:-1px; margin-bottom:4px; }
 .bc-stat-label { font-size:11px; color:var(--text2); }
 
 .bc-list { display:flex; flex-direction:column; gap:10px; }
+.campaign-history-wrap {
+  margin-top:24px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:18px;
+}
+.campaign-history-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.campaign-history-head .title { font-size:16px; font-weight:700; }
+.campaign-history-head .sub { font-size:12px; color:var(--text2); margin-top:4px; }
 .bc-item {
   background:var(--surface);
   border:1px solid var(--border);
@@ -888,42 +1015,25 @@ body {
 .bc-item-metrics { display:flex; gap:16px; margin-top:8px; }
 .bc-metric { font-size:11.5px; color:var(--text2); }
 .bc-metric strong { color:var(--text); font-weight:500; }
-
-/* Compose panel */
-.bc-compose {
-  width:340px; flex-shrink:0;
-  border-left:1px solid var(--border);
-  padding:20px;
-  overflow-y:auto;
-}
-.compose-title { font-size:14px; font-weight:700; margin-bottom:16px; }
-.compose-area {
-  background:var(--surface2);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:14px;
-  margin-bottom:16px;
-}
-.compose-label {
-  font-size:10px; font-weight:600;
-  color:var(--text3); text-transform:uppercase;
-  letter-spacing:.8px; margin-bottom:8px;
-}
 .compose-textarea {
-  width:100%; background:none; border:none; outline:none;
-  color:var(--text); font-size:13px;
+  width:100%;
+  color:var(--text);
+  font-size:13px;
   font-family:inherit;
-  resize:none; min-height:100px;
+  resize:vertical;
   line-height:1.6;
 }
 .compose-textarea::placeholder { color:var(--text3); }
 
 .campaign-builder {
-  width:420px; flex-shrink:0;
-  border-left:1px solid var(--border);
-  padding:20px;
-  overflow-y:auto;
+  width:100%;
+  max-width:980px;
+  padding:22px;
+  overflow:visible;
   background:linear-gradient(180deg, rgba(255,255,255,.015), rgba(255,255,255,0));
+  border:1px solid var(--border);
+  border-radius:20px;
+  margin:0 auto;
 }
 .campaign-builder-head { margin-bottom:18px; }
 .campaign-builder-title { font-size:20px; font-weight:800; letter-spacing:-.4px; margin-bottom:6px; }
@@ -992,7 +1102,49 @@ body {
   color:var(--text2);
   line-height:1.45;
 }
+.campaign-warning {
+  margin-top:12px;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(245,158,11,.22);
+  background:rgba(245,158,11,.08);
+  color:var(--text2);
+  font-size:12px;
+  line-height:1.5;
+}
+.campaign-warning strong { color:var(--text); }
 .campaign-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+.modal-overlay {
+  display:none;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.64);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  z-index:320;
+  align-items:center;
+  justify-content:center;
+  padding:28px;
+}
+.modal-overlay.open { display:flex; }
+.modal-panel {
+  width:min(980px, 100%);
+  max-height:92vh;
+  overflow-y:auto;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:24px;
+  box-shadow:0 32px 90px rgba(0,0,0,.45);
+  padding:24px;
+}
+.modal-head {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:18px;
+}
+.modal-title { font-size:22px; font-weight:800; letter-spacing:-.8px; }
+.modal-sub { font-size:13px; color:var(--text2); margin-top:6px; line-height:1.55; max-width:64ch; }
 .campaign-history-card {
   padding:16px;
   border:1px solid var(--border);
@@ -1044,6 +1196,114 @@ body {
 .fu-card.upcoming { border-left:3px solid var(--accent); }
 .fu-card-body { flex:1; }
 .fu-card-row1 { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+
+/* ================================================================
+   CONTACTS / INSIGHTS / ANALYTICS
+   ================================================================ */
+.section-layout { flex:1; overflow-y:auto; padding:24px; }
+.section-head {
+  display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+  margin-bottom:20px;
+}
+.section-title { font-size:18px; font-weight:700; }
+.section-sub { font-size:13px; color:var(--text2); margin-top:4px; }
+.toolbar-row {
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:18px;
+}
+.toolbar-row .form-input { max-width:280px; }
+.data-table {
+  width:100%;
+  border-collapse:collapse;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  overflow:hidden;
+}
+.data-table th, .data-table td {
+  padding:14px 16px;
+  border-bottom:1px solid var(--border);
+  text-align:left;
+  font-size:13px;
+  vertical-align:top;
+}
+.data-table th {
+  font-size:11px;
+  color:var(--text3);
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  font-weight:700;
+}
+.data-table tr:last-child td { border-bottom:none; }
+.data-table tbody tr:hover { background:var(--surface2); }
+.mini-meta { font-size:11px; color:var(--text3); margin-top:4px; }
+.pill {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 10px; border-radius:999px;
+  border:1px solid var(--border);
+  background:var(--surface2); font-size:11px; color:var(--text2);
+}
+.score-good { color:var(--green); }
+.score-mid { color:var(--orange); }
+.score-low { color:var(--red); }
+.insights-grid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:16px;
+}
+.insight-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:18px;
+}
+.insight-card-top {
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;
+}
+.insight-card-title { font-size:16px; font-weight:700; }
+.insight-card-sub { font-size:12px; color:var(--text2); margin-top:3px; }
+.insight-metrics {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px;
+}
+.insight-metric {
+  background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:10px;
+}
+.insight-metric-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.7px; margin-bottom:5px; }
+.insight-metric-value { font-size:14px; font-weight:700; }
+.insight-note {
+  font-size:12px; color:var(--text2); line-height:1.5; margin-bottom:12px;
+}
+.insight-action {
+  background:rgba(34,197,94,.08);
+  border:1px solid rgba(34,197,94,.18);
+  color:#b7f7c8;
+  border-radius:12px;
+  padding:11px 12px;
+  font-size:12px;
+}
+.analytics-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+.analytics-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:18px;
+}
+.analytics-card-title { font-size:15px; font-weight:700; margin-bottom:14px; }
+.metric-bars { display:flex; flex-direction:column; gap:12px; }
+.metric-bar-row { display:grid; grid-template-columns:150px 1fr 64px; gap:10px; align-items:center; font-size:12px; }
+.metric-bar-track {
+  height:10px; border-radius:999px; background:var(--surface2); overflow:hidden; border:1px solid var(--border);
+}
+.metric-bar-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--purple)); }
+.list-stack { display:flex; flex-direction:column; gap:10px; }
+.list-row {
+  border:1px solid var(--border); border-radius:12px; background:var(--surface2); padding:12px;
+}
+.list-row-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+.list-row-sub { font-size:12px; color:var(--text2); line-height:1.45; }
 .fu-card-name { font-size:13.5px; font-weight:500; }
 .fu-card-context { font-size:12.5px; color:var(--text2); margin-bottom:8px; line-height:1.5; }
 .fu-card-insight {
@@ -1273,6 +1533,10 @@ body {
 @media (max-width:1200px) {
   .conv-right { display:none; }
   .stats-grid { grid-template-columns:repeat(2,1fr); }
+  .bc-stats-row { grid-template-columns:repeat(2,1fr); }
+  .campaign-builder { max-width:none; }
+  .campaigns-grid { grid-template-columns:1fr; }
+  .dashboard-top, .dashboard-operating { grid-template-columns:1fr 1fr; }
 }
 @media (max-width:900px) {
   .sidebar { width:60px; }
@@ -1281,6 +1545,9 @@ body {
   .logo { justify-content:center; padding:16px 10px; }
   .user-card { justify-content:center; padding:8px; }
   .overview-grid { grid-template-columns:1fr; }
+  .campaign-row, .campaign-actions { grid-template-columns:1fr; }
+  .campaign-summary-metrics { grid-template-columns:1fr; }
+  .dashboard-top, .dashboard-stats, .dashboard-operating { grid-template-columns:1fr; }
 }
 @media (max-width:600px) {
   .sidebar { display:none; }
@@ -1304,20 +1571,32 @@ body {
     <div class="nav-label">Main</div>
     <div class="nav-item active" data-screen="overview" onclick="navigateTo('overview')">
       <span class="nav-icon">📊</span>
-      <span>Overview</span>
+      <span>Dashboard</span>
+    </div>
+    <div class="nav-item" data-screen="broadcasts" onclick="navigateTo('broadcasts')">
+      <span class="nav-icon">📡</span>
+      <span>Campaigns</span>
+    </div>
+    <div class="nav-item" data-screen="contacts" onclick="navigateTo('contacts')">
+      <span class="nav-icon">👥</span>
+      <span>Contacts</span>
+    </div>
+    <div class="nav-item" data-screen="pipeline" onclick="navigateTo('pipeline')">
+      <span class="nav-icon">🎯</span>
+      <span>Pipelines</span>
     </div>
     <div class="nav-item" data-screen="conversations" onclick="navigateTo('conversations')">
       <span class="nav-icon">💬</span>
       <span>Conversations</span>
       <span class="nav-badge" id="unread-badge" style="display:none">0</span>
     </div>
-    <div class="nav-item" data-screen="pipeline" onclick="navigateTo('pipeline')">
-      <span class="nav-icon">🎯</span>
-      <span>Pipeline</span>
+    <div class="nav-item" data-screen="insights" onclick="navigateTo('insights')">
+      <span class="nav-icon">🧠</span>
+      <span>Insights</span>
     </div>
-    <div class="nav-item" data-screen="broadcasts" onclick="navigateTo('broadcasts')">
-      <span class="nav-icon">📡</span>
-      <span>Campaigns</span>
+    <div class="nav-item" data-screen="analytics" onclick="navigateTo('analytics')">
+      <span class="nav-icon">📈</span>
+      <span>Analytics</span>
     </div>
     <div class="nav-item" data-screen="followups" onclick="navigateTo('followups')">
       <span class="nav-icon">🔔</span>
@@ -1327,10 +1606,10 @@ body {
   </div>
 
   <div class="nav-section">
-    <div class="nav-label">Setup</div>
+    <div class="nav-label">Admin</div>
     <div class="nav-item" data-screen="botconfig" onclick="navigateTo('botconfig')">
       <span class="nav-icon">🤖</span>
-      <span>AI Assistant</span>
+      <span>AI Setup</span>
     </div>
     <div class="nav-item" data-screen="settings" onclick="navigateTo('settings')">
       <span class="nav-icon">⚙️</span>
@@ -1354,7 +1633,7 @@ body {
 <div class="main">
   <!-- TOPBAR -->
   <div class="topbar">
-    <span class="page-title" id="page-title">Overview</span>
+    <span class="page-title" id="page-title">Dashboard</span>
     <span class="topbar-sub" id="page-sub"></span>
     <div class="topbar-search" onclick="openCmdPalette()">
       <span style="color:var(--text3)">🔍</span>
@@ -1373,113 +1652,97 @@ body {
        ============================================================ -->
   <div class="screen active" id="screen-overview">
     <div class="content-scroll">
-      <!-- Stats -->
-      <div class="stats-grid" id="overview-stats">
-        <div class="stat-card fade-up d1">
-          <div class="stat-glow" style="background:linear-gradient(90deg,var(--accent),transparent)"></div>
-          <div class="stat-label">Active Leads</div>
-          <div class="stat-val" id="stat-leads">0</div>
-          <div class="stat-delta up"><span>↑</span> Active pipeline</div>
-          <div class="stat-icon">🎯</div>
-        </div>
-        <div class="stat-card fade-up d2">
-          <div class="stat-glow" style="background:linear-gradient(90deg,var(--green),transparent)"></div>
-          <div class="stat-label">Pipeline Value</div>
-          <div class="stat-val" id="stat-pipeline">₹0</div>
-          <div class="stat-delta up"><span>↑</span> In progress</div>
-          <div class="stat-icon">💰</div>
-        </div>
-        <div class="stat-card fade-up d3">
-          <div class="stat-glow" style="background:linear-gradient(90deg,var(--purple),transparent)"></div>
-          <div class="stat-label">Total Contacts</div>
-          <div class="stat-val" id="stat-contacts">0</div>
-          <div class="stat-delta"><span style="color:var(--text3)">—</span> All time</div>
-          <div class="stat-icon">👥</div>
-        </div>
-        <div class="stat-card fade-up d4">
-          <div class="stat-glow" style="background:linear-gradient(90deg,var(--cyan),transparent)"></div>
-          <div class="stat-label">Revenue Won</div>
-          <div class="stat-val" id="stat-revenue">₹0</div>
-          <div class="stat-delta up"><span>↑</span> Closed deals</div>
-          <div class="stat-icon">🏆</div>
-        </div>
-      </div>
+      <div class="dashboard-shell">
+        <div class="dashboard-top">
+          <div class="focus-card fade-up d1" id="dashboard-focus" role="button" tabindex="0" onclick="openPrimaryInsight()" onkeydown="handleInsightStripKey(event)">
+            <div class="focus-kicker">Today’s Focus</div>
+            <div class="focus-title" id="focus-title">Loading operational priorities...</div>
+            <div class="focus-body" id="insight-text">
+              Nazar is checking your inbox, campaigns, and pipeline to decide what the team should handle next.
+            </div>
+            <div class="focus-actions">
+              <button class="btn btn-primary" onclick="event.stopPropagation();openPrimaryInsight()">Open Priority</button>
+              <button class="btn btn-ghost" onclick="event.stopPropagation();navigateTo('broadcasts')">Go to Campaigns</button>
+            </div>
+          </div>
 
-      <!-- AI Insight Strip -->
-      <div class="insight-strip fade-up d3" id="insight-strip">
-        <span class="ins-sparkle">✨</span>
-        <div class="ins-text" id="insight-text">
-          <strong>AI Insight:</strong> Loading insights...
+          <div class="dashboard-stats" id="overview-stats">
+            <div class="stat-card fade-up d1">
+              <div class="stat-glow" style="background:linear-gradient(90deg,var(--accent),transparent)"></div>
+              <div class="stat-label">Active Leads</div>
+              <div class="stat-val" id="stat-leads">0</div>
+              <div class="stat-delta up"><span>↑</span> Active pipeline</div>
+              <div class="stat-icon">🎯</div>
+            </div>
+            <div class="stat-card fade-up d2">
+              <div class="stat-glow" style="background:linear-gradient(90deg,var(--green),transparent)"></div>
+              <div class="stat-label">Pipeline Value</div>
+              <div class="stat-val" id="stat-pipeline">₹0</div>
+              <div class="stat-delta up"><span>↑</span> In progress</div>
+              <div class="stat-icon">💰</div>
+            </div>
+            <div class="stat-card fade-up d3">
+              <div class="stat-glow" style="background:linear-gradient(90deg,var(--purple),transparent)"></div>
+              <div class="stat-label">Total Contacts</div>
+              <div class="stat-val" id="stat-contacts">0</div>
+              <div class="stat-delta"><span style="color:var(--text3)">—</span> All time</div>
+              <div class="stat-icon">👥</div>
+            </div>
+            <div class="stat-card fade-up d4">
+              <div class="stat-glow" style="background:linear-gradient(90deg,var(--cyan),transparent)"></div>
+              <div class="stat-label">Revenue Won</div>
+              <div class="stat-val" id="stat-revenue">₹0</div>
+              <div class="stat-delta up"><span>↑</span> Closed deals</div>
+              <div class="stat-icon">🏆</div>
+            </div>
+          </div>
         </div>
-        <span class="ins-action">View →</span>
-      </div>
 
-      <div class="bc-stats-row" style="margin:20px 0 24px;">
-        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="ops-needs-reply">0</div><div class="bc-stat-label">Need Reply</div></div>
-        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="ops-ai-assist">0</div><div class="bc-stat-label">AI Drafts Ready</div></div>
-        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="ops-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
-        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="ops-bot-human">0 / 0</div><div class="bc-stat-label">Bot / Human Sends</div></div>
-      </div>
+        <div class="dashboard-operating">
+          <div class="ops-card fade-up d2" onclick="openConversationFilter('needs_reply')">
+            <div class="ops-label">Needs Reply</div>
+            <div class="ops-value" id="ops-needs-reply">0</div>
+            <div class="ops-meta">Conversations waiting for a human or AI-assisted response.</div>
+          </div>
+          <div class="ops-card fade-up d3" onclick="openConversationFilter('ai_assist')">
+            <div class="ops-label">AI Drafts Ready</div>
+            <div class="ops-value" id="ops-ai-assist">0</div>
+            <div class="ops-meta">Drafts already prepared for the team to review and send.</div>
+          </div>
+          <div class="ops-card fade-up d4" onclick="openConversationFilter('campaigns')">
+            <div class="ops-label">Campaign Replies</div>
+            <div class="ops-value" id="ops-campaign-replies">0</div>
+            <div class="ops-meta">Replies generated from active outbound campaign runs.</div>
+          </div>
+          <div class="ops-card fade-up d5" onclick="navigateTo('analytics')">
+            <div class="ops-label">Bot / Human Sends</div>
+            <div class="ops-value" id="ops-bot-human">0 / 0</div>
+            <div class="ops-meta">A quick read on automation mix versus human involvement.</div>
+          </div>
+        </div>
 
-      <!-- Grid: Activity + Pipeline mini -->
-      <div class="overview-grid">
-        <div class="card fade-up d4">
-          <div class="card-head">
-            <div class="card-title">🕐 Recent Activity</div>
-          </div>
-          <div id="activity-feed">
-            <div class="empty-state" style="padding:40px 20px">
-              <div style="font-size:24px;margin-bottom:8px;">🔇</div>
-              <div style="font-size:13px;color:var(--text3)">No activity yet</div>
+        <div class="overview-grid">
+          <div class="card fade-up d4">
+            <div class="card-head">
+              <div class="card-title">🕐 Recent Activity</div>
+            </div>
+            <div id="activity-feed">
+              <div class="empty-state" style="padding:40px 20px">
+                <div style="font-size:24px;margin-bottom:8px;">🔇</div>
+                <div style="font-size:13px;color:var(--text3)">No activity yet</div>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="card fade-up d5">
-          <div class="card-head">
-            <div class="card-title">📈 Pipeline</div>
-          </div>
-          <div class="pipeline-mini" id="pipeline-mini">
-            <div class="empty-state" style="padding:40px 20px">
-              <div style="font-size:24px;margin-bottom:8px;">📋</div>
-              <div style="font-size:13px;color:var(--text3)">No deals yet</div>
+          <div class="card fade-up d5">
+            <div class="card-head">
+              <div class="card-title">📈 Pipeline Snapshot</div>
             </div>
-          </div>
-        </div>
-      </div>
-      <div class="card fade-up d6" style="margin-top:18px;">
-        <div class="card-head">
-          <div class="card-title">🧪 Product Simulator</div>
-        </div>
-        <div style="padding:18px;">
-          <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Use this to simulate customer messages and test Nazar as a product without WhatsApp.</div>
-          <div style="display:grid;grid-template-columns:1.1fr .9fr .9fr;gap:12px;margin-bottom:12px;">
-            <div>
-              <div class="form-label">Scenario</div>
-              <select class="form-input" id="sim-scenario" onchange="applySimulatorScenario(this.value)"></select>
+            <div class="pipeline-mini" id="pipeline-mini">
+              <div class="empty-state" style="padding:40px 20px">
+                <div style="font-size:24px;margin-bottom:8px;">📋</div>
+                <div style="font-size:13px;color:var(--text3)">No deals yet</div>
+              </div>
             </div>
-            <div>
-              <div class="form-label">Lead Name</div>
-              <input class="form-input" id="sim-name" placeholder="Aarav Mehta">
-            </div>
-            <div>
-              <div class="form-label">Pipeline Stage</div>
-              <select class="form-input" id="sim-stage">
-                <option value="New">New</option>
-                <option value="Qualified">Qualified</option>
-                <option value="Proposal">Proposal</option>
-                <option value="Negotiation">Negotiation</option>
-                <option value="Won">Won</option>
-                <option value="Lost">Lost</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group" style="margin-bottom:12px;">
-            <div class="form-label">Customer Message</div>
-            <textarea class="form-input form-textarea" id="sim-message" style="min-height:88px;" placeholder="Type the inbound message you want Nazar to receive."></textarea>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;">
-            <div style="font-size:11px;color:var(--text3);" id="sim-hint">Generates a real conversation, routing outcome, and CRM activity.</div>
-            <button class="btn btn-primary" onclick="simulateInboundScenario()">Run Inbound Test</button>
           </div>
         </div>
       </div>
@@ -1541,39 +1804,78 @@ body {
   </div>
 
   <!-- ============================================================
+       SCREEN: CONTACTS
+       ============================================================ -->
+  <div class="screen" id="screen-contacts">
+    <div class="section-layout">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Contacts</div>
+          <div class="section-sub">Your lead and customer record. This is the system of record that campaigns, conversations, insights, and pipeline changes operate on.</div>
+        </div>
+        <button class="btn btn-primary" onclick="openAddContactModal()">+ Add Contact</button>
+      </div>
+      <div class="toolbar-row">
+        <input class="form-input" id="contacts-search" placeholder="Search contacts, company, or phone..." oninput="renderContactsTable()">
+        <select class="form-input" id="contacts-stage-filter" onchange="renderContactsTable()">
+          <option value="">All stages</option>
+        </select>
+      </div>
+      <div id="contacts-table-wrap"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        SCREEN: CAMPAIGNS
        ============================================================ -->
   <div class="screen" id="screen-broadcasts">
     <div class="broadcasts-layout">
-      <div class="bc-list-panel">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div class="campaigns-page">
+        <div class="section-head">
           <div>
-            <div style="font-size:18px;font-weight:700;">Campaigns</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:4px;">Design sales campaigns by funnel stage, content source, and reply strategy.</div>
+            <div class="section-title">Campaigns</div>
+            <div class="section-sub">See what has already been launched, how it performed, and start a new campaign only when you actually need one.</div>
           </div>
-          <button class="btn btn-primary" onclick="document.getElementById('campaign-builder-title')?.scrollIntoView({behavior:'smooth', block:'start'})">+ Build Campaign</button>
+          <button class="btn btn-primary" onclick="openCampaignModal()">+ New Campaign</button>
         </div>
+
         <div class="bc-stats-row">
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="bc-total-sent">0</div><div class="bc-stat-label">Total Sent</div></div>
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="bc-delivery-rate">0%</div><div class="bc-stat-label">Delivery Rate</div></div>
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="bc-total-broadcasts">0</div><div class="bc-stat-label">Campaigns</div></div>
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="bc-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
         </div>
-        <div class="bc-list" id="broadcast-list">
-          <div class="empty-state">
-            <div class="empty-icon">📡</div>
-            <div class="empty-title">No campaigns yet</div>
-            <div class="empty-sub">Launch targeted sales campaigns to segments of your contacts. AI will use customer memory to personalize each message.</div>
-            <button class="btn btn-primary" onclick="document.getElementById('campaign-builder-title')?.scrollIntoView({behavior:'smooth', block:'start'})">Create First Campaign</button>
+
+        <div class="campaign-history-wrap">
+          <div class="campaign-history-head">
+            <div>
+              <div class="title">Recent Campaigns</div>
+              <div class="sub">Each card should tell you enough to judge whether that campaign was worth repeating, changing, or stopping.</div>
+            </div>
+          </div>
+          <div class="campaigns-grid" id="broadcast-list">
+            <div class="empty-state">
+              <div class="empty-icon">📡</div>
+              <div class="empty-title">No campaigns yet</div>
+              <div class="empty-sub">Launch your first campaign once the audience and message look right.</div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="campaign-builder">
-        <div class="campaign-builder-head">
-          <div class="campaign-builder-title" id="campaign-builder-title">Campaign Builder</div>
-          <div class="campaign-builder-sub">Build a campaign the way a sales team thinks: start with the funnel goal, choose the audience, decide whether this run uses a template or custom copy, and set reply ownership for that specific campaign.</div>
-        </div>
+    </div>
+  </div>
 
+  <div class="modal-overlay" id="campaign-modal" onclick="if(event.target===this)closeCampaignModal()">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="campaign-builder-title">New Campaign</div>
+          <div class="modal-sub">Create a specific campaign for a specific sales goal. This stays out of the main page so the Campaigns surface can focus on live campaign visibility instead of configuration sprawl.</div>
+        </div>
+        <button class="btn btn-ghost" onclick="closeCampaignModal()">Close</button>
+      </div>
+
+      <div class="campaign-builder" style="max-width:none;border:none;background:none;padding:0;margin:0;">
         <div class="campaign-section">
           <div class="campaign-section-label">1. Campaign Goal</div>
           <div class="campaign-section-title">What should this campaign move forward?</div>
@@ -1639,24 +1941,67 @@ body {
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">5. Launch Or Test</div>
-          <div class="campaign-section-title">Run this campaign live or simulate it</div>
-          <div class="campaign-section-sub">Use simulation to pressure-test the funnel, reply handling, and inbox load before wiring this to WhatsApp campaigns at scale.</div>
-          <div class="campaign-row">
-            <div>
-              <div class="form-label">Simulation target count</div>
-              <input class="form-input" type="number" id="sim-broadcast-target-count" min="1" max="50" value="5">
-            </div>
-            <div>
-              <div class="form-label">Simulated replies</div>
-              <input class="form-input" type="number" id="sim-broadcast-reply-count" min="0" max="20" value="2">
-            </div>
+          <div class="campaign-section-label">5. Launch</div>
+          <div class="campaign-section-title">Launch this campaign</div>
+          <div class="campaign-section-sub">Once the goal, audience, message, and reply handling look right, launch the campaign to the selected contacts.</div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="sendBroadcast()">Launch Campaign</button>
+          <div class="campaign-warning">
+            <strong>Need to test the workflow first?</strong> Use Sandbox Tools in AI Setup. Test records should not live on the main operator screens.
           </div>
-          <div class="campaign-helper" id="sim-broadcast-hint">Simulation creates sample recipients in the chosen stage, sends the campaign, and can generate reply load back into the inbox.</div>
-          <div class="campaign-actions">
-            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="sendBroadcast()">Launch Campaign</button>
-            <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="simulateBroadcast()">Simulate Campaign</button>
-          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: INSIGHTS
+       ============================================================ -->
+  <div class="screen" id="screen-insights">
+    <div class="section-layout">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Insights</div>
+          <div class="section-sub">This is where Nazar should tell the team who is close, who is drifting, what is blocking the deal, and what to do next.</div>
+        </div>
+      </div>
+      <div id="insights-summary" class="list-stack" style="margin-bottom:16px;"></div>
+      <div id="insights-grid" class="insights-grid"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN: ANALYTICS
+       ============================================================ -->
+  <div class="screen" id="screen-analytics">
+    <div class="section-layout">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Analytics</div>
+          <div class="section-sub">Track campaign performance, inbox load, funnel conversion pressure, and AI-generated operating signals.</div>
+        </div>
+      </div>
+      <div class="bc-stats-row" style="margin-bottom:16px;">
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="analytics-total-conversations">0</div><div class="bc-stat-label">Conversations</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="analytics-needs-reply">0</div><div class="bc-stat-label">Need Reply</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="analytics-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="analytics-bot-human">0 / 0</div><div class="bc-stat-label">Bot / Human Sends</div></div>
+      </div>
+      <div class="analytics-grid">
+        <div class="analytics-card">
+          <div class="analytics-card-title">Message Performance</div>
+          <div class="metric-bars" id="analytics-message-bars"></div>
+        </div>
+        <div class="analytics-card">
+          <div class="analytics-card-title">Pipeline Conversion</div>
+          <div class="metric-bars" id="analytics-pipeline-bars"></div>
+        </div>
+        <div class="analytics-card">
+          <div class="analytics-card-title">Queue Load</div>
+          <div class="list-stack" id="analytics-queue-list"></div>
+        </div>
+        <div class="analytics-card">
+          <div class="analytics-card-title">AI Recommendations</div>
+          <div class="list-stack" id="analytics-recommendations"></div>
         </div>
       </div>
     </div>
@@ -1796,6 +2141,52 @@ body {
             <div class="config-section-title" style="font-size:18px;">Campaign Reply Handling</div>
             <div class="config-section-sub">Choose campaign-specific reply handling when creating each campaign. That setting lives on the Campaigns screen, not here.</div>
           </div>
+          <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
+            <div class="config-section-title" style="font-size:18px;">Sandbox Tools</div>
+            <div class="config-section-sub">Use these only when you intentionally want test records inside this workspace. They are not part of the normal operator workflow.</div>
+            <div style="display:grid;grid-template-columns:1.1fr .9fr .9fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <div class="form-label">Scenario</div>
+                <select class="form-input" id="sim-scenario" onchange="applySimulatorScenario(this.value)"></select>
+              </div>
+              <div>
+                <div class="form-label">Lead Name</div>
+                <input class="form-input" id="sim-name" placeholder="Aarav Mehta">
+              </div>
+              <div>
+                <div class="form-label">Pipeline Stage</div>
+                <select class="form-input" id="sim-stage">
+                  <option value="New">New</option>
+                  <option value="Qualified">Qualified</option>
+                  <option value="Proposal">Proposal</option>
+                  <option value="Negotiation">Negotiation</option>
+                  <option value="Won">Won</option>
+                  <option value="Lost">Lost</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <div class="form-label">Customer Message</div>
+              <textarea class="form-input form-textarea" id="sim-message" style="min-height:88px;" placeholder="Type the inbound message you want Nazar to receive."></textarea>
+            </div>
+            <div class="campaign-row" style="margin-bottom:12px;">
+              <div>
+                <div class="form-label">Simulation target count</div>
+                <input class="form-input" type="number" id="sim-broadcast-target-count" min="1" max="50" value="5">
+              </div>
+              <div>
+                <div class="form-label">Simulated replies</div>
+                <input class="form-input" type="number" id="sim-broadcast-reply-count" min="0" max="20" value="2">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+              <div style="font-size:11px;color:var(--text3);" id="sim-hint">Creates test contacts, conversations, and campaign history on purpose.</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="btn btn-ghost" onclick="simulateBroadcast()">Run Campaign Sandbox</button>
+                <button class="btn btn-primary" onclick="simulateInboundScenario()">Run Inbound Sandbox</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1808,7 +2199,7 @@ body {
     <div class="settings-layout">
       <div class="settings-section">
         <div class="settings-title">WhatsApp Connection</div>
-        <div class="settings-sub">Connect your WhatsApp Business API to start receiving messages.</div>
+        <div class="settings-sub">This is the live connection layer for Nazar. Sending as a rep, bot replies, and inbound webhook handling all depend on this being configured correctly.</div>
         <div class="connection-status" id="wa-connection">
           <div class="conn-dot disconnected" id="wa-dot"></div>
           <span class="conn-label" id="wa-status">Not Connected</span>
@@ -1820,7 +2211,16 @@ body {
         </div>
         <div class="form-group">
           <div class="form-label">Access Token</div>
-          <input class="form-input" type="password" placeholder="WhatsApp Cloud API access token" id="settings-token">
+          <input class="form-input" type="password" placeholder="Paste a fresh WhatsApp Cloud API access token only when you want to replace the current one" id="settings-token">
+          <div class="mini-meta" id="settings-token-meta">No token stored.</div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Verify Token</div>
+          <input class="form-input" type="text" placeholder="Token used in Meta webhook verification" id="settings-verify-token">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Test Recipient Number</div>
+          <input class="form-input" type="text" placeholder="+9198..." id="settings-test-number">
         </div>
         <div class="form-group">
           <div class="form-label">Webhook URL</div>
@@ -1828,6 +2228,19 @@ body {
             <span class="conn-label" style="font-family:monospace;font-size:12px;color:var(--text2);" id="webhook-url">Configure your server URL</span>
             <button class="btn btn-sm btn-ghost" onclick="copyWebhookUrl()">Copy</button>
           </div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Connection Diagnostics</div>
+          <div class="connection-status" style="margin-bottom:10px;">
+            <span class="conn-label" id="wa-diag-summary">Diagnostics not loaded yet.</span>
+          </div>
+          <div id="wa-diagnostics" class="list-stack"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="saveWhatsAppSettings()">Save WhatsApp Settings</button>
+          <button class="btn btn-ghost" onclick="sendWhatsAppTest('template')">Send hello_world Test</button>
+          <button class="btn btn-ghost" onclick="sendWhatsAppTest('text')">Send Text Test</button>
+          <button class="btn btn-ghost" onclick="loadSettings()">Refresh Diagnostics</button>
         </div>
       </div>
 
@@ -1937,9 +2350,13 @@ let teamMembers = [];
 let selectedConversationData = null;
 let contactNotes = [];
 let currentConversationFilter = 'all';
+let currentInsightAction = { screen: 'contacts' };
 let replyPolicies = [];
 let routingRules = [];
 let simulatorScenarios = {};
+let contactsData = [];
+let insightsData = { insights: [], at_risk: [] };
+let analyticsData = { metrics: {} };
 let campaignTemplates = [];
 let campaignContentMode = 'template';
 let currentCampaignObjective = 'new_interest';
@@ -2000,17 +2417,20 @@ function navigateTo(screen) {
   if (nav) nav.classList.add('active');
 
   const titles = {
-    overview:'Overview', conversations:'Conversations', pipeline:'Pipeline',
-    broadcasts:'Campaigns', followups:'Follow-ups', botconfig:'AI Assistant',
+    overview:'Dashboard', contacts:'Contacts', conversations:'Conversations', pipeline:'Pipelines',
+    broadcasts:'Campaigns', insights:'Insights', analytics:'Analytics', followups:'Follow-ups', botconfig:'AI Setup',
     settings:'Settings'
   };
   document.getElementById('page-title').textContent = titles[screen] || screen;
 
   // Load data for the screen
   if (screen === 'overview') loadOverview();
+  else if (screen === 'contacts') loadContactsScreen();
   else if (screen === 'conversations') loadConversations();
   else if (screen === 'pipeline') loadPipeline();
   else if (screen === 'broadcasts') loadBroadcasts();
+  else if (screen === 'insights') loadInsightsScreen();
+  else if (screen === 'analytics') loadAnalyticsScreen();
   else if (screen === 'followups') loadFollowups();
   else if (screen === 'botconfig') loadConfig();
   else if (screen === 'settings') loadSettings();
@@ -2094,7 +2514,6 @@ async function api(method, path, body = null) {
 // ================================================================
 async function loadOverview() {
   try {
-    await loadSimulatorScenarios();
     const data = await api('GET', '/api/overview');
     const s = data.stats;
     const operations = data.operations || {};
@@ -2118,6 +2537,13 @@ async function loadOverview() {
           <span class="activity-time">${timeAgo(c.last_replied_at)}</span>
         </div>
       `).join('');
+    } else if (feed) {
+      feed.innerHTML = `
+        <div class="empty-state" style="padding:40px 20px">
+          <div style="font-size:24px;margin-bottom:8px;">🔇</div>
+          <div style="font-size:13px;color:var(--text3)">No activity yet</div>
+        </div>
+      `;
     }
 
     // Pipeline mini
@@ -2130,6 +2556,13 @@ async function loadOverview() {
           <div class="pcol-head">${stage} <span class="pcol-cnt">${st.count||0}</span></div>
         </div>`;
       }).join('');
+    } else if (pmini) {
+      pmini.innerHTML = `
+        <div class="empty-state" style="padding:40px 20px">
+          <div style="font-size:24px;margin-bottom:8px;">📋</div>
+          <div style="font-size:13px;color:var(--text3)">No deals yet</div>
+        </div>
+      `;
     }
 
     // AI Insight
@@ -2225,20 +2658,54 @@ function formatSimulatorAction(action) {
 
 function generateInsight(data) {
   const strip = document.getElementById('insight-text');
+  const focusTitle = document.getElementById('focus-title');
   const s = data.stats;
   const operations = data.operations || {};
   if ((operations.ai_assist_available || 0) > 0) {
+    currentInsightAction = { screen: 'conversations', filter: 'ai_assist' };
+    if (focusTitle) focusTitle.textContent = 'AI drafts are ready for the team to review and send.';
     strip.innerHTML = `<strong>AI assist:</strong> <strong>${operations.ai_assist_available}</strong> conversations already have a draft ready for a human to review and send.`;
   } else if ((operations.campaign_reply_conversations || 0) > 0) {
+    currentInsightAction = { screen: 'conversations', filter: 'campaigns' };
+    if (focusTitle) focusTitle.textContent = 'Campaign replies are landing in the inbox and need active handling.';
     strip.innerHTML = `<strong>Campaign load:</strong> <strong>${operations.campaign_reply_conversations}</strong> campaign replies landed in the inbox during the current reporting window.`;
   } else if ((s.needs_reply || 0) > 0 || (s.unassigned_conversations || 0) > 0) {
+    currentInsightAction = { screen: 'conversations', filter: (s.needs_reply || 0) > 0 ? 'needs_reply' : 'unassigned' };
+    if (focusTitle) focusTitle.textContent = 'The inbox needs attention before new work is launched.';
     strip.innerHTML = `<strong>Inbox health:</strong> <strong>${s.needs_reply || 0}</strong> conversations need replies and <strong>${s.unassigned_conversations || 0}</strong> are unassigned.`;
   } else if (s.active_leads === 0) {
+    currentInsightAction = { screen: 'contacts' };
+    if (focusTitle) focusTitle.textContent = 'Start by adding real contacts or connecting a live channel.';
     strip.innerHTML = '<strong>Getting started:</strong> Add your first contact to begin building your sales pipeline.';
   } else if (s.pipeline_value > 0) {
+    currentInsightAction = { screen: 'pipeline' };
+    if (focusTitle) focusTitle.textContent = 'You have live revenue sitting in the pipeline that needs movement.';
     strip.innerHTML = `<strong>Pipeline health:</strong> You have <strong>${s.active_leads} active leads</strong> worth <strong>${formatCurrency(s.pipeline_value)}</strong> in your pipeline.`;
   } else {
+    currentInsightAction = { screen: 'contacts' };
+    if (focusTitle) focusTitle.textContent = 'The workspace is live, but the revenue model still needs structure.';
     strip.innerHTML = `<strong>Tip:</strong> Add deal values to your contacts to track pipeline revenue.`;
+  }
+}
+
+function openConversationFilter(type) {
+  currentConversationFilter = type;
+  navigateTo('conversations');
+}
+
+function openPrimaryInsight() {
+  const action = currentInsightAction || {};
+  const targetScreen = action.screen || 'overview';
+  if (targetScreen === 'conversations') {
+    currentConversationFilter = action.filter || 'all';
+  }
+  navigateTo(targetScreen);
+}
+
+function handleInsightStripKey(event) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    openPrimaryInsight();
   }
 }
 
@@ -2265,6 +2732,246 @@ async function loadConversations() {
   } catch(e) {
     console.error('Load conversations failed:', e);
   }
+}
+
+// ================================================================
+//  CONTACTS
+// ================================================================
+async function loadContactsScreen() {
+  try {
+    const data = await api('GET', '/api/contacts');
+    contactsData = data.contacts || [];
+    const stageFilter = document.getElementById('contacts-stage-filter');
+    if (stageFilter && !stageFilter.dataset.ready) {
+      stageFilter.innerHTML = `<option value="">All stages</option>${STAGES.map(stage => `<option value="${stage}">${stage}</option>`).join('')}`;
+      stageFilter.dataset.ready = 'true';
+    }
+    renderContactsTable();
+  } catch(e) {
+    console.error('Load contacts failed:', e);
+  }
+}
+
+function renderContactsTable() {
+  const wrap = document.getElementById('contacts-table-wrap');
+  if (!wrap) return;
+  const search = (document.getElementById('contacts-search')?.value || '').trim().toLowerCase();
+  const stage = document.getElementById('contacts-stage-filter')?.value || '';
+  const list = contactsData.filter(contact => {
+    const stageMatch = !stage || contact.pipeline_stage === stage;
+    const searchMatch = !search || [contact.name, contact.company, contact.phone]
+      .filter(Boolean)
+      .some(value => value.toLowerCase().includes(search));
+    return stageMatch && searchMatch;
+  });
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No contacts match this view</div><div class="empty-sub">Try another stage or search term, or add your first contact.</div></div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Contact</th>
+          <th>Stage</th>
+          <th>Score</th>
+          <th>Source</th>
+          <th>Last Activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(contact => `
+          <tr onclick="navigateTo('conversations');setTimeout(()=>selectConversationByContact('${contact.contact_id}'),120)" style="cursor:pointer;">
+            <td>
+              <div style="font-weight:600;">${esc(contact.name || contact.phone || 'Unknown')}</div>
+              <div class="mini-meta">${esc(contact.company || contact.phone || 'No company')}</div>
+            </td>
+            <td><span class="pill">${esc(contact.pipeline_stage || 'New')}</span></td>
+            <td class="${scoreTone(contact.lead_score)}">${contact.lead_score || 0}</td>
+            <td>${esc(capitalize(contact.source || 'direct'))}</td>
+            <td>${esc(contact.last_replied_at ? timeAgo(contact.last_replied_at) : 'No reply yet')}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function scoreTone(score) {
+  if ((score || 0) >= 70) return 'score-good';
+  if ((score || 0) >= 35) return 'score-mid';
+  return 'score-low';
+}
+
+function selectConversationByContact(contactId) {
+  const match = conversations.find(conv => conv.contact_id === contactId);
+  if (match) selectConversation(match.conversation_id);
+  else loadConversations().then(() => {
+    const next = conversations.find(conv => conv.contact_id === contactId);
+    if (next) selectConversation(next.conversation_id);
+  });
+}
+
+// ================================================================
+//  INSIGHTS
+// ================================================================
+async function loadInsightsScreen() {
+  try {
+    const [insightsResp, contactsResp] = await Promise.all([
+      api('GET', '/api/insights'),
+      api('GET', '/api/contacts'),
+    ]);
+    insightsData = insightsResp || { insights: [], at_risk: [] };
+    contactsData = contactsResp.contacts || contactsData;
+    renderInsightsSummary();
+    renderInsightCards();
+  } catch(e) {
+    console.error('Load insights failed:', e);
+  }
+}
+
+function renderInsightsSummary() {
+  const el = document.getElementById('insights-summary');
+  if (!el) return;
+  const rows = [...(insightsData.insights || []), ...(insightsData.at_risk || [])];
+  if (!rows.length) {
+    el.innerHTML = `<div class="list-row"><div class="list-row-title">No broad AI insights yet</div><div class="list-row-sub">As contacts move through campaigns and conversations, Nazar will surface funnel risks and operating advice here.</div></div>`;
+    return;
+  }
+  el.innerHTML = rows.slice(0, 3).map(item => `
+    <div class="list-row">
+      <div class="list-row-title">${esc(item.text || item.title || 'Insight')}</div>
+      <div class="list-row-sub">${esc(item.action || item.screen || 'Use this to guide the next sales action.')}</div>
+    </div>
+  `).join('');
+}
+
+function renderInsightCards() {
+  const el = document.getElementById('insights-grid');
+  if (!el) return;
+  const cards = [...contactsData]
+    .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))
+    .slice(0, 6);
+  if (!cards.length) {
+    el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🧠</div><div class="empty-title">No insights yet</div><div class="empty-sub">Run campaigns and conversations first. Insights get sharper as Nazar sees more behavior.</div></div>`;
+    return;
+  }
+  el.innerHTML = cards.map(contact => {
+    const score = contact.lead_score || 0;
+    const risk = score >= 70 ? 'Low' : score >= 35 ? 'Moderate' : 'High';
+    const recommendation = recommendedAction(contact);
+    return `
+      <div class="insight-card">
+        <div class="insight-card-top">
+          <div>
+            <div class="insight-card-title">${esc(contact.name || contact.phone || 'Unknown')}</div>
+            <div class="insight-card-sub">${esc(contact.pipeline_stage || 'New')} · ${esc(contact.company || 'No company')}</div>
+          </div>
+          <span class="pill ${scoreTone(score)}">${score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low'}</span>
+        </div>
+        <div class="insight-metrics">
+          <div class="insight-metric">
+            <div class="insight-metric-label">Score</div>
+            <div class="insight-metric-value">${score}%</div>
+          </div>
+          <div class="insight-metric">
+            <div class="insight-metric-label">Activity</div>
+            <div class="insight-metric-value">${esc(contact.last_replied_at ? timeAgo(contact.last_replied_at) : 'Quiet')}</div>
+          </div>
+          <div class="insight-metric">
+            <div class="insight-metric-label">Risk</div>
+            <div class="insight-metric-value">${risk}</div>
+          </div>
+        </div>
+        <div class="insight-note">${esc(insightSummary(contact))}</div>
+        <div class="insight-action">→ ${esc(recommendation)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function insightSummary(contact) {
+  const stage = contact.pipeline_stage || 'New';
+  if (stage === 'Negotiation') return `${contact.name || 'This contact'} is in active commercial discussion. Keep the deal moving by reducing uncertainty and answering objections quickly.`;
+  if (stage === 'Proposal') return `${contact.name || 'This contact'} has seen enough value to stay in the funnel. The next job is pushing decision momentum, not repeating discovery.`;
+  if (stage === 'Qualified') return `${contact.name || 'This contact'} has engaged with enough signals to deserve focused follow-up. The goal now is to create urgency and move toward a concrete next step.`;
+  if (stage === 'Won') return `${contact.name || 'This contact'} is already converted. Use this moment for onboarding, expansion, or referral opportunities.`;
+  if (stage === 'Lost') return `${contact.name || 'This contact'} has dropped out. Re-entry needs a different value proposition, not the same follow-up message again.`;
+  return `${contact.name || 'This contact'} is still early in the funnel. Qualification and relevance matter more than pushing for a close immediately.`;
+}
+
+function recommendedAction(contact) {
+  const score = contact.lead_score || 0;
+  const stage = contact.pipeline_stage || 'New';
+  if (stage === 'Negotiation') return 'Send a concrete close plan and route replies to a human seller.';
+  if (stage === 'Proposal') return 'Follow up with a proposal-specific campaign or AI-assisted objection handling.';
+  if (stage === 'Qualified' && score >= 40) return 'Book a call or move the lead into a tighter closing motion.';
+  if (stage === 'Lost') return 'Move to a win-back campaign with a different angle.';
+  return 'Keep qualifying with relevant context and identify the next best action.';
+}
+
+// ================================================================
+//  ANALYTICS
+// ================================================================
+async function loadAnalyticsScreen() {
+  try {
+    const [analyticsResp, overviewResp, historyResp] = await Promise.all([
+      api('GET', '/api/analytics/inbox'),
+      api('GET', '/api/overview'),
+      api('GET', '/api/campaigns/history'),
+    ]);
+    analyticsData = analyticsResp || { metrics: {} };
+    renderAnalyticsCards(analyticsData.metrics || {}, overviewResp.pipeline || {}, historyResp.broadcasts || []);
+  } catch(e) {
+    console.error('Load analytics failed:', e);
+  }
+}
+
+function renderAnalyticsCards(metrics, pipeline, broadcasts) {
+  document.getElementById('analytics-total-conversations').textContent = metrics.total_conversations || 0;
+  document.getElementById('analytics-needs-reply').textContent = metrics.needs_reply || 0;
+  document.getElementById('analytics-campaign-replies').textContent = metrics.campaign_reply_conversations || 0;
+  document.getElementById('analytics-bot-human').textContent = `${metrics.bot_outbound_count || 0} / ${metrics.human_outbound_count || 0}`;
+
+  renderMetricBars('analytics-message-bars', [
+    ['Sent', metrics.sent_messages || 0],
+    ['Delivered', metrics.delivered_messages || 0],
+    ['Read', metrics.read_messages || 0],
+    ['Replied', metrics.campaign_reply_conversations || 0],
+  ]);
+
+  renderMetricBars('analytics-pipeline-bars', STAGES
+    .filter(stage => pipeline[stage])
+    .map(stage => [stage, pipeline[stage]?.count || 0]));
+
+  const queueList = document.getElementById('analytics-queue-list');
+  const queues = Object.entries(metrics.queue_counts || {});
+  queueList.innerHTML = queues.length
+    ? queues.map(([queue, count]) => `<div class="list-row"><div class="list-row-title">${esc(capitalize(queue))}</div><div class="list-row-sub">${count} conversations currently routed here.</div></div>`).join('')
+    : `<div class="list-row"><div class="list-row-title">No active queues</div><div class="list-row-sub">Queue analytics will appear once conversations are being assigned and routed.</div></div>`;
+
+  const recommendations = document.getElementById('analytics-recommendations');
+  const recs = [];
+  if ((metrics.needs_reply || 0) > 0) recs.push(`${metrics.needs_reply} conversations still need replies. Tighten the inbox response loop first.`);
+  if ((metrics.campaign_reply_conversations || 0) > 0) recs.push(`Campaign replies are active. Compare reply load against your current campaign targeting and human queue capacity.`);
+  if ((broadcasts || []).length > 0) recs.push(`You have run ${(broadcasts || []).length} campaigns so far. Use this screen to compare which motions create replies and stage movement.`);
+  if ((metrics.ai_assist_available || 0) > 0) recs.push(`${metrics.ai_assist_available} conversations have AI drafts ready. This is where human-assisted closing should accelerate.`);
+  recommendations.innerHTML = recs.length
+    ? recs.map(text => `<div class="list-row"><div class="list-row-title">AI recommendation</div><div class="list-row-sub">${esc(text)}</div></div>`).join('')
+    : `<div class="list-row"><div class="list-row-title">No recommendations yet</div><div class="list-row-sub">As campaign and conversation volume grows, Nazar will surface better operating recommendations here.</div></div>`;
+}
+
+function renderMetricBars(containerId, rows) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const max = Math.max(...rows.map(row => row[1] || 0), 1);
+  el.innerHTML = rows.map(([label, value]) => `
+    <div class="metric-bar-row">
+      <div>${esc(label)}</div>
+      <div class="metric-bar-track"><div class="metric-bar-fill" style="width:${Math.max(6, ((value || 0) / max) * 100)}%"></div></div>
+      <div style="text-align:right;">${value || 0}</div>
+    </div>
+  `).join('');
 }
 
 function renderConversationList(list) {
@@ -3160,19 +3867,115 @@ async function loadSettings() {
     await loadTeamMembers();
     await loadReplyPolicies();
     await loadRoutingRules();
-    const data = await api('GET', '/health');
-    if (data.whatsapp_configured) {
-      document.getElementById('wa-dot').className = 'conn-dot connected';
-      document.getElementById('wa-status').textContent = 'Connected';
-    }
-    document.getElementById('webhook-url').textContent = window.location.origin + '/webhook';
+    const [config, status] = await Promise.all([
+      api('GET', '/api/config'),
+      api('GET', '/api/whatsapp/status'),
+    ]);
+    const connected = !!status.configured;
+    document.getElementById('wa-dot').className = `conn-dot ${connected ? 'connected' : 'disconnected'}`;
+    document.getElementById('wa-status').textContent = connected ? 'Connected' : 'Needs Setup';
+    document.getElementById('wa-detail').textContent = connected
+      ? `Phone ID ${status.phone_number_id || 'configured'}`
+      : 'Add a phone number ID, access token, and verify token.';
+    document.getElementById('settings-phone-id').value = config.whatsapp_phone_number_id || '';
+    document.getElementById('settings-verify-token').value = config.whatsapp_verify_token || '';
+    document.getElementById('settings-test-number').value = config.whatsapp_test_number || '';
+    document.getElementById('settings-token').value = '';
+    document.getElementById('settings-token-meta').textContent = config.whatsapp_access_token_present
+      ? `Stored token: ${config.whatsapp_access_token_masked || 'present'}`
+      : 'No token stored.';
+    document.getElementById('webhook-url').textContent = status.webhook_url || (window.location.origin + '/webhook');
+    renderWhatsAppDiagnostics(status);
     document.getElementById('settings-api-key').value = API_KEY;
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('wa-dot').className = 'conn-dot disconnected';
+    document.getElementById('wa-status').textContent = 'Diagnostics Failed';
+    document.getElementById('wa-detail').textContent = e.message || 'Unable to load settings.';
+    document.getElementById('wa-diag-summary').textContent = 'Could not fetch connection diagnostics.';
+    document.getElementById('wa-diagnostics').innerHTML = `<div class="cmd-result-sub">${esc(e.message || 'Unknown error')}</div>`;
+  }
 }
 
 function copyWebhookUrl() {
-  navigator.clipboard.writeText(window.location.origin + '/webhook');
+  const webhookUrl = document.getElementById('webhook-url').textContent || (window.location.origin + '/webhook');
+  navigator.clipboard.writeText(webhookUrl);
   showToast('📋', 'Webhook URL copied');
+}
+
+function renderWhatsAppDiagnostics(status) {
+  const llm = status?.llm || {};
+  const queue = status?.queue || {};
+  const configured = !!status?.configured;
+  document.getElementById('wa-diag-summary').textContent = configured
+    ? 'Connection loaded. Use the checks below to validate send, webhook, worker, and AI health.'
+    : 'WhatsApp is not fully configured yet.';
+  const rows = [
+    {
+      title: 'Webhook',
+      value: status?.webhook_url || 'Not available',
+      detail: status?.verify_token ? `Verify token: ${status.verify_token}` : 'Add a verify token in Nazar and Meta.',
+    },
+    {
+      title: 'Access token',
+      value: status?.access_token_present ? (status.access_token_masked || 'Stored') : 'Missing',
+      detail: status?.access_token_present ? 'Token is stored in workspace config or env.' : 'Paste a fresh token to send messages.',
+    },
+    {
+      title: 'Test recipient',
+      value: status?.test_number || 'Not set',
+      detail: 'Used by the Send Test buttons below.',
+    },
+    {
+      title: 'Worker queue',
+      value: `${queue.queued_jobs || 0} queued · ${queue.failed_jobs || 0} failed`,
+      detail: `${queue.recent_inbound_jobs || 0} recent inbound jobs seen.`,
+    },
+    {
+      title: 'AI provider',
+      value: llm.summary || 'Unknown',
+      detail: `Healthy providers: ${(llm.healthy || []).join(', ') || 'none'} · Unhealthy providers: ${(llm.unhealthy || []).join(', ') || 'none'}`,
+    },
+  ];
+  document.getElementById('wa-diagnostics').innerHTML = rows.map(row => `
+    <div class="cmd-result" style="cursor:default;">
+      <span class="cmd-result-icon">•</span>
+      <span class="cmd-result-text">${esc(row.title)}: ${esc(row.value)}</span>
+      <span class="cmd-result-sub">${esc(row.detail)}</span>
+    </div>
+  `).join('');
+}
+
+async function saveWhatsAppSettings() {
+  try {
+    const payload = {
+      whatsapp_phone_number_id: document.getElementById('settings-phone-id').value.trim(),
+      whatsapp_verify_token: document.getElementById('settings-verify-token').value.trim(),
+      whatsapp_test_number: document.getElementById('settings-test-number').value.trim(),
+    };
+    const token = document.getElementById('settings-token').value.trim();
+    if (token) payload.whatsapp_access_token = token;
+    await api('PUT', '/api/config', payload);
+    showToast('✅', 'WhatsApp settings saved');
+    await loadSettings();
+  } catch (e) {
+    showToast('❌', 'Failed to save settings: ' + e.message);
+  }
+}
+
+async function sendWhatsAppTest(mode = 'template') {
+  try {
+    const phone = document.getElementById('settings-test-number').value.trim();
+    const payload = { mode, phone };
+    if (mode === 'text') payload.message = 'Hello from Nazar. This is a live connection test.';
+    const result = await api('POST', '/api/whatsapp/test-send', payload);
+    const message = mode === 'text'
+      ? 'Text test queued with WhatsApp'
+      : `Template test queued: ${result.template_name || 'hello_world'}`;
+    showToast('✅', message);
+    await loadSettings();
+  } catch (e) {
+    showToast('❌', 'Test send failed: ' + e.message);
+  }
 }
 
 // ================================================================
@@ -3181,6 +3984,15 @@ function copyWebhookUrl() {
 function openAddContactModal() {
   document.getElementById('add-contact-modal').classList.add('open');
   setTimeout(() => document.getElementById('add-name').focus(), 100);
+}
+
+function openCampaignModal() {
+  document.getElementById('campaign-modal')?.classList.add('open');
+  initializeCampaignBuilder();
+}
+
+function closeCampaignModal() {
+  document.getElementById('campaign-modal')?.classList.remove('open');
 }
 
 async function submitNewContact() {
@@ -3242,6 +4054,7 @@ async function sendBroadcast() {
     const result = await api('POST', '/api/campaigns', payload);
     showToast('📡', result.job ? `Campaign queued (${result.job.id.slice(0, 8)})` : 'Campaign queued');
     if (campaignContentMode === 'custom') document.getElementById('broadcast-message').value = '';
+    closeCampaignModal();
     await loadBroadcasts();
   } catch(e) {
     showToast('❌', e.message);
@@ -3312,22 +4125,33 @@ function renderBroadcastHistory(broadcasts, jobs) {
     status: job.status,
   }));
   el.innerHTML = items.map(item => `
-    <div class="campaign-history-card">
-      <div class="campaign-history-top">
+    <div class="campaign-summary-card">
+      <div class="campaign-summary-top">
         <div>
-          <div class="campaign-history-title">${esc(formatCampaignHistoryTitle(item))}</div>
-          <div class="campaign-history-sub">${esc(formatCampaignHistorySub(item))}</div>
+          <div class="campaign-summary-title">${esc(formatCampaignHistoryTitle(item))}</div>
+          <div class="campaign-summary-sub">${esc(formatCampaignHistorySub(item))}</div>
         </div>
         <span class="tag tag-cold">${esc(item.status || 'completed')}</span>
       </div>
-      <div class="campaign-history-metrics">
-        <span class="campaign-history-metric">${item.target_count || 0} targeted</span>
-        <span class="campaign-history-metric">${item.sent || 0} sent</span>
-        <span class="campaign-history-metric">${item.failed || 0} failed</span>
-        ${item.filter_stage ? `<span class="campaign-history-metric">Stage: ${esc(item.filter_stage)}</span>` : ''}
-        ${item.template ? `<span class="campaign-history-metric">Template: ${esc(item.template)}</span>` : '<span class="campaign-history-metric">Custom copy</span>'}
+      <div class="campaign-summary-metrics">
+        <div class="campaign-summary-metric">
+          <div class="campaign-summary-label">Audience</div>
+          <div class="campaign-summary-value">${item.target_count || 0}</div>
+        </div>
+        <div class="campaign-summary-metric">
+          <div class="campaign-summary-label">Sent</div>
+          <div class="campaign-summary-value">${item.sent || 0}</div>
+        </div>
+        <div class="campaign-summary-metric">
+          <div class="campaign-summary-label">Failed</div>
+          <div class="campaign-summary-value">${item.failed || 0}</div>
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:10px;">${timeAgo(item.created_at)}</div>
+      <div class="campaign-summary-footer">
+        ${item.filter_stage ? `Stage: ${esc(item.filter_stage)} · ` : ''}
+        ${item.template ? `Template: ${esc(item.template)} · ` : 'Custom copy · '}
+        ${timeAgo(item.created_at)}
+      </div>
     </div>
   `).join('');
 }
@@ -3393,12 +4217,15 @@ async function searchCmd(query) {
 
   // Navigation results
   const navItems = [
-    {name:'Overview',screen:'overview',icon:'📊'},
+    {name:'Dashboard',screen:'overview',icon:'📊'},
+    {name:'Campaigns',screen:'broadcasts',icon:'📡'},
+    {name:'Contacts',screen:'contacts',icon:'👥'},
+    {name:'Pipelines',screen:'pipeline',icon:'🎯'},
     {name:'Conversations',screen:'conversations',icon:'💬'},
-    {name:'Pipeline',screen:'pipeline',icon:'🎯'},
-    {name:'Broadcasts',screen:'broadcasts',icon:'📡'},
+    {name:'Insights',screen:'insights',icon:'🧠'},
+    {name:'Analytics',screen:'analytics',icon:'📈'},
     {name:'Follow-ups',screen:'followups',icon:'🔔'},
-    {name:'Bot Config',screen:'botconfig',icon:'🤖'},
+    {name:'AI Setup',screen:'botconfig',icon:'🤖'},
     {name:'Settings',screen:'settings',icon:'⚙️'},
   ].filter(n => n.name.toLowerCase().includes(q));
   navItems.forEach(n => {
@@ -3517,7 +4344,6 @@ async function bootstrapApp() {
   await ensureSession();
   await loadTeamMembers();
   await loadReplyPolicies();
-  await loadSimulatorScenarios();
   loadOverview();
 }
 
