@@ -306,6 +306,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
 
 async def _execute_broadcast(job: dict) -> dict:
     payload = job.get("payload") or {}
+    campaign_name = (payload.get("campaign_name") or "").strip()
     message = (payload.get("message") or "").strip()
     template_name = (payload.get("template") or "").strip()
     objective = (payload.get("objective") or "").strip()
@@ -361,6 +362,7 @@ async def _execute_broadcast(job: dict) -> dict:
         await asyncio.sleep(0.1)
 
     log_broadcast(
+        campaign_name=campaign_name,
         message=message,
         template_name=template_name,
         objective=objective,

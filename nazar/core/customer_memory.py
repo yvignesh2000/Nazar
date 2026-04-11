@@ -576,6 +576,10 @@ def get_customer_summary(contact_id: str) -> dict:
             "total_embeddings": len(messages) + len(entries),
             "signal_counts": signal_counts,
             "last_interaction": last_ts,
+            "latest_classification_note": next(
+                (entry.content for entry in entries if entry.entry_type == "memory_note" and str(entry.content or "").startswith("AI classification —")),
+                "",
+            ),
         }
 
     collection = get_collection(contact_id)
@@ -610,11 +614,12 @@ def get_customer_summary(contact_id: str) -> dict:
             "total_embeddings": total,
             "signal_counts": signal_counts,
             "last_interaction": last_ts,
+            "latest_classification_note": "",
         }
 
     except Exception as e:
         logger.error(f"Customer summary failed for contact {contact_id}: {e}")
-        return {"total_embeddings": 0, "signal_counts": {}, "last_interaction": ""}
+        return {"total_embeddings": 0, "signal_counts": {}, "last_interaction": "", "latest_classification_note": ""}
 
 
 # ---------------------------------------------------------------------------

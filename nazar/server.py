@@ -30,9 +30,10 @@ try:
     import certifi
 except Exception:
     certifi = None
-from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, select
 import uvicorn
 from dotenv import load_dotenv
 
@@ -41,7 +42,7 @@ APP_DIR = Path(__file__).parent
 load_dotenv(APP_DIR / ".env")
 sys.path.insert(0, str(APP_DIR / "core"))
 
-from db import get_storage_backend_name, init_db
+from db import Contact as DbContact, Conversation, ConversationMessage, SessionLocal, get_storage_backend_name, init_db
 from auth_store import create_session, get_default_owner_context, get_session, revoke_session, role_allowed
 from audit_store import list_audit_events, record_audit_event
 from analytics_store import get_operational_metrics
@@ -128,6 +129,93 @@ app.add_middleware(
 # Track processed messages to avoid duplicates
 _processed_messages: deque = deque(maxlen=10000)
 
+
+class LiveUpdateHub:
+    def __init__(self):
+        self._connections: set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        async with self._lock:
+            self._connections.add(websocket)
+
+    async def disconnect(self, websocket: WebSocket):
+        async with self._lock:
+            self._connections.discard(websocket)
+
+    async def broadcast(self, payload: dict):
+        async with self._lock:
+            stale: list[WebSocket] = []
+            for websocket in list(self._connections):
+                try:
+                    await websocket.send_json(payload)
+                except Exception:
+                    stale.append(websocket)
+            for websocket in stale:
+                self._connections.discard(websocket)
+
+
+live_updates = LiveUpdateHub()
+
+
+def _live_state_signature() -> dict:
+    with SessionLocal() as session:
+        conversation_count = session.execute(select(func.count(Conversation.id))).scalar() or 0
+        latest_conversation_update = session.execute(select(func.max(Conversation.updated_at))).scalar()
+        latest_message_id = session.execute(select(func.max(ConversationMessage.id))).scalar() or 0
+        needs_reply = session.execute(
+            select(func.count(Conversation.id)).where(Conversation.status == "needs_reply")
+        ).scalar() or 0
+        ai_assist_ready = session.execute(
+            select(func.count(Conversation.id)).where(Conversation.ai_assist_status == "available")
+        ).scalar() or 0
+        unassigned = session.execute(
+            select(func.count(Conversation.id)).where(Conversation.assigned_user_id.is_(None))
+        ).scalar() or 0
+        campaign_replies = session.execute(
+            select(func.count(Conversation.id)).where(Conversation.source_type == "campaign")
+        ).scalar() or 0
+    return {
+        "conversation_count": int(conversation_count),
+        "latest_conversation_update": latest_conversation_update.isoformat() if latest_conversation_update else "",
+        "latest_message_id": int(latest_message_id),
+        "needs_reply": int(needs_reply),
+        "ai_assist_ready": int(ai_assist_ready),
+        "unassigned": int(unassigned),
+        "campaign_replies": int(campaign_replies),
+    }
+
+
+async def _live_update_watcher():
+    previous_signature = None
+    while True:
+        try:
+            current_signature = _live_state_signature()
+            if previous_signature is None:
+                previous_signature = current_signature
+            elif current_signature != previous_signature:
+                previous_signature = current_signature
+                await live_updates.broadcast(
+                    {
+                        "type": "state_changed",
+                        "scopes": ["overview", "conversations", "notifications"],
+                        "state": current_signature,
+                    }
+                )
+        except Exception as exc:
+            logger.warning(f"Live update watcher failed: {exc}")
+        await asyncio.sleep(1.0)
+
+
+def _authorize_websocket(websocket: WebSocket) -> bool:
+    token = (websocket.query_params.get("token") or "").strip()
+    if token and get_session(token):
+        return True
+    api_key = (websocket.query_params.get("api_key") or "").strip()
+    expected_key = os.environ.get("NAZAR_API_KEY", "nazar_dev_key")
+    return bool(api_key and api_key == expected_key)
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
@@ -135,6 +223,38 @@ async def startup_event():
     initialize_workspace_store()
     initialize_reply_policies()
     logger.info(f"CRM storage ready ({get_storage_backend_name()})")
+    watcher_task = asyncio.create_task(_live_update_watcher())
+    watcher_task.add_done_callback(_log_task_error)
+    app.state.live_update_watcher = watcher_task
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    task = getattr(app.state, "live_update_watcher", None)
+    if task:
+        task.cancel()
+
+
+@app.websocket("/ws/live")
+async def websocket_live_updates(websocket: WebSocket):
+    if not _authorize_websocket(websocket):
+        await websocket.close(code=1008)
+        return
+    await live_updates.connect(websocket)
+    try:
+        await websocket.send_json(
+            {
+                "type": "ready",
+                "scopes": ["overview", "conversations", "notifications"],
+                "state": _live_state_signature(),
+            }
+        )
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await live_updates.disconnect(websocket)
 
 
 def _log_task_error(task: asyncio.Task):
@@ -274,6 +394,92 @@ def _campaign_reply_policy(campaign_key: str, reply_mode: Optional[str], human_q
             "active": True,
         },
     )
+
+
+def _saved_campaign_audiences() -> list[dict]:
+    config = get_workspace_config()
+    raw = config.get("campaign_audiences") or []
+    audiences = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        stage = (item.get("stage") or "").strip() or None
+        tag = (item.get("tag") or "").strip() or None
+        contacts = list_contacts(stage=stage, tag=tag)
+        audiences.append(
+            {
+                "key": (item.get("key") or "").strip(),
+                "name": (item.get("name") or "").strip() or "Untitled audience",
+                "description": (item.get("description") or "").strip(),
+                "stage": stage,
+                "tag": tag,
+                "contact_count": len(contacts),
+            }
+        )
+    return audiences
+
+
+def _raw_campaign_audiences() -> list[dict]:
+    config = get_workspace_config()
+    raw = config.get("campaign_audiences") or []
+    cleaned = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        cleaned.append(
+            {
+                "key": (item.get("key") or "").strip(),
+                "name": (item.get("name") or "").strip(),
+                "description": (item.get("description") or "").strip(),
+                "stage": (item.get("stage") or "").strip() or None,
+                "tag": (item.get("tag") or "").strip() or None,
+            }
+        )
+    return cleaned
+
+
+def _campaign_metrics_for_key(campaign_key: Optional[str]) -> dict:
+    key = (campaign_key or "").strip()
+    if not key:
+        return {
+            "reply_conversations": 0,
+            "needs_reply": 0,
+            "ai_assist_ready": 0,
+            "qualified": 0,
+            "proposal": 0,
+            "won": 0,
+        }
+    with SessionLocal() as session:
+        conversations = session.execute(
+            select(Conversation).where(
+                Conversation.source_type == "campaign",
+                Conversation.source_ref == key,
+            )
+        ).scalars().all()
+        contact_ids = [conversation.contact_id for conversation in conversations]
+        contacts_by_id = {}
+        if contact_ids:
+            contacts = session.execute(
+                select(DbContact).where(DbContact.id.in_(contact_ids))
+            ).scalars().all()
+            contacts_by_id = {contact.id: contact for contact in contacts}
+        reply_conversations = sum(1 for conversation in conversations if conversation.last_inbound_at)
+        needs_reply = sum(1 for conversation in conversations if conversation.status == "needs_reply")
+        ai_assist_ready = sum(1 for conversation in conversations if conversation.ai_assist_status == "available")
+        stage_counts = {"Qualified": 0, "Proposal": 0, "Won": 0}
+        for conversation in conversations:
+            contact = contacts_by_id.get(conversation.contact_id)
+            stage = (contact.pipeline_stage if contact else "") or ""
+            if stage in stage_counts:
+                stage_counts[stage] += 1
+        return {
+            "reply_conversations": reply_conversations,
+            "needs_reply": needs_reply,
+            "ai_assist_ready": ai_assist_ready,
+            "qualified": stage_counts["Qualified"],
+            "proposal": stage_counts["Proposal"],
+            "won": stage_counts["Won"],
+        }
 
 
 @app.post("/api/auth/login")
@@ -1137,11 +1343,14 @@ async def api_followups(request: Request):
 async def api_broadcast(request: Request):
     _require_roles(request, "admin", "owner")
     body = await request.json()
+    campaign_name = (body.get("campaign_name") or "").strip()
     message = body.get("message", "")
     template_name = body.get("template", "")
     objective = (body.get("objective") or "").strip() or None
-    filter_stage = body.get("stage")
-    filter_tag = body.get("tag")
+    audience_key = (body.get("audience_key") or "").strip() or None
+    saved_audience = next((item for item in _saved_campaign_audiences() if item["key"] == audience_key), None) if audience_key else None
+    filter_stage = body.get("stage") or (saved_audience or {}).get("stage")
+    filter_tag = body.get("tag") or (saved_audience or {}).get("tag")
     contact_ids = body.get("contact_ids", [])
     campaign_key = (body.get("campaign_key") or "").strip() or "broadcast_reply"
     explicit_policy_key = (body.get("reply_use_case_key") or "").strip() or None
@@ -1166,6 +1375,7 @@ async def api_broadcast(request: Request):
         "broadcast_send",
         {
             "message": message,
+            "campaign_name": campaign_name,
             "template": template_name,
             "objective": objective,
             "stage": filter_stage,
@@ -1185,7 +1395,9 @@ async def api_broadcast(request: Request):
             "contact_ids": len(contact_ids),
             "stage": filter_stage,
             "tag": filter_tag,
+            "audience_key": audience_key,
             "objective": objective,
+            "campaign_name": campaign_name,
             "campaign_key": campaign_key,
             "reply_use_case_key": reply_policy["use_case_key"],
             "resolved_scope_type": routing["scope_type"],
@@ -1577,7 +1789,62 @@ async def api_broadcast_history(request: Request):
     _require_roles(request, "admin", "owner")
     history = get_broadcast_history(limit=50)
     stats = get_broadcast_stats()
-    return {"broadcasts": history, "stats": stats, "jobs": list_jobs(kind="broadcast_send", limit=50)}
+    enriched = []
+    for item in history:
+        item_copy = dict(item)
+        item_copy["metrics"] = _campaign_metrics_for_key(item.get("campaign_key"))
+        enriched.append(item_copy)
+    return {"broadcasts": enriched, "stats": stats, "jobs": list_jobs(kind="broadcast_send", limit=50)}
+
+
+@app.get("/api/campaign-audiences")
+async def api_list_campaign_audiences(request: Request):
+    _require_roles(request, "admin", "owner")
+    return {"audiences": _saved_campaign_audiences()}
+
+
+@app.post("/api/campaign-audiences")
+async def api_save_campaign_audience(request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "name is required")
+    key = _slugify_policy_key(body.get("key") or name, "audience")
+    audience = {
+        "key": key,
+        "name": name,
+        "description": (body.get("description") or "").strip(),
+        "stage": (body.get("stage") or "").strip() or None,
+        "tag": (body.get("tag") or "").strip() or None,
+    }
+    existing = [item for item in _raw_campaign_audiences() if item["key"] != key]
+    existing.append(audience)
+    update_workspace_config({"campaign_audiences": existing})
+    record_audit_event(
+        "campaign_audience",
+        key,
+        "saved",
+        {"stage": audience["stage"], "tag": audience["tag"]},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"audience": next((item for item in _saved_campaign_audiences() if item["key"] == key), audience)}
+
+
+@app.delete("/api/campaign-audiences/{audience_key}")
+async def api_delete_campaign_audience(audience_key: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    audiences = _raw_campaign_audiences()
+    filtered = [item for item in audiences if item["key"] != audience_key]
+    update_workspace_config({"campaign_audiences": filtered})
+    record_audit_event(
+        "campaign_audience",
+        audience_key,
+        "deleted",
+        {},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"ok": True}
 
 
 @app.get("/api/jobs")

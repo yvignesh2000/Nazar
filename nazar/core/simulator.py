@@ -453,6 +453,7 @@ async def simulate_broadcast_run_async(
         )
 
     broadcast_record = log_broadcast(
+        campaign_name=campaign_key.replace("_", " "),
         message=message,
         template_name=template_name,
         objective=objective,

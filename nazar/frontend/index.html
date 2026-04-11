@@ -288,6 +288,29 @@ body {
   border-radius:50%;
   border:1.5px solid var(--surface);
 }
+.notif-wrap { position:relative; display:flex; align-items:center; }
+.notif-menu {
+  position:absolute;
+  top:44px;
+  right:0;
+  width:340px;
+  max-height:420px;
+  overflow-y:auto;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 24px 64px rgba(0,0,0,.45);
+  display:none;
+  z-index:120;
+}
+.notif-menu.open { display:block; }
+.notif-menu-head {
+  padding:14px 16px 10px;
+  font-size:13px;
+  font-weight:700;
+  border-bottom:1px solid var(--border);
+}
+.notif-menu-body { padding:8px; }
 
 /* BUTTONS */
 .btn {
@@ -803,6 +826,38 @@ body {
   padding:18px;
 }
 .crm-section { margin-bottom:20px; }
+.intel-panel { display:flex; flex-direction:column; gap:14px; }
+.intel-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
+}
+.intel-title {
+  font-size:10px;
+  font-weight:700;
+  color:var(--text3);
+  text-transform:uppercase;
+  letter-spacing:1px;
+  margin-bottom:10px;
+}
+.intel-summary {
+  font-size:12.5px;
+  color:var(--text);
+  line-height:1.65;
+}
+.intel-kv { display:grid; gap:8px; }
+.intel-row {
+  display:grid;
+  grid-template-columns:104px 1fr;
+  gap:8px;
+  align-items:start;
+  font-size:12px;
+}
+.intel-key { color:var(--text3); }
+.intel-val { color:var(--text); line-height:1.55; }
+.intel-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.intel-meta { font-size:11px; color:var(--text3); line-height:1.5; margin-top:8px; }
 .crm-title {
   font-size:10px; font-weight:600;
   color:var(--text3); text-transform:uppercase;
@@ -1027,12 +1082,12 @@ body {
 
 .campaign-builder {
   width:100%;
-  max-width:980px;
-  padding:22px;
+  max-width:none;
+  padding:0;
   overflow:visible;
-  background:linear-gradient(180deg, rgba(255,255,255,.015), rgba(255,255,255,0));
-  border:1px solid var(--border);
-  border-radius:20px;
+  background:none;
+  border:none;
+  border-radius:0;
   margin:0 auto;
 }
 .campaign-builder-head { margin-bottom:18px; }
@@ -1052,6 +1107,7 @@ body {
 .campaign-section-title { font-size:15px; font-weight:700; margin-bottom:6px; }
 .campaign-section-sub { font-size:12px; color:var(--text2); line-height:1.45; margin-bottom:12px; }
 .campaign-goals { display:grid; grid-template-columns:1fr; gap:8px; }
+.campaign-goal-select { margin-top:4px; }
 .campaign-goal {
   border:1px solid var(--border);
   border-radius:14px;
@@ -1126,6 +1182,13 @@ body {
   padding:28px;
 }
 .modal-overlay.open { display:flex; }
+.campaign-modal-overlay {
+  justify-content:flex-end;
+  padding:0;
+  background:rgba(5,8,16,.56);
+  backdrop-filter:blur(2px);
+  -webkit-backdrop-filter:blur(2px);
+}
 .modal-panel {
   width:min(980px, 100%);
   max-height:92vh;
@@ -1136,6 +1199,17 @@ body {
   box-shadow:0 32px 90px rgba(0,0,0,.45);
   padding:24px;
 }
+.campaign-modal-panel {
+  width:min(560px, 100vw);
+  height:100vh;
+  max-height:100vh;
+  border-radius:0;
+  border-top:none;
+  border-right:none;
+  border-bottom:none;
+  padding:18px 18px 88px;
+  overflow-y:auto;
+}
 .modal-head {
   display:flex;
   align-items:flex-start;
@@ -1145,6 +1219,18 @@ body {
 }
 .modal-title { font-size:22px; font-weight:800; letter-spacing:-.8px; }
 .modal-sub { font-size:13px; color:var(--text2); margin-top:6px; line-height:1.55; max-width:64ch; }
+.campaign-sticky-footer {
+  position:sticky;
+  bottom:0;
+  margin-top:14px;
+  padding-top:12px;
+  background:linear-gradient(180deg, rgba(10,11,15,0), rgba(10,11,15,.92) 20%, rgba(10,11,15,.98));
+}
+.campaign-sticky-actions {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
 .campaign-history-card {
   padding:16px;
   border:1px solid var(--border);
@@ -1640,11 +1726,23 @@ body {
       <input type="text" placeholder="Search or command..." readonly>
       <span class="topbar-kbd">⌘K</span>
     </div>
-    <div class="icon-btn" title="Notifications">
-      🔔
-      <div class="notif-dot" id="notif-dot" style="display:none"></div>
+    <div class="notif-wrap">
+      <div class="icon-btn" title="Notifications" onclick="toggleNotifications(event)">
+        🔔
+        <div class="notif-dot" id="notif-dot" style="display:none"></div>
+      </div>
+      <div class="notif-menu" id="notif-menu">
+        <div class="notif-menu-head">Notifications</div>
+        <div class="notif-menu-body" id="notif-results">
+          <div class="cmd-result">
+            <span class="cmd-result-icon">🔔</span>
+            <span class="cmd-result-text">No notifications yet</span>
+            <span class="cmd-result-sub">Live alerts will appear here.</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <button class="btn btn-primary" onclick="openAddContactModal()">+ Add Contact</button>
+    <button class="btn btn-primary" id="topbar-primary-btn" onclick="handleTopbarPrimaryAction()">+ Add Contact</button>
   </div>
 
   <!-- ============================================================
@@ -1820,6 +1918,9 @@ body {
         <select class="form-input" id="contacts-stage-filter" onchange="renderContactsTable()">
           <option value="">All stages</option>
         </select>
+        <select class="form-input" id="contacts-group-filter" onchange="renderContactsTable()">
+          <option value="">All groups</option>
+        </select>
       </div>
       <div id="contacts-table-wrap"></div>
     </div>
@@ -1865,37 +1966,58 @@ body {
     </div>
   </div>
 
-  <div class="modal-overlay" id="campaign-modal" onclick="if(event.target===this)closeCampaignModal()">
-    <div class="modal-panel">
+  <div class="modal-overlay campaign-modal-overlay" id="campaign-modal" onclick="if(event.target===this)closeCampaignModal()">
+    <div class="modal-panel campaign-modal-panel">
       <div class="modal-head">
         <div>
           <div class="modal-title" id="campaign-builder-title">New Campaign</div>
-          <div class="modal-sub">Create a specific campaign for a specific sales goal. This stays out of the main page so the Campaigns surface can focus on live campaign visibility instead of configuration sprawl.</div>
+          <div class="modal-sub">Name the campaign, choose the audience, confirm reply handling, and launch. Keep this lightweight.</div>
         </div>
         <button class="btn btn-ghost" onclick="closeCampaignModal()">Close</button>
       </div>
 
       <div class="campaign-builder" style="max-width:none;border:none;background:none;padding:0;margin:0;">
         <div class="campaign-section">
-          <div class="campaign-section-label">1. Campaign Goal</div>
-          <div class="campaign-section-title">What should this campaign move forward?</div>
-          <div class="campaign-section-sub">This sets the sales context for the run and pre-fills sensible defaults. You can still override the targeting or reply handling after choosing a goal.</div>
-          <div class="campaign-goals" id="campaign-goals"></div>
-          <div class="campaign-helper" id="campaign-goal-hint"></div>
+          <div class="campaign-section-label">1. Campaign Name</div>
+          <div class="campaign-section-title">What should the team call this campaign?</div>
+          <div class="campaign-section-sub">Use a simple business name so the team can recognize it later in history, analytics, and replies.</div>
+          <input class="form-input" id="campaign-name" placeholder="April proposal follow-up" oninput="ensureCampaignKey()">
+          <div class="campaign-helper">This is the human-readable name. Nazar still keeps an internal campaign key in the background.</div>
         </div>
 
         <div class="campaign-section">
           <div class="campaign-section-label">2. Audience</div>
           <div class="campaign-section-title">Who should receive this?</div>
-          <div class="campaign-section-sub">Target a funnel stage or leave it broad. Campaigns are usually stage-based because the message should match where the lead currently is.</div>
+          <div class="campaign-section-sub">Target a stage, a contact group, or both.</div>
+          <div class="campaign-row" style="margin-bottom:10px;">
+            <div>
+              <div class="form-label">Saved audience</div>
+              <select class="form-input" id="campaign-audience-select" onchange="applySavedCampaignAudience(this.value)"></select>
+            </div>
+            <div style="display:flex;align-items:end;">
+              <button class="btn btn-ghost" style="width:100%;" onclick="saveCurrentCampaignAudience()">Save current audience</button>
+            </div>
+          </div>
           <div class="campaign-row">
             <div>
               <div class="form-label">Target stage</div>
-              <select class="form-input" id="campaign-target-stage"></select>
+              <select class="form-input" id="campaign-target-stage" onchange="refreshCampaignAudiencePreview()"></select>
             </div>
+            <div>
+              <div class="form-label">Contact group</div>
+              <select class="form-input" id="campaign-target-group" onchange="refreshCampaignAudiencePreview()"></select>
+            </div>
+          </div>
+          <div class="campaign-row" style="margin-top:10px;">
             <div>
               <div class="form-label">Campaign key</div>
               <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation">
+            </div>
+            <div>
+              <div class="form-label">Audience preview</div>
+              <div class="campaign-preview" style="min-height:auto;">
+                <div class="campaign-preview-body" id="campaign-audience-preview">Checking current audience size…</div>
+              </div>
             </div>
           </div>
           <div class="campaign-helper">The campaign key identifies this exact campaign later when replies come in. Use a key like <code>proposal_push_april</code> or <code>lost_leads_winback</code>.</div>
@@ -1926,28 +2048,66 @@ body {
         <div class="campaign-section">
           <div class="campaign-section-label">4. Reply Handling</div>
           <div class="campaign-section-title">When people reply to this campaign</div>
-          <div class="campaign-section-sub">This is set per campaign. It should not be global because a win-back campaign and a pricing campaign often need different reply ownership.</div>
+          <div class="campaign-section-sub">Decide whether Nazar handles replies on its own or whether your team should step in.</div>
           <div class="campaign-row">
             <div>
               <div class="form-label">Handling</div>
-              <select class="form-input" id="campaign-reply-mode"></select>
+              <select class="form-input" id="campaign-reply-mode" onchange="updateCampaignReplyHandlingUI()"></select>
             </div>
-            <div>
-              <div class="form-label">Human queue</div>
-              <input class="form-input" id="campaign-human-queue" placeholder="sales" value="campaigns">
+            <div id="campaign-human-queue-wrap">
+              <div class="form-label">If a human is needed, send it to</div>
+              <select class="form-input" id="campaign-human-queue">
+                <option value="campaigns">Campaigns queue</option>
+                <option value="sales">Sales queue</option>
+                <option value="support">Support queue</option>
+                <option value="success">Customer success queue</option>
+              </select>
             </div>
           </div>
-          <div class="campaign-helper" id="campaign-reply-hint">Choose the team queue only if humans should be involved in replies.</div>
+          <div class="campaign-helper" id="campaign-reply-hint">If Nazar is replying automatically, the team queue is ignored.</div>
         </div>
 
         <div class="campaign-section">
           <div class="campaign-section-label">5. Launch</div>
-          <div class="campaign-section-title">Launch this campaign</div>
-          <div class="campaign-section-sub">Once the goal, audience, message, and reply handling look right, launch the campaign to the selected contacts.</div>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="sendBroadcast()">Launch Campaign</button>
+          <div class="campaign-section-title">Final check</div>
+          <div class="campaign-section-sub">Use the audience preview and reply handling above. Then launch from the footer below.</div>
           <div class="campaign-warning">
-            <strong>Need to test the workflow first?</strong> Use Sandbox Tools in AI Setup. Test records should not live on the main operator screens.
+            <strong>Testing note:</strong> sandbox tools belong in AI Setup. This campaign sheet is for real operator work.
           </div>
+        </div>
+      </div>
+      <div class="campaign-sticky-footer">
+        <div class="campaign-sticky-actions">
+          <button class="btn btn-ghost" onclick="closeCampaignModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="sendBroadcast()">Launch Campaign</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="campaign-detail-modal" onclick="if(event.target===this)closeCampaignDetailModal()">
+    <div class="modal-panel" style="max-width:720px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title" id="campaign-detail-title">Campaign Detail</div>
+          <div class="modal-sub" id="campaign-detail-sub">See what this campaign actually produced in the funnel, not just whether the send completed.</div>
+        </div>
+        <button class="btn btn-ghost" onclick="closeCampaignDetailModal()">Close</button>
+      </div>
+      <div class="bc-stats-row" style="margin-bottom:16px;">
+        <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-audience">0</div><div class="bc-stat-label">Audience</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-sent">0</div><div class="bc-stat-label">Sent</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-replies">0</div><div class="bc-stat-label">Replies</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-won">0</div><div class="bc-stat-label">Won</div></div>
+      </div>
+      <div class="analytics-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="analytics-card">
+          <div class="analytics-card-title">Campaign Context</div>
+          <div id="campaign-detail-context"></div>
+        </div>
+        <div class="analytics-card">
+          <div class="analytics-card-title">Funnel Movement</div>
+          <div id="campaign-detail-funnel"></div>
         </div>
       </div>
     </div>
@@ -2312,6 +2472,11 @@ body {
         <input class="form-input" type="text" placeholder="Company name (optional)" id="add-company">
       </div>
       <div class="form-group">
+        <div class="form-label">Group</div>
+        <input class="form-input" type="text" placeholder="Retail leads, Chennai expo, Existing customers" id="add-group" list="contact-group-options">
+        <datalist id="contact-group-options"></datalist>
+      </div>
+      <div class="form-group">
         <div class="form-label">Deal Value (₹)</div>
         <input class="form-input" type="number" placeholder="0" id="add-deal-value">
       </div>
@@ -2358,57 +2523,24 @@ let contactsData = [];
 let insightsData = { insights: [], at_risk: [] };
 let analyticsData = { metrics: {} };
 let campaignTemplates = [];
+let campaignAudiences = [];
+let campaignHistoryItems = [];
+let contactGroups = [];
 let campaignContentMode = 'template';
-let currentCampaignObjective = 'new_interest';
-
-const CAMPAIGN_OBJECTIVES = {
-  new_interest: {
-    label: 'Turn fresh interest into qualified leads',
-    description: 'Best for new or warm contacts who need a first meaningful touchpoint and qualification push.',
-    stage: 'New',
-    replyMode: 'bot_first',
-    humanQueue: 'sales',
-    templateName: 'welcome_new_lead',
-  },
-  proposal_followup: {
-    label: 'Revive proposal-stage deals',
-    description: 'Use when a lead has seen a proposal and now needs a structured nudge to re-engage.',
-    stage: 'Proposal',
-    replyMode: 'bot_assist',
-    humanQueue: 'sales',
-    templateName: 'proposal_sent',
-  },
-  closing_push: {
-    label: 'Move negotiation leads toward close',
-    description: 'Use when timing, discounts, objections, or final decision-making need tighter sales handling.',
-    stage: 'Negotiation',
-    replyMode: 'human_first',
-    humanQueue: 'sales',
-    templateName: 'gentle_followup',
-  },
-  win_back: {
-    label: 'Re-engage lost or dormant leads',
-    description: 'Use to restart conversations with cold leads who dropped off or stopped responding.',
-    stage: 'Lost',
-    replyMode: 'bot_first',
-    humanQueue: 'campaigns',
-    templateName: 'win_back',
-  },
-  customer_nurture: {
-    label: 'Nurture existing customers or referrals',
-    description: 'Use when the goal is referrals, upgrades, repeat business, or retention rather than qualification.',
-    stage: 'Won',
-    replyMode: 'bot_first',
-    humanQueue: 'success',
-    templateName: 'feedback_request',
-  },
-};
+let notificationItems = [];
+let liveSocket = null;
+let liveSocketReconnectHandle = null;
+let liveSocketPingHandle = null;
+let liveRefreshBusy = false;
+let liveRefreshQueued = false;
+let pendingLiveScopes = new Set();
 
 // ================================================================
 //  NAVIGATION
 // ================================================================
 function navigateTo(screen) {
   currentScreen = screen;
+  closeNotifications();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = document.getElementById('screen-' + screen);
@@ -2422,6 +2554,7 @@ function navigateTo(screen) {
     settings:'Settings'
   };
   document.getElementById('page-title').textContent = titles[screen] || screen;
+  updateTopbarPrimaryAction(screen);
 
   // Load data for the screen
   if (screen === 'overview') loadOverview();
@@ -2434,6 +2567,128 @@ function navigateTo(screen) {
   else if (screen === 'followups') loadFollowups();
   else if (screen === 'botconfig') loadConfig();
   else if (screen === 'settings') loadSettings();
+}
+
+function liveSocketUrl() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const params = new URLSearchParams();
+  if (authToken) params.set('token', authToken);
+  else params.set('api_key', API_KEY);
+  return `${protocol}//${window.location.host}/ws/live?${params.toString()}`;
+}
+
+function connectLiveUpdates() {
+  if (liveSocket && (liveSocket.readyState === WebSocket.OPEN || liveSocket.readyState === WebSocket.CONNECTING)) return;
+  if (liveSocketReconnectHandle) {
+    clearTimeout(liveSocketReconnectHandle);
+    liveSocketReconnectHandle = null;
+  }
+
+  const socket = new WebSocket(liveSocketUrl());
+  liveSocket = socket;
+
+  socket.onopen = () => {
+    if (liveSocketPingHandle) clearInterval(liveSocketPingHandle);
+    liveSocketPingHandle = setInterval(() => {
+      if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
+        liveSocket.send('ping');
+      }
+    }, 25000);
+  };
+
+  socket.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data || '{}');
+      if (payload?.type === 'ready' || payload?.type === 'state_changed') {
+        queueLiveRefresh(payload.scopes || ['overview', 'conversations', 'notifications']);
+      }
+    } catch (error) {
+      console.error('Live update parse failed:', error);
+    }
+  };
+
+  socket.onclose = () => {
+    if (liveSocket === socket) liveSocket = null;
+    if (liveSocketPingHandle) {
+      clearInterval(liveSocketPingHandle);
+      liveSocketPingHandle = null;
+    }
+    if (!liveSocketReconnectHandle) {
+      liveSocketReconnectHandle = setTimeout(() => {
+        liveSocketReconnectHandle = null;
+        connectLiveUpdates();
+      }, 1500);
+    }
+  };
+
+  socket.onerror = () => {
+    try { socket.close(); } catch (_) {}
+  };
+}
+
+function queueLiveRefresh(scopes = ['overview', 'conversations', 'notifications']) {
+  for (const scope of scopes) pendingLiveScopes.add(scope);
+  if (liveRefreshQueued) return;
+  liveRefreshQueued = true;
+  setTimeout(flushLiveRefresh, 80);
+}
+
+async function flushLiveRefresh() {
+  liveRefreshQueued = false;
+  if (document.hidden || liveRefreshBusy) return;
+  liveRefreshBusy = true;
+  const scopes = new Set(pendingLiveScopes);
+  pendingLiveScopes.clear();
+  try {
+    if (scopes.has('overview') || scopes.has('notifications')) {
+      await loadOverview();
+    }
+    if (scopes.has('conversations') && currentScreen === 'conversations') {
+      await loadConversations();
+      if (selectedConvId) {
+        await selectConversation(selectedConvId);
+      }
+    }
+  } catch (error) {
+    console.error('Live refresh failed:', error);
+  } finally {
+    liveRefreshBusy = false;
+    if (pendingLiveScopes.size) {
+      queueLiveRefresh(Array.from(pendingLiveScopes));
+    }
+  }
+}
+
+function updateTopbarPrimaryAction(screen = currentScreen) {
+  const btn = document.getElementById('topbar-primary-btn');
+  if (!btn) return;
+  const configs = {
+    overview: { label: '+ New Campaign', action: "navigateTo('broadcasts');openCampaignModal();" },
+    broadcasts: { label: '+ New Campaign', action: 'openCampaignModal()' },
+    contacts: { label: '+ Add Contact', action: 'openAddContactModal()' },
+    pipeline: { label: '+ Add Deal', action: 'openAddContactModal()' },
+    conversations: { label: '+ Add Contact', action: 'openAddContactModal()' },
+    insights: { label: '+ New Campaign', action: "navigateTo('broadcasts');openCampaignModal();" },
+    analytics: { label: '+ New Campaign', action: "navigateTo('broadcasts');openCampaignModal();" },
+    followups: { label: '+ New Campaign', action: "navigateTo('broadcasts');openCampaignModal();" },
+    botconfig: { label: '+ Add Contact', action: 'openAddContactModal()' },
+    settings: { label: '+ Add Contact', action: 'openAddContactModal()' },
+  };
+  const config = configs[screen] || configs.contacts;
+  btn.textContent = config.label;
+  btn.dataset.action = config.action;
+}
+
+function handleTopbarPrimaryAction() {
+  const btn = document.getElementById('topbar-primary-btn');
+  const action = btn?.dataset.action || 'openAddContactModal()';
+  // Controlled internal actions only.
+  if (action === 'openAddContactModal()') return openAddContactModal();
+  if (action === 'openCampaignModal()') return openCampaignModal();
+  if (action === "navigateTo('broadcasts');openCampaignModal();") {
+    navigateTo('broadcasts');
+    return setTimeout(() => openCampaignModal(), 60);
+  }
 }
 
 function setAuthContext(data) {
@@ -2525,7 +2780,7 @@ async function loadOverview() {
     document.getElementById('ops-ai-assist').textContent = operations.ai_assist_available || 0;
     document.getElementById('ops-campaign-replies').textContent = operations.campaign_reply_conversations || 0;
     document.getElementById('ops-bot-human').textContent = `${operations.bot_outbound_count || 0} / ${operations.human_outbound_count || 0}`;
-    document.getElementById('notif-dot').style.display = (s.needs_reply || 0) > 0 ? 'block' : 'none';
+    buildNotifications(data);
 
     // Activity feed
     const feed = document.getElementById('activity-feed');
@@ -2550,10 +2805,17 @@ async function loadOverview() {
     const pmini = document.getElementById('pipeline-mini');
     const pipeline = data.pipeline;
     if (pipeline && Object.keys(pipeline).length > 0) {
-      pmini.innerHTML = STAGES.filter(s=>s!=='Lost').map(stage => {
-        const st = pipeline[stage] || {count:0};
+      const activeStages = STAGES.filter(s => s !== 'Lost');
+      const maxCount = Math.max(...activeStages.map(stage => (pipeline[stage]?.count || 0)), 1);
+      pmini.innerHTML = activeStages.map(stage => {
+        const st = pipeline[stage] || {count:0,total_value:0};
+        const width = Math.max(8, ((st.count || 0) / maxCount) * 100);
         return `<div class="pcol">
           <div class="pcol-head">${stage} <span class="pcol-cnt">${st.count||0}</span></div>
+          <div style="height:6px;border-radius:999px;background:var(--surface2);overflow:hidden;margin:8px 0 6px;">
+            <div style="height:100%;width:${width}%;background:var(--accent);border-radius:999px;"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);">${formatCurrency(st.total_value || 0)}</div>
         </div>`;
       }).join('');
     } else if (pmini) {
@@ -2570,6 +2832,87 @@ async function loadOverview() {
   } catch(e) {
     console.error('Load overview failed:', e);
   }
+}
+
+function buildNotifications(data) {
+  const s = data.stats || {};
+  const operations = data.operations || {};
+  const notifications = [];
+  if ((operations.ai_assist_available || 0) > 0) {
+    notifications.push({
+      icon: '✨',
+      title: `${operations.ai_assist_available} AI draft${operations.ai_assist_available === 1 ? '' : 's'} ready`,
+      sub: 'Team review is needed before these replies go out.',
+      action: () => openConversationFilter('ai_assist'),
+    });
+  }
+  if ((s.needs_reply || 0) > 0) {
+    notifications.push({
+      icon: '💬',
+      title: `${s.needs_reply} conversation${s.needs_reply === 1 ? '' : 's'} need a reply`,
+      sub: 'The inbox has active customer threads waiting for response.',
+      action: () => openConversationFilter('needs_reply'),
+    });
+  }
+  if ((s.unassigned_conversations || 0) > 0) {
+    notifications.push({
+      icon: '👥',
+      title: `${s.unassigned_conversations} conversation${s.unassigned_conversations === 1 ? '' : 's'} unassigned`,
+      sub: 'These leads have no owner yet.',
+      action: () => openConversationFilter('unassigned'),
+    });
+  }
+  if ((operations.campaign_reply_conversations || 0) > 0) {
+    notifications.push({
+      icon: '📣',
+      title: `${operations.campaign_reply_conversations} campaign repl${operations.campaign_reply_conversations === 1 ? 'y' : 'ies'} active`,
+      sub: 'Recent campaign responses are coming into the inbox.',
+      action: () => openConversationFilter('campaigns'),
+    });
+  }
+  notificationItems = notifications;
+  const dot = document.getElementById('notif-dot');
+  if (dot) dot.style.display = notifications.length ? 'block' : 'none';
+  renderNotifications();
+}
+
+function renderNotifications() {
+  const root = document.getElementById('notif-results');
+  if (!root) return;
+  if (!notificationItems.length) {
+    root.innerHTML = `
+      <div class="cmd-result">
+        <span class="cmd-result-icon">🔕</span>
+        <span class="cmd-result-text">No notifications right now</span>
+        <span class="cmd-result-sub">Inbox, campaign, and AI alerts will appear here.</span>
+      </div>
+    `;
+    return;
+  }
+  root.innerHTML = notificationItems.map((item, index) => `
+    <div class="cmd-result" onclick="openNotification(${index})">
+      <span class="cmd-result-icon">${item.icon}</span>
+      <span class="cmd-result-text">${esc(item.title)}</span>
+      <span class="cmd-result-sub">${esc(item.sub)}</span>
+    </div>
+  `).join('');
+}
+
+function toggleNotifications(event) {
+  event?.stopPropagation?.();
+  const menu = document.getElementById('notif-menu');
+  if (!menu) return;
+  menu.classList.toggle('open');
+}
+
+function closeNotifications() {
+  document.getElementById('notif-menu')?.classList.remove('open');
+}
+
+function openNotification(index) {
+  const item = notificationItems[index];
+  closeNotifications();
+  if (item?.action) item.action();
 }
 
 async function loadSimulatorScenarios() {
@@ -2728,6 +3071,14 @@ async function loadConversations() {
     const suffix = params.toString() ? `?${params.toString()}` : '';
     const data = await api('GET', '/api/conversations' + suffix);
     conversations = data.conversations || [];
+    if (selectedConvId && !conversations.some(conv => conv.conversation_id === selectedConvId)) {
+      selectedConvId = null;
+      selectedConversationData = null;
+      const detail = document.getElementById('conv-detail');
+      const right = document.getElementById('conv-right');
+      if (detail) detail.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:14px;">Select a conversation to view</div>';
+      if (right) right.style.display = 'none';
+    }
     renderConversationList(conversations);
   } catch(e) {
     console.error('Load conversations failed:', e);
@@ -2741,6 +3092,7 @@ async function loadContactsScreen() {
   try {
     const data = await api('GET', '/api/contacts');
     contactsData = data.contacts || [];
+    syncContactGroups(contactsData);
     const stageFilter = document.getElementById('contacts-stage-filter');
     if (stageFilter && !stageFilter.dataset.ready) {
       stageFilter.innerHTML = `<option value="">All stages</option>${STAGES.map(stage => `<option value="${stage}">${stage}</option>`).join('')}`;
@@ -2757,12 +3109,14 @@ function renderContactsTable() {
   if (!wrap) return;
   const search = (document.getElementById('contacts-search')?.value || '').trim().toLowerCase();
   const stage = document.getElementById('contacts-stage-filter')?.value || '';
+  const group = document.getElementById('contacts-group-filter')?.value || '';
   const list = contactsData.filter(contact => {
     const stageMatch = !stage || contact.pipeline_stage === stage;
+    const groupMatch = !group || (contact.tags || []).includes(group);
     const searchMatch = !search || [contact.name, contact.company, contact.phone]
       .filter(Boolean)
       .some(value => value.toLowerCase().includes(search));
-    return stageMatch && searchMatch;
+    return stageMatch && groupMatch && searchMatch;
   });
   if (!list.length) {
     wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No contacts match this view</div><div class="empty-sub">Try another stage or search term, or add your first contact.</div></div>`;
@@ -2774,6 +3128,7 @@ function renderContactsTable() {
         <tr>
           <th>Contact</th>
           <th>Stage</th>
+          <th>Group</th>
           <th>Score</th>
           <th>Source</th>
           <th>Last Activity</th>
@@ -2787,6 +3142,7 @@ function renderContactsTable() {
               <div class="mini-meta">${esc(contact.company || contact.phone || 'No company')}</div>
             </td>
             <td><span class="pill">${esc(contact.pipeline_stage || 'New')}</span></td>
+            <td>${esc(primaryContactGroup(contact) || '—')}</td>
             <td class="${scoreTone(contact.lead_score)}">${contact.lead_score || 0}</td>
             <td>${esc(capitalize(contact.source || 'direct'))}</td>
             <td>${esc(contact.last_replied_at ? timeAgo(contact.last_replied_at) : 'No reply yet')}</td>
@@ -2795,6 +3151,51 @@ function renderContactsTable() {
       </tbody>
     </table>
   `;
+}
+
+function primaryContactGroup(contact) {
+  return (contact?.tags || []).find(Boolean) || '';
+}
+
+function syncContactGroups(contacts = []) {
+  const unique = new Set();
+  for (const contact of contacts || []) {
+    for (const tag of (contact?.tags || [])) {
+      if (String(tag || '').trim()) unique.add(String(tag).trim());
+    }
+  }
+  contactGroups = Array.from(unique).sort((a, b) => a.localeCompare(b));
+  renderContactGroupFilters();
+  renderCampaignGroupOptions();
+}
+
+function renderContactGroupFilters() {
+  const select = document.getElementById('contacts-group-filter');
+  if (!select) return;
+  const current = select.value || '';
+  select.innerHTML = `<option value="">All groups</option>${contactGroups.map(group => `<option value="${escAttr(group)}">${esc(group)}</option>`).join('')}`;
+  select.value = contactGroups.includes(current) ? current : '';
+  renderContactGroupSuggestions();
+}
+
+function renderCampaignGroupOptions() {
+  const select = document.getElementById('campaign-target-group');
+  if (!select) return;
+  const current = select.value || '';
+  select.innerHTML = `<option value="">All groups</option>${contactGroups.map(group => `<option value="${escAttr(group)}">${esc(group)}</option>`).join('')}`;
+  select.value = contactGroups.includes(current) ? current : '';
+}
+
+function campaignGroupChoices(current = '') {
+  const options = new Set(contactGroups);
+  if (current) options.add(current);
+  return Array.from(options).sort((a, b) => a.localeCompare(b));
+}
+
+function renderContactGroupSuggestions() {
+  const list = document.getElementById('contact-group-options');
+  if (!list) return;
+  list.innerHTML = contactGroups.map(group => `<option value="${escAttr(group)}"></option>`).join('');
 }
 
 function scoreTone(score) {
@@ -3082,24 +3483,140 @@ function renderConversationDetail(data) {
   if (chatArea) chatArea.scrollTop = chatArea.scrollHeight;
 }
 
+function formatClassificationExplanation(note, conversation) {
+  if (!note) {
+    if (!conversation?.handoff_required) return '';
+    return 'Nazar routed this to a human, but the latest classification note is not available.';
+  }
+  const clean = String(note).replace(/^AI classification\s+—\s*/i, '');
+  const intent = /intent:\s*([^;]+)/i.exec(clean)?.[1]?.trim() || 'unknown';
+  const owner = /owner:\s*([^;]+)/i.exec(clean)?.[1]?.trim() || 'bot_first';
+  const reasons = /reasons:\s*(.+)$/i.exec(clean)?.[1]?.trim() || '';
+  const ownerText = {
+    bot_first: 'AI replies automatically',
+    human_first: 'Team replies first',
+    bot_assist: 'Team reviews an AI draft',
+    manual_only: 'Team only, no AI reply',
+  }[owner] || owner;
+  return `Latest classification: ${intent}. Handling mode: ${ownerText}.${reasons ? ` Reason: ${reasons}.` : ''}`;
+}
+
+function parseClassificationNote(note) {
+  if (!note) return null;
+  const clean = String(note).replace(/^AI classification\s+—\s*/i, '');
+  return {
+    intent: /intent:\s*([^;]+)/i.exec(clean)?.[1]?.trim() || '',
+    stage: /stage:\s*([^;]+)/i.exec(clean)?.[1]?.trim() || '',
+    score: /lead score:\s*([^;]+)/i.exec(clean)?.[1]?.trim() || '',
+    owner: /owner:\s*([^;]+)/i.exec(clean)?.[1]?.trim() || '',
+    reasons: /reasons:\s*(.+)$/i.exec(clean)?.[1]?.trim() || '',
+  };
+}
+
+function humanizeIntent(intent) {
+  const map = {
+    general_info: 'General enquiry',
+    pricing_quote: 'Pricing request',
+    discount_negotiation: 'Price negotiation',
+    site_survey_booking: 'Site survey booking',
+    commercial_project: 'Commercial project',
+    support_issue: 'Support issue',
+    complaint_escalation: 'Complaint or escalation',
+    financing_subsidy: 'Financing or subsidy',
+    purchase_ready: 'Ready to buy',
+  };
+  return map[intent] || capitalize(String(intent || '').replaceAll('_', ' ')) || 'Unknown';
+}
+
+function signalSummary(mem) {
+  const counts = mem?.signal_counts || {};
+  const items = [];
+  if (counts.buying_signal) items.push(`${counts.buying_signal} buying signal${counts.buying_signal === 1 ? '' : 's'}`);
+  if (counts.objection) items.push(`${counts.objection} objection${counts.objection === 1 ? '' : 's'}`);
+  if (counts.price_sensitivity) items.push(`${counts.price_sensitivity} price cue${counts.price_sensitivity === 1 ? '' : 's'}`);
+  if (counts.intent) items.push(`${counts.intent} purchase intent signal${counts.intent === 1 ? '' : 's'}`);
+  return items;
+}
+
+function humanizeConversationStatus(status) {
+  const map = {
+    open: 'Open',
+    needs_reply: 'Needs reply',
+    snoozed: 'Snoozed',
+    closed: 'Closed',
+  };
+  return map[status] || capitalize(String(status || '').replaceAll('_', ' ')) || 'Open';
+}
+
+function nextConversationAction(contact, conversation, classification, assistReady) {
+  if (assistReady) {
+    return 'Review the AI draft, edit if needed, and send it to keep the deal moving.';
+  }
+  if (conversation.status === 'needs_reply' && !conversation.assigned_user_id) {
+    return 'Assign an owner first so this lead is not sitting unworked in the queue.';
+  }
+  if (conversation.status === 'needs_reply') {
+    return 'Reply now. This lead is waiting on your team.';
+  }
+  if ((classification?.intent || '') === 'pricing_quote' || (classification?.intent || '') === 'discount_negotiation') {
+    return 'Move this toward proposal or negotiation once pricing is clarified.';
+  }
+  if ((classification?.intent || '') === 'purchase_ready') {
+    return 'This looks close to conversion. Push for survey booking, proposal, or close.';
+  }
+  if (contact.pipeline_stage === 'Qualified') {
+    return 'Qualify budget, timing, and need, then move the deal to proposal when ready.';
+  }
+  return 'Keep the conversation moving and update ownership or stage only when the customer intent changes.';
+}
+
  function renderConversationIntel(data, notes) {
   const c = data.contact;
   const mem = data.memory || {};
   const conversation = data.conversation || {};
   const assistReady = conversation.ai_assist_status === 'available' && (conversation.ai_assist_draft || '').trim();
+  const routingExplanation = formatClassificationExplanation(mem.latest_classification_note, conversation);
+  const classification = parseClassificationNote(mem.latest_classification_note);
+  const memorySignals = signalSummary(mem);
   const rightPanel = document.getElementById('conv-right');
   rightPanel.style.display = 'block';
 
   rightPanel.innerHTML = `
-    <div class="ai-mem-card">
-      <div class="ai-mem-header">🧠 AI Memory</div>
-      <div class="ai-mem-text">
-        ${mem.total_embeddings?`<strong>${mem.total_embeddings}</strong> memories stored for this customer.`:'No memory data yet. Conversations will build the memory automatically.'}
+    <div class="intel-panel">
+    <div class="intel-card">
+      <div class="intel-title">AI Summary</div>
+      <div class="intel-summary">
+        ${classification ? `
+          <strong>${humanizeIntent(classification.intent)}</strong> · ${classification.owner ? formatReplyMode(classification.owner) : 'Handling not decided'}.
+          ${classification.reasons ? ` ${esc(classification.reasons)}.` : ''}
+        ` : 'Nazar will summarize what it has learned from the conversation after the next classified inbound message.'}
       </div>
+      <div class="intel-chips">
+        ${classification?.stage ? `<span class="chip chip-accent">Stage · ${esc(classification.stage)}</span>` : ''}
+        ${classification?.score ? `<span class="chip chip-green">Score · ${esc(classification.score)}</span>` : ''}
+        ${mem.last_interaction ? `<span class="chip chip-orange">Last touch · ${esc(timeAgo(mem.last_interaction))}</span>` : ''}
+      </div>
+      <div class="intel-meta">
+        ${memorySignals.length ? `Signals seen: ${esc(memorySignals.join(', '))}.` : 'No strong buying or objection signals extracted yet.'}
+      </div>
+    </div>
+    <div class="intel-card">
+      <div class="intel-title">Routing Decision</div>
+      <div class="intel-summary">${esc(routingExplanation || 'Once a fresh inbound message is classified, Nazar will explain the latest routing decision here.')}</div>
+      <div class="intel-chips">
+        <span class="chip chip-accent">${esc(formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first'))}</span>
+        ${conversation.human_queue ? `<span class="chip chip-orange">Queue · ${esc(conversation.human_queue)}</span>` : ''}
+        ${conversation.source_type === 'campaign' ? `<span class="chip chip-green">Campaign · ${esc(conversation.source_ref || 'broadcast_reply')}</span>` : ''}
+      </div>
+    </div>
+    <div class="intel-card">
+      <div class="intel-title">What You Should Do Next</div>
+      <div class="intel-summary">${esc(nextConversationAction(c, conversation, classification, assistReady))}</div>
     </div>
     <div class="crm-section">
       <div class="crm-title">Contact Details</div>
       <div class="crm-field"><span class="crm-key">Stage</span><span class="crm-val">${c.pipeline_stage}</span></div>
+      <div class="crm-field"><span class="crm-key">Group</span><span class="crm-val">${esc(primaryContactGroup(c) || '—')}</span></div>
       <div class="crm-field"><span class="crm-key">Deal Value</span><span class="crm-val">${formatCurrency(c.deal_value||0)}</span></div>
       <div class="crm-field"><span class="crm-key">Lead Score</span><span class="crm-val">${c.lead_score||0}/100</span></div>
       <div class="crm-field"><span class="crm-key">Company</span><span class="crm-val">${esc(c.company||'—')}</span></div>
@@ -3115,29 +3632,45 @@ function renderConversationDetail(data) {
       </div>
     </div>`:''}
     <div class="crm-section">
-      <div class="crm-title">Quick Actions</div>
+      <div class="crm-title">Deal Controls</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        <select class="form-input" onchange="updateConversationUseCase('${conversation.conversation_id}', this.value)" style="font-size:12px;">
-          ${(replyPolicies.length ? replyPolicies : [{use_case_key:'default_inbound',display_name:'General Inbound'}]).map(policy => `<option value="${policy.use_case_key}" ${conversation.use_case_key===policy.use_case_key?'selected':''}>Use case: ${esc(policy.display_name)}</option>`).join('')}
+        <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:4px;">Use this section to decide who owns the lead, whether the inbox still needs attention, and what deal stage it belongs in.</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Contact group</div>
+        <select class="form-input" onchange="updateContactGroup('${c.contact_id}', this.value)" style="font-size:12px;">
+          <option value="">No group</option>
+          ${campaignGroupChoices(primaryContactGroup(c)).map(group => `<option value="${escAttr(group)}" ${primaryContactGroup(c)===group?'selected':''}>${esc(group)}</option>`).join('')}
         </select>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Conversation owner</div>
         <select class="form-input" onchange="assignConversation('${conversation.conversation_id}', this.value)" style="font-size:12px;">
-          <option value="">Assign to team member</option>
+          <option value="">Unassigned</option>
           ${teamMembers.map(member => `<option value="${member.id}" ${conversation.assigned_user_id===member.id?'selected':''}>${esc(member.name)} · ${esc(member.role||'member')}</option>`).join('')}
         </select>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
           <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign to me</button>
           <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '')">Unassign</button>
         </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px;">Inbox state</div>
         <select class="form-input" onchange="updateConversationStatus('${conversation.conversation_id}', this.value)" style="font-size:12px;">
-          ${['open','needs_reply','snoozed','closed'].map(status => `<option value="${status}" ${conversation.status===status?'selected':''}>${status.replace('_',' ')}</option>`).join('')}
+          ${['open','needs_reply','snoozed','closed'].map(status => `<option value="${status}" ${conversation.status===status?'selected':''}>${humanizeConversationStatus(status)}</option>`).join('')}
         </select>
-        <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Qualified')">Move to Qualified</button>
-        <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
-        <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px;">Deal stage</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Qualified')">Move to Qualified</button>
+          <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
+          <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;grid-column:1 / span 2;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
+        </div>
+        <details style="margin-top:8px;">
+          <summary style="cursor:pointer;color:var(--text2);font-size:12px;">Advanced routing</summary>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+            <div style="font-size:11px;color:var(--text3);line-height:1.5;">Change this only if you need to override Nazar’s normal handling for this one conversation.</div>
+            <select class="form-input" onchange="updateConversationUseCase('${conversation.conversation_id}', this.value)" style="font-size:12px;">
+              ${(replyPolicies.length ? replyPolicies : [{use_case_key:'default_inbound',display_name:'General Inbound'}]).map(policy => `<option value="${policy.use_case_key}" ${conversation.use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
+            </select>
+          </div>
+        </details>
         <div style="font-size:11px;color:var(--text3);padding-top:4px;">
           Current handling: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
-          ${conversation.human_queue ? ` · Team queue: ${esc(conversation.human_queue)}` : ''}
-          ${conversation.source_type === 'campaign' ? ` · Campaign: ${esc(conversation.source_ref || 'broadcast_reply')}` : ''}
+          ${conversation.human_queue ? ` · Queue: ${esc(conversation.human_queue)}` : ''}
         </div>
       </div>
     </div>
@@ -3168,6 +3701,7 @@ function renderConversationDetail(data) {
       </div>
       <textarea class="form-input" id="contact-note-input" placeholder="Add internal note... Use @name for mentions." style="min-height:84px;resize:vertical;"></textarea>
       <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="addInternalNote('${c.contact_id}')">Add Note</button>
+    </div>
     </div>
   `;
 }
@@ -3239,6 +3773,18 @@ async function loadCampaignTemplates() {
   renderCampaignTemplateOptions();
 }
 
+async function loadCampaignAudiences() {
+  try {
+    const data = await api('GET', '/api/campaign-audiences');
+    campaignAudiences = data.audiences || [];
+  } catch (e) {
+    console.error('Load campaign audiences failed:', e);
+    campaignAudiences = [];
+  }
+  renderCampaignAudienceOptions();
+  refreshCampaignAudiencePreview();
+}
+
 function initializeCampaignBuilder() {
   const root = document.getElementById('screen-broadcasts');
   if (!root || root.dataset.builderReady === 'true') return;
@@ -3246,46 +3792,100 @@ function initializeCampaignBuilder() {
   if (stageSelect) {
     stageSelect.innerHTML = `<option value="">All active contacts</option>${STAGES.map(stage => `<option value="${stage}">${stage}</option>`).join('')}`;
   }
+  renderCampaignGroupOptions();
   renderBroadcastUseCaseOptions();
-  renderCampaignGoals();
   setCampaignContentMode(campaignContentMode, true);
-  applyCampaignObjective(currentCampaignObjective, { force: true });
-  root.dataset.builderReady = 'true';
-}
-
-function renderCampaignGoals() {
-  const el = document.getElementById('campaign-goals');
-  if (!el) return;
-  el.innerHTML = Object.entries(CAMPAIGN_OBJECTIVES).map(([key, objective]) => `
-    <div class="campaign-goal ${currentCampaignObjective === key ? 'active' : ''}" onclick="applyCampaignObjective('${key}')">
-      <div class="campaign-goal-name">${esc(objective.label)}</div>
-      <div class="campaign-goal-desc">${esc(objective.description)}</div>
-    </div>
-  `).join('');
-}
-
-function applyCampaignObjective(key, options = {}) {
-  const objective = CAMPAIGN_OBJECTIVES[key] || CAMPAIGN_OBJECTIVES.new_interest;
-  currentCampaignObjective = key in CAMPAIGN_OBJECTIVES ? key : 'new_interest';
-  renderCampaignGoals();
-  const goalHint = document.getElementById('campaign-goal-hint');
-  if (goalHint) {
-    goalHint.innerHTML = `<strong>${esc(objective.label)}:</strong> ${esc(objective.description)} Targeting defaults to <strong>${esc(objective.stage)}</strong> and the recommended reply handling is <strong>${esc(formatReplyMode(objective.replyMode))}</strong>.`;
-  }
-  const stageSelect = document.getElementById('campaign-target-stage');
-  if (stageSelect) stageSelect.value = objective.stage || '';
-  const replyMode = document.getElementById('campaign-reply-mode');
-  if (replyMode) replyMode.value = objective.replyMode || 'bot_first';
   const queueInput = document.getElementById('campaign-human-queue');
-  if (queueInput) queueInput.value = objective.humanQueue || 'sales';
-  if (options.force) {
-    const existingKey = document.getElementById('broadcast-campaign-key')?.value.trim();
-    if (!existingKey) {
-      const generated = slugifyKey(`${key}_${new Date().toLocaleDateString('en-CA').replace(/-/g, '_')}`);
-      document.getElementById('broadcast-campaign-key').value = generated;
+  if (queueInput && !queueInput.value) queueInput.value = 'sales';
+  updateCampaignReplyHandlingUI();
+  ensureCampaignKey();
+  root.dataset.builderReady = 'true';
+  refreshCampaignAudiencePreview();
+}
+
+function ensureCampaignKey() {
+  const nameInput = document.getElementById('campaign-name');
+  const keyInput = document.getElementById('broadcast-campaign-key');
+  if (!keyInput) return;
+  const name = nameInput?.value.trim() || '';
+  const current = keyInput.value.trim();
+  if (!current || current === slugifyKey(current)) {
+    if (name) {
+      keyInput.value = slugifyKey(name);
+    } else if (!current) {
+      keyInput.value = slugifyKey(`campaign_${new Date().toLocaleDateString('en-CA').replace(/-/g, '_')}`);
     }
   }
-  renderCampaignTemplateOptions(objective.templateName);
+}
+
+function renderCampaignAudienceOptions(selectedKey = '') {
+  const select = document.getElementById('campaign-audience-select');
+  if (!select) return;
+  select.innerHTML = [
+    `<option value="">No saved audience</option>`,
+    ...campaignAudiences.map(audience => `<option value="${audience.key}" ${selectedKey === audience.key ? 'selected' : ''}>${esc(audience.name)} · ${audience.contact_count || 0} contacts</option>`)
+  ].join('');
+}
+
+function applySavedCampaignAudience(key) {
+  const audience = campaignAudiences.find(item => item.key === key);
+  if (!audience) {
+    refreshCampaignAudiencePreview();
+    return;
+  }
+  const stageSelect = document.getElementById('campaign-target-stage');
+  const groupInput = document.getElementById('campaign-target-group');
+  if (stageSelect) stageSelect.value = audience.stage || '';
+  if (groupInput) groupInput.value = audience.tag || '';
+  refreshCampaignAudiencePreview();
+}
+
+async function refreshCampaignAudiencePreview() {
+  const preview = document.getElementById('campaign-audience-preview');
+  if (!preview) return;
+  const stage = document.getElementById('campaign-target-stage')?.value || '';
+  const tag = document.getElementById('campaign-target-group')?.value || '';
+  try {
+    const params = new URLSearchParams();
+    if (stage) params.set('stage', stage);
+    if (tag) params.set('tag', tag);
+    const data = await api('GET', `/api/contacts${params.toString() ? '?' + params.toString() : ''}`);
+    const total = data.total || 0;
+    const bits = [];
+    if (stage) bits.push(`stage ${stage}`);
+    if (tag) bits.push(`group ${tag}`);
+    preview.textContent = total
+      ? `${total} contact${total === 1 ? '' : 's'} currently match${bits.length ? ' for ' + bits.join(' + ') : ''}.`
+      : `No contacts currently match${bits.length ? ' for ' + bits.join(' + ') : ''}.`;
+  } catch (e) {
+    preview.textContent = 'Unable to preview this audience right now.';
+  }
+}
+
+async function saveCurrentCampaignAudience() {
+  const stage = document.getElementById('campaign-target-stage')?.value || '';
+  const tag = document.getElementById('campaign-target-group')?.value || '';
+  if (!stage && !tag) {
+    showToast('⚠️', 'Choose a stage or group before saving an audience');
+    return;
+  }
+  const name = window.prompt('Name this audience', `${stage || 'all'}${tag ? '_' + tag : ''}`);
+  if (!name || !name.trim()) return;
+  try {
+    const result = await api('POST', '/api/campaign-audiences', {
+      name: name.trim(),
+      stage,
+      tag,
+      description: `Saved audience for ${stage || 'all stages'}${tag ? ` in group ${tag}` : ''}`,
+    });
+    await loadCampaignAudiences();
+    const saved = campaignAudiences.find(item => item.key === result.audience?.key) || result.audience;
+    renderCampaignAudienceOptions(saved?.key || '');
+    if (saved?.key) document.getElementById('campaign-audience-select').value = saved.key;
+    showToast('👥', 'Audience saved');
+  } catch (e) {
+    showToast('❌', 'Audience save failed: ' + e.message);
+  }
 }
 
 function renderCampaignTemplateOptions(preferredTemplateName = '') {
@@ -3293,7 +3893,7 @@ function renderCampaignTemplateOptions(preferredTemplateName = '') {
   if (!select) return;
   const templates = [...campaignTemplates];
   const currentSelection = getSelectedCampaignTemplate()?.name || '';
-  const preferred = preferredTemplateName || CAMPAIGN_OBJECTIVES[currentCampaignObjective]?.templateName || '';
+  const preferred = preferredTemplateName || '';
   templates.sort((a, b) => {
     const aPreferred = a.name === preferred ? -1 : 0;
     const bPreferred = b.name === preferred ? -1 : 0;
@@ -3355,6 +3955,27 @@ function renderBroadcastUseCaseOptions() {
       <option value="${mode}">${formatReplyMode(mode)}</option>
     `).join('')}
   `;
+  updateCampaignReplyHandlingUI();
+}
+
+function updateCampaignReplyHandlingUI() {
+  const mode = document.getElementById('campaign-reply-mode')?.value || 'bot_first';
+  const wrap = document.getElementById('campaign-human-queue-wrap');
+  const hint = document.getElementById('campaign-reply-hint');
+  const queueInput = document.getElementById('campaign-human-queue');
+  const needsHumanQueue = mode === 'human_first' || mode === 'bot_assist' || mode === 'manual_only';
+  if (wrap) wrap.style.display = needsHumanQueue ? 'block' : 'none';
+  if (queueInput && !queueInput.value) queueInput.value = 'campaigns';
+  if (!hint) return;
+  if (mode === 'bot_first') {
+    hint.textContent = 'Nazar will reply on its own. No team queue is needed unless you later override this conversation.';
+  } else if (mode === 'bot_assist') {
+    hint.textContent = 'Nazar will draft the reply, and the selected team queue will review and send it.';
+  } else if (mode === 'human_first') {
+    hint.textContent = 'Replies from this campaign will go straight to the selected team queue for a human rep.';
+  } else {
+    hint.textContent = 'Nazar will not generate a reply here. The selected team queue owns every response.';
+  }
 }
 
 function renderReplyPolicies() {
@@ -3603,6 +4224,20 @@ async function addInternalNote(contactId) {
   }
 }
 
+async function updateContactGroup(contactId, groupValue) {
+  try {
+    const group = String(groupValue || '').trim();
+    await api('PATCH', `/api/contacts/${contactId}`, { tags: group ? [group] : [] });
+    await Promise.all([loadContactsScreen(), loadBroadcasts()]);
+    if (selectedConversationData?.contact?.contact_id === contactId && selectedConvId) {
+      await selectConversation(selectedConvId);
+    }
+    showToast('🏷️', group ? `Group set to ${group}` : 'Group cleared');
+  } catch (e) {
+    showToast('❌', 'Group update failed: ' + e.message);
+  }
+}
+
 async function moveContactStage(contactId, stage) {
   try {
     await api('PATCH', `/api/pipeline/${contactId}/move`, { stage });
@@ -3724,7 +4359,7 @@ function renderPipeline(data) {
         </div>
         <div class="kanban-cards">
           ${d.contacts.map(c => `
-            <div class="kcard" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${c.contact_id}'),100)">
+            <div class="kcard" onclick="navigateTo('conversations');setTimeout(()=>selectConversationByContact('${c.contact_id}'),100)">
               <div class="kcard-name">${esc(c.name||'Unknown')}</div>
               <div class="kcard-company">${esc(c.company||c.phone)}</div>
               <div class="kcard-val">${formatCurrency(c.deal_value||0)}</div>
@@ -3798,7 +4433,7 @@ function renderFollowups(list) {
           <div class="fu-card-context">${f.stage} · ${formatCurrency(f.deal_value||0)} · Last contact: ${f.days_since_contact} days ago</div>
           <div class="fu-card-insight">💡 Consider reaching out — it's been ${f.days_since_contact} days since the last interaction.</div>
           <div class="fu-card-actions">
-            <button class="btn btn-sm btn-primary" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${f.contact_id}'),100)">💬 Message</button>
+            <button class="btn btn-sm btn-primary" onclick="navigateTo('conversations');setTimeout(()=>selectConversationByContact('${f.contact_id}'),100)">💬 Message</button>
             <button class="btn btn-sm btn-ghost" onclick="moveContactStage('${f.contact_id}','Qualified')">Move Stage</button>
           </div>
         </div>
@@ -3989,6 +4624,7 @@ function openAddContactModal() {
 function openCampaignModal() {
   document.getElementById('campaign-modal')?.classList.add('open');
   initializeCampaignBuilder();
+  ensureCampaignKey();
 }
 
 function closeCampaignModal() {
@@ -3999,17 +4635,25 @@ async function submitNewContact() {
   const name = document.getElementById('add-name').value.trim();
   const phone = document.getElementById('add-phone').value.trim();
   const company = document.getElementById('add-company').value.trim();
+  const group = document.getElementById('add-group').value.trim();
   const dealValue = parseInt(document.getElementById('add-deal-value').value) || 0;
 
   if (!phone) { showToast('⚠️','Phone number is required'); return; }
 
   try {
-    const data = await api('POST', '/api/contacts', { name, phone, company, deal_value: dealValue });
+    const data = await api('POST', '/api/contacts', {
+      name,
+      phone,
+      company,
+      deal_value: dealValue,
+      tags: group ? [group] : [],
+    });
     showToast('✅', `${name||'Contact'} added`);
     document.getElementById('add-contact-modal').classList.remove('open');
     document.getElementById('add-name').value = '';
     document.getElementById('add-phone').value = '';
     document.getElementById('add-company').value = '';
+    document.getElementById('add-group').value = '';
     document.getElementById('add-deal-value').value = '';
     // Refresh current screen
     navigateTo(currentScreen);
@@ -4022,16 +4666,21 @@ async function submitNewContact() {
 //  BROADCAST
 // ================================================================
 function getCampaignComposerPayload() {
-  const objective = currentCampaignObjective || 'new_interest';
-  const campaignKey = slugifyKey(document.getElementById('broadcast-campaign-key')?.value || '') || slugifyKey(`${objective}_${Date.now()}`);
+  const campaignName = document.getElementById('campaign-name')?.value.trim() || '';
+  if (!campaignName) throw new Error('Name the campaign first');
+  const campaignKey = slugifyKey(document.getElementById('broadcast-campaign-key')?.value || '') || slugifyKey(`${campaignName || 'campaign'}_${Date.now()}`);
+  const audienceKey = document.getElementById('campaign-audience-select')?.value || '';
   const replyMode = document.getElementById('campaign-reply-mode')?.value || 'bot_first';
-  const humanQueue = document.getElementById('campaign-human-queue')?.value.trim() || 'campaigns';
+  const humanQueue = document.getElementById('campaign-human-queue')?.value || 'campaigns';
   const stage = document.getElementById('campaign-target-stage')?.value || undefined;
+  const tag = document.getElementById('campaign-target-group')?.value || undefined;
   const template = getSelectedCampaignTemplate();
   const customMessage = document.getElementById('broadcast-message')?.value.trim() || '';
   const payload = {
-    objective,
+    campaign_name: campaignName || undefined,
     stage,
+    tag,
+    audience_key: audienceKey || undefined,
     campaign_key: campaignKey,
     reply_mode: replyMode,
     human_queue: humanQueue,
@@ -4083,7 +4732,10 @@ async function simulateBroadcast() {
 
 async function loadBroadcasts() {
   try {
-    await Promise.all([loadReplyPolicies(), loadRoutingRules(), loadCampaignTemplates()]);
+    await Promise.all([loadReplyPolicies(), loadRoutingRules(), loadCampaignTemplates(), loadCampaignAudiences()]);
+    const contactsResp = await api('GET', '/api/contacts');
+    contactsData = contactsResp.contacts || contactsData;
+    syncContactGroups(contactsData);
     const [historyData, analyticsData] = await Promise.all([
       api('GET', '/api/campaigns/history'),
       api('GET', '/api/analytics/inbox'),
@@ -4113,10 +4765,12 @@ function renderBroadcastHistory(broadcasts, jobs) {
   }
   const items = broadcasts.length ? broadcasts : jobs.map(job => ({
     id: job.id,
+    campaign_name: job.payload?.campaign_name || '',
     message: job.payload?.message || '[template]',
     template: job.payload?.template || '',
-    objective: job.payload?.objective || '',
     filter_stage: job.payload?.stage || '',
+    filter_tag: job.payload?.tag || '',
+    audience_key: job.payload?.audience_key || '',
     campaign_key: job.payload?.campaign_key || '',
     target_count: (job.result?.sent || 0) + (job.result?.failed || 0),
     sent: job.result?.sent || 0,
@@ -4124,8 +4778,9 @@ function renderBroadcastHistory(broadcasts, jobs) {
     created_at: job.created_at,
     status: job.status,
   }));
-  el.innerHTML = items.map(item => `
-    <div class="campaign-summary-card">
+  campaignHistoryItems = items;
+  el.innerHTML = items.map((item, index) => `
+    <div class="campaign-summary-card" onclick="openCampaignDetailByIndex(${index})">
       <div class="campaign-summary-top">
         <div>
           <div class="campaign-summary-title">${esc(formatCampaignHistoryTitle(item))}</div>
@@ -4146,9 +4801,14 @@ function renderBroadcastHistory(broadcasts, jobs) {
           <div class="campaign-summary-label">Failed</div>
           <div class="campaign-summary-value">${item.failed || 0}</div>
         </div>
+        <div class="campaign-summary-metric">
+          <div class="campaign-summary-label">Replies</div>
+          <div class="campaign-summary-value">${item.metrics?.reply_conversations || 0}</div>
+        </div>
       </div>
       <div class="campaign-summary-footer">
         ${item.filter_stage ? `Stage: ${esc(item.filter_stage)} · ` : ''}
+        ${item.filter_tag ? `Group: ${esc(item.filter_tag)} · ` : ''}
         ${item.template ? `Template: ${esc(item.template)} · ` : 'Custom copy · '}
         ${timeAgo(item.created_at)}
       </div>
@@ -4157,7 +4817,7 @@ function renderBroadcastHistory(broadcasts, jobs) {
 }
 
 function formatCampaignHistoryTitle(item) {
-  if (item.objective && CAMPAIGN_OBJECTIVES[item.objective]) return CAMPAIGN_OBJECTIVES[item.objective].label;
+  if (item.campaign_name) return item.campaign_name;
   if (item.campaign_key) return item.campaign_key.replace(/_/g, ' ');
   if (item.template) return `Template campaign · ${item.template}`;
   return ((item.message || '').slice(0, 70) || 'Campaign').trim();
@@ -4166,10 +4826,40 @@ function formatCampaignHistoryTitle(item) {
 function formatCampaignHistorySub(item) {
   const parts = [];
   if (item.campaign_key) parts.push(`Key ${item.campaign_key}`);
-  if (item.objective && CAMPAIGN_OBJECTIVES[item.objective]) parts.push(CAMPAIGN_OBJECTIVES[item.objective].description);
+  if (item.filter_stage) parts.push(`Stage ${item.filter_stage}`);
+  if (item.filter_tag) parts.push(`Group ${item.filter_tag}`);
   if (item.message) parts.push((item.message || '').slice(0, 110));
   else if (item.template) parts.push(`Uses WhatsApp template ${item.template}`);
   return parts.filter(Boolean).join(' · ');
+}
+
+function closeCampaignDetailModal() {
+  document.getElementById('campaign-detail-modal')?.classList.remove('open');
+}
+
+function openCampaignDetailByIndex(index) {
+  const item = campaignHistoryItems[index];
+  if (!item) return;
+  const metrics = item.metrics || {};
+  document.getElementById('campaign-detail-title').textContent = formatCampaignHistoryTitle(item);
+  document.getElementById('campaign-detail-sub').textContent = formatCampaignHistorySub(item) || 'Campaign detail';
+  document.getElementById('campaign-detail-audience').textContent = item.target_count || 0;
+  document.getElementById('campaign-detail-sent').textContent = item.sent || 0;
+  document.getElementById('campaign-detail-replies').textContent = metrics.reply_conversations || 0;
+  document.getElementById('campaign-detail-won').textContent = metrics.won || 0;
+  document.getElementById('campaign-detail-context').innerHTML = `
+    <div class="list-item"><strong>Status</strong><br>${esc(item.status || 'completed')}</div>
+    <div class="list-item"><strong>Audience filters</strong><br>${esc(item.filter_stage || 'All active contacts')}${item.filter_tag ? ` · group ${esc(item.filter_tag)}` : ''}</div>
+    <div class="list-item"><strong>Content</strong><br>${esc(item.template ? `Template: ${item.template}` : 'Custom copy')}</div>
+    <div class="list-item"><strong>Launched</strong><br>${esc(timeAgo(item.created_at))}</div>
+  `;
+  document.getElementById('campaign-detail-funnel').innerHTML = `
+    <div class="list-item"><strong>Reply conversations</strong><br>${metrics.reply_conversations || 0}</div>
+    <div class="list-item"><strong>Need reply now</strong><br>${metrics.needs_reply || 0}</div>
+    <div class="list-item"><strong>AI drafts ready</strong><br>${metrics.ai_assist_ready || 0}</div>
+    <div class="list-item"><strong>Qualified / Proposal / Won</strong><br>${metrics.qualified || 0} / ${metrics.proposal || 0} / ${metrics.won || 0}</div>
+  `;
+  document.getElementById('campaign-detail-modal')?.classList.add('open');
 }
 
 // ================================================================
@@ -4207,7 +4897,7 @@ async function searchCmd(query) {
       (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q)
     ).slice(0, 5);
     matches.forEach(c => {
-      items.push(`<div class="cmd-result" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${c.contact_id}'),100);closeCmdPalette()">
+      items.push(`<div class="cmd-result" onclick="navigateTo('conversations');setTimeout(()=>selectConversationByContact('${c.contact_id}'),100);closeCmdPalette()">
         <span class="cmd-result-icon">👤</span>
         <span class="cmd-result-text">${esc(c.name||c.phone)}</span>
         <span class="cmd-result-sub">${c.pipeline_stage}</span>
@@ -4249,6 +4939,13 @@ document.addEventListener('keydown', e => {
     closeCmdPalette();
     document.getElementById('add-contact-modal').classList.remove('open');
   }
+});
+
+document.addEventListener('click', e => {
+  const menu = document.getElementById('notif-menu');
+  const wrap = document.querySelector('.notif-wrap');
+  if (!menu || !wrap) return;
+  if (!wrap.contains(e.target)) closeNotifications();
 });
 
 // ================================================================
@@ -4332,6 +5029,10 @@ function esc(s) {
   return d.innerHTML;
 }
 
+function escAttr(s) {
+  return esc(String(s || '')).replace(/"/g, '&quot;');
+}
+
 function findContactIdFromConversationId(identifier) {
   const match = conversations.find(c => c.conversation_id === identifier || c.contact_id === identifier);
   return match?.contact_id || selectedConversationData?.contact?.contact_id || null;
@@ -4344,8 +5045,17 @@ async function bootstrapApp() {
   await ensureSession();
   await loadTeamMembers();
   await loadReplyPolicies();
-  loadOverview();
+  updateTopbarPrimaryAction('overview');
+  await loadOverview();
+  connectLiveUpdates();
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    connectLiveUpdates();
+    queueLiveRefresh(['overview', 'conversations', 'notifications']);
+  }
+});
 
 bootstrapApp();
 </script>

@@ -53,6 +53,7 @@ def _save_broadcasts(broadcasts: list):
 
 
 def log_broadcast(
+    campaign_name: str,
     message: str,
     template_name: str,
     objective: Optional[str],
@@ -71,6 +72,7 @@ def log_broadcast(
     now = datetime.now(IST).isoformat()
     record = {
         "id": f"bc_{int(datetime.now(IST).timestamp())}",
+        "campaign_name": campaign_name or "",
         "message": message[:500] if message else "",
         "template": template_name or "",
         "objective": objective or "",
@@ -93,7 +95,8 @@ def log_broadcast(
 
     logger.info(
         f"Broadcast logged: {sent}/{target_count} sent, "
-        f"{failed} failed, template={template_name or 'custom'}"
+        f"{failed} failed, template={template_name or 'custom'}, "
+        f"name={campaign_name or 'unnamed'}"
     )
     return record
 
@@ -235,6 +238,7 @@ async def execute_broadcast(
 
     # Log the broadcast
     log_broadcast(
+        campaign_name="",
         message=message,
         template_name=template_name,
         objective=objective,
