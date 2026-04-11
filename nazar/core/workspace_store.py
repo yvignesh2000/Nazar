@@ -29,11 +29,11 @@ LEGACY_CONFIG_PATH = Path(__file__).parent.parent / "data" / "config.json"
 VALID_ROLES = {"owner", "admin", "agent"}
 
 DEFAULT_WORKSPACE_CONFIG = {
-    "business_name": "Nazar Demo",
+    "business_name": "SunMitra Solar Demo",
     "bot_enabled": True,
     "bot_persona": "professional",
-    "welcome_message": "Hi! Thanks for reaching out. How can I help you today?",
-    "handoff_message": "I'll connect you with a team member who can help with this directly.",
+    "welcome_message": "Hi! Welcome to SunMitra Solar. I can help you estimate savings, understand rooftop solar options, and book a consultation.",
+    "handoff_message": "I’ll connect you with a solar advisor who can help with pricing, survey planning, or project-specific questions.",
     "memory_enabled": True,
     "signal_detection": True,
     "auto_lead_scoring": True,

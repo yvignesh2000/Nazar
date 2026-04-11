@@ -15,8 +15,14 @@ import json
 import time
 import asyncio
 import aiohttp
+import ssl
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+
+try:
+    import certifi
+except Exception:
+    certifi = None
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -74,6 +80,15 @@ _provider_health = {
 
 # Cool-down: retry a failed provider after this many seconds
 RETRY_AFTER_SECONDS = 120
+
+
+def _ssl_context():
+    if certifi is None:
+        return None
+    try:
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
 
 
 def _get_api_key(provider: str) -> Optional[str]:
@@ -145,6 +160,7 @@ async def _call_anthropic(messages: list, model: str, api_key: str,
             config["base_url"],
             headers=config["headers"](api_key),
             json=payload,
+            ssl=_ssl_context(),
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
@@ -174,6 +190,7 @@ async def _call_openrouter(messages: list, model: str, api_key: str,
             config["base_url"],
             headers=config["headers"](api_key),
             json=payload,
+            ssl=_ssl_context(),
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:
@@ -214,6 +231,7 @@ async def _call_google(messages: list, model: str, api_key: str,
         async with session.post(
             url,
             json=payload,
+            ssl=_ssl_context(),
             timeout=aiohttp.ClientTimeout(total=timeout),
         ) as resp:
             if resp.status != 200:

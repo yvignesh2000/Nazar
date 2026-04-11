@@ -11,6 +11,7 @@ Adapted from InnerVoice's vector_memory.py but tailored for sales intelligence:
 """
 
 import hashlib
+import json
 import logging
 import re
 import shutil
@@ -29,6 +30,9 @@ logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
 DATA_DIR = Path(__file__).parent.parent / "data" / "contacts"
+FALLBACK_MEMORY_WARNING_EMITTED = False
+
+from db import ContactMemoryEntry, ConversationMessage, Workspace, default_workspace_slug, init_db, session_scope
 
 # ---------------------------------------------------------------------------
 # Signal detection patterns
@@ -78,6 +82,55 @@ def _now_iso() -> str:
     return datetime.now(IST).isoformat()
 
 
+def _now_dt() -> datetime:
+    return datetime.now(IST)
+
+
+def _workspace_id(session) -> str:
+    workspace = session.query(Workspace).filter_by(slug=default_workspace_slug()).one_or_none()
+    if workspace is None:
+        workspace = session.query(Workspace).first()
+    return workspace.id
+
+
+def _use_db_fallback() -> bool:
+    global FALLBACK_MEMORY_WARNING_EMITTED
+    use_fallback = not CHROMADB_AVAILABLE
+    if use_fallback and not FALLBACK_MEMORY_WARNING_EMITTED:
+        logger.warning("ChromaDB not available — using database-backed memory fallback")
+        FALLBACK_MEMORY_WARNING_EMITTED = True
+    return use_fallback
+
+
+def _safe_json(metadata: Optional[dict]) -> str:
+    try:
+        return json.dumps(metadata or {}, ensure_ascii=False)
+    except Exception:
+        return "{}"
+
+
+def _parse_timestamp(timestamp: Optional[str]) -> datetime:
+    if not timestamp:
+        return _now_dt()
+    parsed = datetime.fromisoformat(timestamp)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=IST)
+
+
+def _tokenize(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]{2,}", (value or "").lower())
+
+
+def _message_rows(session, contact_id: str) -> list[ConversationMessage]:
+    return session.query(ConversationMessage).filter_by(contact_id=contact_id).order_by(ConversationMessage.timestamp.desc()).all()
+
+
+def _memory_rows(session, contact_id: str, filter_type: Optional[str] = None) -> list[ContactMemoryEntry]:
+    query = session.query(ContactMemoryEntry).filter_by(contact_id=contact_id)
+    if filter_type:
+        query = query.filter(ContactMemoryEntry.entry_type == filter_type)
+    return query.order_by(ContactMemoryEntry.created_at.desc(), ContactMemoryEntry.id.desc()).all()
+
+
 # ---------------------------------------------------------------------------
 # ChromaDB client and collection management
 # ---------------------------------------------------------------------------
@@ -91,8 +144,7 @@ def get_customer_vectordb(contact_id: str):
     Returns:
         chromadb.PersistentClient or None on failure.
     """
-    if not CHROMADB_AVAILABLE:
-        logger.warning("ChromaDB not available — vector memory disabled")
+    if _use_db_fallback():
         return None
     try:
         contact_dir = str(contact_id).replace("+", "").replace(" ", "").replace("-", "")
@@ -159,6 +211,9 @@ def add_message(
     if not timestamp:
         timestamp = _now_iso()
 
+    if _use_db_fallback():
+        return
+
     collection = get_collection(contact_id)
     if collection is None:
         return
@@ -210,6 +265,21 @@ def add_signal(
     if not timestamp:
         timestamp = _now_iso()
 
+    if _use_db_fallback():
+        init_db()
+        with session_scope() as session:
+            session.add(
+                ContactMemoryEntry(
+                    workspace_id=_workspace_id(session),
+                    contact_id=contact_id,
+                    entry_type="signal",
+                    content=content.strip(),
+                    metadata_json=_safe_json({"signal_type": signal_type, "timestamp": timestamp, "date": timestamp[:10]}),
+                    created_at=_parse_timestamp(timestamp),
+                )
+            )
+        return
+
     collection = get_collection(contact_id)
     if collection is None:
         return
@@ -250,6 +320,21 @@ def add_memory_note(
 
     if not timestamp:
         timestamp = _now_iso()
+
+    if _use_db_fallback():
+        init_db()
+        with session_scope() as session:
+            session.add(
+                ContactMemoryEntry(
+                    workspace_id=_workspace_id(session),
+                    contact_id=contact_id,
+                    entry_type="memory_note",
+                    content=content.strip(),
+                    metadata_json=_safe_json({"timestamp": timestamp, "date": timestamp[:10]}),
+                    created_at=_parse_timestamp(timestamp),
+                )
+            )
+        return
 
     collection = get_collection(contact_id)
     if collection is None:
@@ -295,6 +380,60 @@ def search(
         List of dicts: {content, direction, timestamp, type, distance}
         Lower distance = more relevant.
     """
+    if _use_db_fallback():
+        init_db()
+        query_tokens = _tokenize(query)
+        if not query_tokens:
+            return []
+        with session_scope() as session:
+            candidates = []
+            if filter_type in (None, "message"):
+                for row in _message_rows(session, contact_id):
+                    candidates.append({
+                        "content": row.content,
+                        "direction": row.direction,
+                        "timestamp": row.timestamp.isoformat() if row.timestamp else "",
+                        "date": (row.timestamp.isoformat() if row.timestamp else "")[:10],
+                        "type": "message",
+                    })
+            if filter_type != "message":
+                for row in _memory_rows(session, contact_id, filter_type=filter_type):
+                    meta = json.loads(row.metadata_json or "{}")
+                    payload = {
+                        "content": row.content,
+                        "direction": meta.get("direction", "system"),
+                        "timestamp": row.created_at.isoformat() if row.created_at else meta.get("timestamp", ""),
+                        "date": (row.created_at.isoformat() if row.created_at else meta.get("date", ""))[:10],
+                        "type": row.entry_type,
+                    }
+                    if meta.get("signal_type"):
+                        payload["signal_type"] = meta["signal_type"]
+                    candidates.append(payload)
+
+        scored = []
+        now = _now_dt()
+        for candidate in candidates:
+            content = candidate["content"]
+            haystack_tokens = set(_tokenize(content))
+            overlap = len(set(query_tokens) & haystack_tokens)
+            if query.lower() in (content or "").lower():
+                overlap += 3
+            if overlap <= 0:
+                continue
+            ts = candidate.get("timestamp") or ""
+            recency_bonus = 0.0
+            try:
+                age_days = max(0.0, (now - _parse_timestamp(ts)).total_seconds() / 86400)
+                recency_bonus = max(0.0, 2.0 - min(age_days, 14) / 7.0)
+            except Exception:
+                recency_bonus = 0.0
+            score = overlap + recency_bonus
+            candidate["distance"] = round(1 / (score + 1), 4)
+            scored.append((score, candidate))
+
+        scored.sort(key=lambda item: (item[0], item[1].get("timestamp", "")), reverse=True)
+        return [candidate for _, candidate in scored[:max(1, n_results)]]
+
     collection = get_collection(contact_id)
     if collection is None:
         return []
@@ -414,6 +553,31 @@ def get_customer_summary(contact_id: str) -> dict:
         - signal_counts: dict mapping signal_type to count
         - last_interaction: ISO timestamp of most recent entry, or ""
     """
+    if _use_db_fallback():
+        init_db()
+        with session_scope() as session:
+            messages = _message_rows(session, contact_id)
+            entries = _memory_rows(session, contact_id)
+        signal_counts = {}
+        last_ts = ""
+        for entry in entries:
+            meta = json.loads(entry.metadata_json or "{}")
+            if entry.entry_type == "signal":
+                signal_type = meta.get("signal_type", "unknown")
+                signal_counts[signal_type] = signal_counts.get(signal_type, 0) + 1
+            ts = entry.created_at.isoformat() if entry.created_at else meta.get("timestamp", "")
+            if ts > last_ts:
+                last_ts = ts
+        for msg in messages:
+            ts = msg.timestamp.isoformat() if msg.timestamp else ""
+            if ts > last_ts:
+                last_ts = ts
+        return {
+            "total_embeddings": len(messages) + len(entries),
+            "signal_counts": signal_counts,
+            "last_interaction": last_ts,
+        }
+
     collection = get_collection(contact_id)
     if collection is None:
         return {"total_embeddings": 0, "signal_counts": {}, "last_interaction": ""}
@@ -520,6 +684,11 @@ def delete_customer_vectors(contact_id: str):
     Removes the entire vectors/ directory from the contact's data folder.
     """
     try:
+        if _use_db_fallback():
+            init_db()
+            with session_scope() as session:
+                session.query(ContactMemoryEntry).filter_by(contact_id=contact_id).delete()
+            return
         contact_dir = str(contact_id).replace("+", "").replace(" ", "").replace("-", "")
         vector_path = DATA_DIR / contact_dir / "vectors"
         if vector_path.exists():

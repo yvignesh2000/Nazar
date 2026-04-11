@@ -9,8 +9,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+APP_DIR = Path(__file__).parent
+load_dotenv(APP_DIR / ".env")
+sys.path.insert(0, str(APP_DIR))
+sys.path.insert(0, str(APP_DIR / "core"))
 
 from core.ai_jobs import generate_followup_draft, generate_reply_suggestion, refresh_contact_summary
+from core.ai_classifier import classify_and_apply
 from core.contact_manager import (
     get_contact,
     get_conversation_history,
@@ -31,7 +41,12 @@ from core.conversation import (
 from core.job_queue import claim_due_jobs, complete_job, fail_job
 from core.llm_router import call_llm_safe
 from core.outbound import log_broadcast
-from core.policy_store import resolve_policy_for_context, resolve_reply_policy, should_force_human
+from core.policy_store import (
+    apply_ai_ownership_recommendation,
+    resolve_policy_for_context,
+    resolve_reply_policy,
+    should_force_human,
+)
 from core.transcription import TranscriptionError, transcribe_audio
 from core.workspace_store import get_workspace_config
 from server import download_whatsapp_media, send_template_message, send_whatsapp_message
@@ -91,13 +106,24 @@ async def _generate_bot_assist_reply(contact: dict, inbound_message: str) -> str
 
 def _resolve_conversation_policy(contact: dict, conversation: dict) -> dict:
     source_type = (conversation.get("source_type") or "").strip()
-    explicit_policy_key = conversation.get("use_case_key") if source_type == "conversation_override" else None
+    explicit_policy_key = None
+    if source_type == "conversation_override":
+        explicit_policy_key = conversation.get("use_case_key")
+    elif source_type == "campaign":
+        explicit_policy_key = conversation.get("active_reply_policy_key") or conversation.get("use_case_key")
     campaign_key = conversation.get("source_ref") if source_type == "campaign" else None
     return resolve_policy_for_context(
         pipeline_stage=contact.get("pipeline_stage"),
         campaign_key=campaign_key,
         explicit_policy_key=explicit_policy_key,
     )
+
+
+def _effective_reply_mode(routing: dict, classification: Optional[dict] = None) -> tuple[dict, str]:
+    ownership = (classification or {}).get("ownership_recommendation")
+    effective_routing = apply_ai_ownership_recommendation(routing, ownership)
+    policy = effective_routing["policy"]
+    return effective_routing, policy.get("reply_mode", "bot_first")
 
 
 def _apply_policy_to_conversation(conversation_id: str, conversation: dict, policy: dict, routing: dict) -> dict:
@@ -133,12 +159,15 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
     conversation = get_conversation_record(conversation_id)
     if not contact or not conversation:
         raise ValueError("Inbound text job references missing contact or conversation")
+    classification = await classify_and_apply(contact_id, inbound_message)
+    contact = classification["contact"]
     routing = _resolve_conversation_policy(contact, conversation)
+    routing, reply_mode = _effective_reply_mode(routing, classification)
     policy = routing["policy"]
     conversation = _apply_policy_to_conversation(conversation_id, conversation, policy, routing)
     if not conversation.get("bot_mode", True):
         return {"skipped": True, "reason": "bot_mode_off", "contact_id": contact_id}
-    if policy.get("reply_mode") == "bot_assist":
+    if reply_mode == "bot_assist":
         updated = mark_conversation_handoff_required(conversation_id, True)
         updated = _apply_policy_to_conversation(conversation_id, updated, policy, routing)
         suggested_reply = await _generate_bot_assist_reply(contact, inbound_message)
@@ -148,14 +177,15 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
             "conversation_id": conversation_id,
             "bot_assist": True,
             "suggested_reply": suggested_reply,
+            "classification": classification,
             "policy": policy,
             "human_queue": updated.get("human_queue"),
         }
-    if policy.get("reply_mode") in {"human_first", "manual_only"} or should_force_human(policy, inbound_message) or should_handoff(inbound_message):
+    if reply_mode in {"human_first", "manual_only"} or should_force_human(policy, inbound_message) or should_handoff(inbound_message):
         updated = mark_conversation_handoff_required(conversation_id, True)
         updated = _apply_policy_to_conversation(conversation_id, updated, policy, routing)
         handoff_message_id = ""
-        if policy.get("reply_mode") != "manual_only":
+        if reply_mode != "manual_only":
             handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
             handoff_message_id = _extract_wa_message_id(handoff_response)
             save_message(
@@ -170,12 +200,15 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
             "contact_id": contact_id,
             "conversation_id": conversation_id,
             "handoff_required": True,
+            "classification": classification,
             "policy": policy,
             "human_queue": updated.get("human_queue"),
             "wa_message_id": handoff_message_id,
             "status": updated.get("status"),
         }
-    return await _send_ai_reply(contact, conversation, inbound_message)
+    result = await _send_ai_reply(contact, conversation, inbound_message)
+    result["classification"] = classification
+    return result
 
 
 async def _process_inbound_voice(payload: dict) -> dict:
@@ -197,7 +230,10 @@ async def _process_inbound_voice(payload: dict) -> dict:
     conversation = get_conversation_record(inbound_record["conversation_id"])
     if not conversation:
         raise ValueError("Voice job failed to resolve conversation after saving transcript")
+    classification = await classify_and_apply(contact["contact_id"], transcript)
+    contact = classification["contact"]
     routing = _resolve_conversation_policy(contact, conversation)
+    routing, reply_mode = _effective_reply_mode(routing, classification)
     policy = routing["policy"]
     conversation = _apply_policy_to_conversation(conversation["conversation_id"], conversation, policy, routing)
     if not conversation.get("bot_mode", True):
@@ -208,7 +244,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
             "skipped": True,
             "reason": "bot_mode_off",
         }
-    if policy.get("reply_mode") == "bot_assist":
+    if reply_mode == "bot_assist":
         updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
         updated = _apply_policy_to_conversation(conversation["conversation_id"], updated, policy, routing)
         suggested_reply = await _generate_bot_assist_reply(contact, transcript)
@@ -219,14 +255,15 @@ async def _process_inbound_voice(payload: dict) -> dict:
             "transcript": transcript,
             "bot_assist": True,
             "suggested_reply": suggested_reply,
+            "classification": classification,
             "policy": policy,
             "human_queue": updated.get("human_queue"),
         }
-    if policy.get("reply_mode") in {"human_first", "manual_only"} or should_force_human(policy, transcript) or should_handoff(transcript):
+    if reply_mode in {"human_first", "manual_only"} or should_force_human(policy, transcript) or should_handoff(transcript):
         updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
         updated = _apply_policy_to_conversation(conversation["conversation_id"], updated, policy, routing)
         handoff_message_id = ""
-        if policy.get("reply_mode") != "manual_only":
+        if reply_mode != "manual_only":
             handoff_response = await send_whatsapp_message(contact["phone"], HANDOFF_MESSAGE)
             handoff_message_id = _extract_wa_message_id(handoff_response)
             save_message(
@@ -242,6 +279,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
             "conversation_id": conversation["conversation_id"],
             "transcript": transcript,
             "handoff_required": True,
+            "classification": classification,
             "policy": policy,
             "human_queue": updated.get("human_queue"),
             "wa_message_id": handoff_message_id,
@@ -249,6 +287,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
         }
     result = await _send_ai_reply(contact, conversation, transcript)
     result["transcript"] = transcript
+    result["classification"] = classification
     return result
 
 
@@ -256,6 +295,7 @@ async def _execute_broadcast(job: dict) -> dict:
     payload = job.get("payload") or {}
     message = (payload.get("message") or "").strip()
     template_name = (payload.get("template") or "").strip()
+    objective = (payload.get("objective") or "").strip()
     filter_stage = payload.get("stage")
     filter_tag = payload.get("tag")
     contact_ids = payload.get("contact_ids") or []
@@ -303,6 +343,7 @@ async def _execute_broadcast(job: dict) -> dict:
     log_broadcast(
         message=message,
         template_name=template_name,
+        objective=objective,
         target_count=len(targets),
         sent=results["sent"],
         failed=results["failed"],

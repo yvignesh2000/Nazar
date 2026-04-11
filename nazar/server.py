@@ -10,6 +10,7 @@ FastAPI server that:
 """
 
 import os
+import re
 # Fix OpenBLAS thread limit issue in constrained environments
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -28,9 +29,12 @@ from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File,
 from fastapi.responses import PlainTextResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from dotenv import load_dotenv
 
 # Add core to path
-sys.path.insert(0, str(Path(__file__).parent / "core"))
+APP_DIR = Path(__file__).parent
+load_dotenv(APP_DIR / ".env")
+sys.path.insert(0, str(APP_DIR / "core"))
 
 from db import get_storage_backend_name, init_db
 from auth_store import create_session, get_default_owner_context, get_session, revoke_session, role_allowed
@@ -82,6 +86,7 @@ from policy_store import (
     upsert_reply_policy,
     upsert_routing_rule,
 )
+from simulator import SIMULATOR_SCENARIOS, simulate_broadcast_run_async, simulate_inbound_event_async
 from workspace_store import get_membership_by_user_id, get_workspace_config, initialize_workspace_store, list_team_members, update_workspace_config
 
 # --- Logging ---
@@ -165,6 +170,31 @@ def _actor_user_id(request: Request) -> Optional[str]:
     context = _require_roles(request, "agent")
     user = context.get("user") or {}
     return user.get("id")
+
+
+def _slugify_policy_key(value: str, fallback: str = "campaign") -> str:
+    raw = (value or "").strip().lower()
+    normalized = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+    return normalized or fallback
+
+
+def _campaign_reply_policy(campaign_key: str, reply_mode: Optional[str], human_queue: Optional[str]) -> Optional[dict]:
+    selected_mode = (reply_mode or "").strip().lower()
+    if not selected_mode:
+        return None
+    policy_key = f"campaign_{_slugify_policy_key(campaign_key, 'reply_flow')}"
+    default_policy = resolve_reply_policy("default_inbound")
+    return upsert_reply_policy(
+        policy_key,
+        {
+            "display_name": f"Campaign: {campaign_key}",
+            "description": f"Reply handling for campaign {campaign_key}.",
+            "reply_mode": selected_mode,
+            "fallback_queue": (human_queue or default_policy.get("fallback_queue") or "sales").strip() or "sales",
+            "force_human_keywords": default_policy.get("force_human_keywords") or [],
+            "active": True,
+        },
+    )
 
 
 @app.post("/api/auth/login")
@@ -975,22 +1005,31 @@ async def api_followups(request: Request):
 # ====================================================================
 
 @app.post("/api/broadcasts")
+@app.post("/api/campaigns")
 async def api_broadcast(request: Request):
     _require_roles(request, "admin", "owner")
     body = await request.json()
     message = body.get("message", "")
     template_name = body.get("template", "")
+    objective = (body.get("objective") or "").strip() or None
     filter_stage = body.get("stage")
     filter_tag = body.get("tag")
     contact_ids = body.get("contact_ids", [])
     campaign_key = (body.get("campaign_key") or "").strip() or "broadcast_reply"
     explicit_policy_key = (body.get("reply_use_case_key") or "").strip() or None
-    routing = resolve_policy_for_context(
-        pipeline_stage=filter_stage,
-        campaign_key=campaign_key,
-        explicit_policy_key=explicit_policy_key,
-    )
-    reply_policy = routing["policy"]
+    direct_reply_mode = (body.get("reply_mode") or "").strip() or None
+    direct_human_queue = (body.get("human_queue") or "").strip() or None
+    custom_campaign_policy = _campaign_reply_policy(campaign_key, direct_reply_mode, direct_human_queue)
+    if custom_campaign_policy:
+        reply_policy = custom_campaign_policy
+        routing = {"policy": reply_policy, "scope_type": "campaign", "scope_key": campaign_key, "reply_mode_source": "campaign_form"}
+    else:
+        routing = resolve_policy_for_context(
+            pipeline_stage=filter_stage,
+            campaign_key=campaign_key,
+            explicit_policy_key=explicit_policy_key,
+        )
+        reply_policy = routing["policy"]
 
     if not message and not template_name:
         raise HTTPException(400, "message or template required")
@@ -1000,6 +1039,7 @@ async def api_broadcast(request: Request):
         {
             "message": message,
             "template": template_name,
+            "objective": objective,
             "stage": filter_stage,
             "tag": filter_tag,
             "contact_ids": contact_ids,
@@ -1017,6 +1057,7 @@ async def api_broadcast(request: Request):
             "contact_ids": len(contact_ids),
             "stage": filter_stage,
             "tag": filter_tag,
+            "objective": objective,
             "campaign_key": campaign_key,
             "reply_use_case_key": reply_policy["use_case_key"],
             "resolved_scope_type": routing["scope_type"],
@@ -1024,6 +1065,85 @@ async def api_broadcast(request: Request):
         actor_user_id=_actor_user_id(request),
     )
     return {"queued": True, "job": job, "reply_policy": reply_policy, "routing": routing}
+
+
+# ====================================================================
+#  DASHBOARD API — PRODUCT SIMULATOR
+# ====================================================================
+
+@app.get("/api/simulate/scenarios")
+async def api_list_simulator_scenarios(request: Request):
+    _require_roles(request, "agent")
+    return {"scenarios": SIMULATOR_SCENARIOS}
+
+
+@app.post("/api/simulate/inbound")
+async def api_simulate_inbound(request: Request):
+    _require_roles(request, "agent")
+    body = await request.json()
+    result = await simulate_inbound_event_async(
+        scenario_key=(body.get("scenario_key") or "new_lead").strip(),
+        message=(body.get("message") or "").strip() or None,
+        name=(body.get("name") or "").strip() or None,
+        phone=(body.get("phone") or "").strip() or None,
+        company=(body.get("company") or "").strip() or None,
+        pipeline_stage=(body.get("pipeline_stage") or "").strip() or None,
+        source_type=(body.get("source_type") or "").strip() or None,
+        source_ref=(body.get("source_ref") or "").strip() or None,
+        explicit_policy_key=(body.get("use_case_key") or "").strip() or None,
+        contact_id=(body.get("contact_id") or "").strip() or None,
+    )
+    record_audit_event(
+        "simulation",
+        result["conversation"]["conversation_id"],
+        "inbound_simulated",
+        {
+            "scenario_key": result["scenario_key"],
+            "action": result["action"],
+            "policy_use_case_key": result["policy"]["use_case_key"],
+        },
+        actor_user_id=_actor_user_id(request),
+    )
+    return result
+
+
+@app.post("/api/simulate/broadcast")
+@app.post("/api/simulate/campaign")
+async def api_simulate_broadcast(request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    template_name = (body.get("template") or "").strip()
+    objective = (body.get("objective") or "").strip() or None
+    if not message and not template_name:
+        raise HTTPException(400, "message or template is required")
+    campaign_key = (body.get("campaign_key") or "").strip() or "simulated_campaign"
+    explicit_policy_key = (body.get("reply_use_case_key") or "").strip() or None
+    direct_reply_mode = (body.get("reply_mode") or "").strip() or None
+    direct_human_queue = (body.get("human_queue") or "").strip() or None
+    custom_campaign_policy = _campaign_reply_policy(campaign_key, direct_reply_mode, direct_human_queue)
+    result = await simulate_broadcast_run_async(
+        message=message,
+        template_name=template_name,
+        objective=objective,
+        target_stage=(body.get("stage") or "").strip() or None,
+        target_count=body.get("target_count") or 5,
+        campaign_key=campaign_key,
+        reply_use_case_key=(custom_campaign_policy or {}).get("use_case_key") or explicit_policy_key,
+        simulate_reply_count=body.get("simulate_reply_count") or 0,
+    )
+    record_audit_event(
+        "simulation",
+        result["campaign_key"],
+        "broadcast_simulated",
+        {
+            "target_count": result["target_count"],
+            "reply_count": result["simulate_reply_count"],
+            "policy_use_case_key": result["policy"]["use_case_key"],
+        },
+        actor_user_id=_actor_user_id(request),
+    )
+    return result
 
 
 # ====================================================================
@@ -1252,6 +1372,7 @@ async def api_render_template(template_id: str, request: Request):
 # ====================================================================
 
 @app.get("/api/broadcasts/history")
+@app.get("/api/campaigns/history")
 async def api_broadcast_history(request: Request):
     _require_roles(request, "admin", "owner")
     history = get_broadcast_history(limit=50)

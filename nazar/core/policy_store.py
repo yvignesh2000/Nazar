@@ -358,6 +358,27 @@ def resolve_policy_for_context(
     return {"policy": fallback_policy, "scope_type": "default", "scope_key": "default"}
 
 
+def apply_ai_ownership_recommendation(routing: dict, ownership_recommendation: Optional[str]) -> dict:
+    recommendation = _normalize_mode(ownership_recommendation)
+    if not recommendation:
+        return routing
+    if (routing.get("scope_type") or "default") != "default":
+        return routing
+    policy = dict(routing.get("policy") or {})
+    if not policy:
+        return routing
+    if _normalize_mode(policy.get("reply_mode")) == recommendation:
+        return routing
+    policy["reply_mode"] = recommendation
+    policy["ownership_source"] = "ai_classifier"
+    return {
+        **routing,
+        "policy": policy,
+        "effective_reply_mode": recommendation,
+        "reply_mode_source": "ai_classifier",
+    }
+
+
 def should_force_human(policy: dict, message: str) -> bool:
     text = (message or "").lower()
     keywords = [str(item).lower() for item in (policy.get("force_human_keywords") or [])]

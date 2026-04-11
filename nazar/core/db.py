@@ -198,6 +198,7 @@ class Contact(Base):
     )
     conversation = relationship("Conversation", back_populates="contact", uselist=False, cascade="all, delete-orphan")
     internal_notes = relationship("ContactNote", back_populates="contact", cascade="all, delete-orphan")
+    memory_entries = relationship("ContactMemoryEntry", back_populates="contact", cascade="all, delete-orphan")
 
 
 class Conversation(Base):
@@ -340,6 +341,20 @@ class ContactNote(Base):
     contact = relationship("Contact", back_populates="internal_notes")
 
 
+class ContactMemoryEntry(Base):
+    __tablename__ = "contact_memory_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    contact_id = Column(String(12), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_type = Column(String(32), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    metadata_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+    contact = relationship("Contact", back_populates="memory_entries")
+
+
 class AuditEvent(Base):
     __tablename__ = "audit_events"
 
@@ -390,6 +405,7 @@ def ensure_schema() -> None:
 
 def init_db() -> None:
     ensure_schema()
+    Base.metadata.create_all(bind=ENGINE)
     with session_scope() as session:
         workspace = session.query(Workspace).filter_by(slug=default_workspace_slug()).one_or_none()
         if workspace is None:

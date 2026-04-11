@@ -55,6 +55,7 @@ def _save_broadcasts(broadcasts: list):
 def log_broadcast(
     message: str,
     template_name: str,
+    objective: Optional[str],
     target_count: int,
     sent: int,
     failed: int,
@@ -72,6 +73,7 @@ def log_broadcast(
         "id": f"bc_{int(datetime.now(IST).timestamp())}",
         "message": message[:500] if message else "",
         "template": template_name or "",
+        "objective": objective or "",
         "target_count": target_count,
         "sent": sent,
         "failed": failed,
@@ -166,6 +168,7 @@ async def execute_broadcast(
     message: str,
     send_fn: Callable,
     template_name: str = "",
+    objective: Optional[str] = None,
     filter_stage: Optional[str] = None,
     filter_tag: Optional[str] = None,
     personalize: bool = True,
@@ -234,6 +237,7 @@ async def execute_broadcast(
     log_broadcast(
         message=message,
         template_name=template_name,
+        objective=objective,
         target_count=len(contacts),
         sent=results["sent"],
         failed=results["failed"],

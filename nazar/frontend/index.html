@@ -918,6 +918,112 @@ body {
 }
 .compose-textarea::placeholder { color:var(--text3); }
 
+.campaign-builder {
+  width:420px; flex-shrink:0;
+  border-left:1px solid var(--border);
+  padding:20px;
+  overflow-y:auto;
+  background:linear-gradient(180deg, rgba(255,255,255,.015), rgba(255,255,255,0));
+}
+.campaign-builder-head { margin-bottom:18px; }
+.campaign-builder-title { font-size:20px; font-weight:800; letter-spacing:-.4px; margin-bottom:6px; }
+.campaign-builder-sub { font-size:12.5px; color:var(--text2); line-height:1.5; }
+.campaign-section {
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+  margin-bottom:14px;
+}
+.campaign-section-label {
+  font-size:10px; font-weight:700; color:var(--text3);
+  text-transform:uppercase; letter-spacing:.9px; margin-bottom:10px;
+}
+.campaign-section-title { font-size:15px; font-weight:700; margin-bottom:6px; }
+.campaign-section-sub { font-size:12px; color:var(--text2); line-height:1.45; margin-bottom:12px; }
+.campaign-goals { display:grid; grid-template-columns:1fr; gap:8px; }
+.campaign-goal {
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:12px;
+  background:var(--surface);
+  cursor:pointer;
+  transition:border-color .15s, transform .15s, background .15s;
+}
+.campaign-goal:hover { border-color:var(--border2); transform:translateY(-1px); }
+.campaign-goal.active { border-color:var(--accent); background:rgba(88,101,242,.08); }
+.campaign-goal-name { font-size:13px; font-weight:700; margin-bottom:4px; }
+.campaign-goal-desc { font-size:11.5px; color:var(--text2); line-height:1.45; }
+.campaign-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.campaign-mode-switch { display:flex; gap:8px; flex-wrap:wrap; }
+.campaign-mode-btn {
+  flex:1;
+  min-width:0;
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text2);
+  border-radius:12px;
+  padding:10px 12px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+.campaign-mode-btn.active {
+  border-color:var(--accent);
+  color:var(--text);
+  background:rgba(88,101,242,.1);
+}
+.campaign-preview {
+  border:1px solid var(--border);
+  background:var(--surface);
+  border-radius:14px;
+  padding:12px;
+  min-height:108px;
+}
+.campaign-preview-meta { font-size:11px; color:var(--text3); margin-bottom:8px; }
+.campaign-preview-body { font-size:12.5px; color:var(--text); line-height:1.55; white-space:pre-wrap; }
+.campaign-helper {
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  font-size:11.5px;
+  color:var(--text2);
+  line-height:1.45;
+}
+.campaign-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+.campaign-history-card {
+  padding:16px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface2);
+  margin-bottom:12px;
+}
+.campaign-history-top {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.campaign-history-title { font-size:13px; font-weight:700; margin-bottom:4px; }
+.campaign-history-sub { font-size:12px; color:var(--text2); line-height:1.45; }
+.campaign-history-metrics {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+.campaign-history-metric {
+  font-size:11px;
+  color:var(--text2);
+  padding:6px 8px;
+  border-radius:999px;
+  background:var(--surface);
+  border:1px solid var(--border);
+}
+
 /* ================================================================
    SCREEN 5 — FOLLOW-UPS
    ================================================================ */
@@ -1211,7 +1317,7 @@ body {
     </div>
     <div class="nav-item" data-screen="broadcasts" onclick="navigateTo('broadcasts')">
       <span class="nav-icon">📡</span>
-      <span>Broadcasts</span>
+      <span>Campaigns</span>
     </div>
     <div class="nav-item" data-screen="followups" onclick="navigateTo('followups')">
       <span class="nav-icon">🔔</span>
@@ -1224,7 +1330,7 @@ body {
     <div class="nav-label">Setup</div>
     <div class="nav-item" data-screen="botconfig" onclick="navigateTo('botconfig')">
       <span class="nav-icon">🤖</span>
-      <span>Bot Config</span>
+      <span>AI Assistant</span>
     </div>
     <div class="nav-item" data-screen="settings" onclick="navigateTo('settings')">
       <span class="nav-icon">⚙️</span>
@@ -1340,6 +1446,43 @@ body {
           </div>
         </div>
       </div>
+      <div class="card fade-up d6" style="margin-top:18px;">
+        <div class="card-head">
+          <div class="card-title">🧪 Product Simulator</div>
+        </div>
+        <div style="padding:18px;">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Use this to simulate customer messages and test Nazar as a product without WhatsApp.</div>
+          <div style="display:grid;grid-template-columns:1.1fr .9fr .9fr;gap:12px;margin-bottom:12px;">
+            <div>
+              <div class="form-label">Scenario</div>
+              <select class="form-input" id="sim-scenario" onchange="applySimulatorScenario(this.value)"></select>
+            </div>
+            <div>
+              <div class="form-label">Lead Name</div>
+              <input class="form-input" id="sim-name" placeholder="Aarav Mehta">
+            </div>
+            <div>
+              <div class="form-label">Pipeline Stage</div>
+              <select class="form-input" id="sim-stage">
+                <option value="New">New</option>
+                <option value="Qualified">Qualified</option>
+                <option value="Proposal">Proposal</option>
+                <option value="Negotiation">Negotiation</option>
+                <option value="Won">Won</option>
+                <option value="Lost">Lost</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <div class="form-label">Customer Message</div>
+            <textarea class="form-input form-textarea" id="sim-message" style="min-height:88px;" placeholder="Type the inbound message you want Nazar to receive."></textarea>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;">
+            <div style="font-size:11px;color:var(--text3);" id="sim-hint">Generates a real conversation, routing outcome, and CRM activity.</div>
+            <button class="btn btn-primary" onclick="simulateInboundScenario()">Run Inbound Test</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1398,54 +1541,123 @@ body {
   </div>
 
   <!-- ============================================================
-       SCREEN: BROADCASTS
+       SCREEN: CAMPAIGNS
        ============================================================ -->
   <div class="screen" id="screen-broadcasts">
     <div class="broadcasts-layout">
       <div class="bc-list-panel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-          <div style="font-size:18px;font-weight:700;">Broadcasts</div>
-          <button class="btn btn-primary">+ New Broadcast</button>
+          <div>
+            <div style="font-size:18px;font-weight:700;">Campaigns</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px;">Design sales campaigns by funnel stage, content source, and reply strategy.</div>
+          </div>
+          <button class="btn btn-primary" onclick="document.getElementById('campaign-builder-title')?.scrollIntoView({behavior:'smooth', block:'start'})">+ Build Campaign</button>
         </div>
         <div class="bc-stats-row">
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="bc-total-sent">0</div><div class="bc-stat-label">Total Sent</div></div>
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="bc-delivery-rate">0%</div><div class="bc-stat-label">Delivery Rate</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="bc-total-broadcasts">0</div><div class="bc-stat-label">Broadcasts</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="bc-total-broadcasts">0</div><div class="bc-stat-label">Campaigns</div></div>
           <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="bc-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
         </div>
         <div class="bc-list" id="broadcast-list">
           <div class="empty-state">
             <div class="empty-icon">📡</div>
-            <div class="empty-title">No broadcasts yet</div>
-            <div class="empty-sub">Send personalized messages to segments of your contacts. AI will use customer memory to personalize each message.</div>
-            <button class="btn btn-primary">Create First Broadcast</button>
+            <div class="empty-title">No campaigns yet</div>
+            <div class="empty-sub">Launch targeted sales campaigns to segments of your contacts. AI will use customer memory to personalize each message.</div>
+            <button class="btn btn-primary" onclick="document.getElementById('campaign-builder-title')?.scrollIntoView({behavior:'smooth', block:'start'})">Create First Campaign</button>
           </div>
         </div>
       </div>
-      <div class="bc-compose">
-        <div class="compose-title">Compose Broadcast</div>
-        <div class="compose-area">
-          <div class="compose-label">Message</div>
-          <textarea class="compose-textarea" placeholder="Type your broadcast message..." id="broadcast-message"></textarea>
+      <div class="campaign-builder">
+        <div class="campaign-builder-head">
+          <div class="campaign-builder-title" id="campaign-builder-title">Campaign Builder</div>
+          <div class="campaign-builder-sub">Build a campaign the way a sales team thinks: start with the funnel goal, choose the audience, decide whether this run uses a template or custom copy, and set reply ownership for that specific campaign.</div>
         </div>
-        <div class="compose-area">
-          <div class="compose-label">Target Audience</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Select pipeline stages to target</div>
-          <div id="broadcast-targets"></div>
+
+        <div class="campaign-section">
+          <div class="campaign-section-label">1. Campaign Goal</div>
+          <div class="campaign-section-title">What should this campaign move forward?</div>
+          <div class="campaign-section-sub">This sets the sales context for the run and pre-fills sensible defaults. You can still override the targeting or reply handling after choosing a goal.</div>
+          <div class="campaign-goals" id="campaign-goals"></div>
+          <div class="campaign-helper" id="campaign-goal-hint"></div>
         </div>
-        <div class="compose-area">
-          <div class="compose-label">Campaign Key</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Give this campaign a key like <code>april_reactivation</code>. Routing rules can target this exact key.</div>
-          <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation">
+
+        <div class="campaign-section">
+          <div class="campaign-section-label">2. Audience</div>
+          <div class="campaign-section-title">Who should receive this?</div>
+          <div class="campaign-section-sub">Target a funnel stage or leave it broad. Campaigns are usually stage-based because the message should match where the lead currently is.</div>
+          <div class="campaign-row">
+            <div>
+              <div class="form-label">Target stage</div>
+              <select class="form-input" id="campaign-target-stage"></select>
+            </div>
+            <div>
+              <div class="form-label">Campaign key</div>
+              <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation">
+            </div>
+          </div>
+          <div class="campaign-helper">The campaign key identifies this exact campaign later when replies come in. Use a key like <code>proposal_push_april</code> or <code>lost_leads_winback</code>.</div>
         </div>
-        <div class="compose-area">
-          <div class="compose-label">When Customers Reply</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Optional override. Leave on campaign rule unless you want this one broadcast to behave differently.</div>
-          <select class="form-input" id="broadcast-reply-use-case"></select>
+
+        <div class="campaign-section">
+          <div class="campaign-section-label">3. Campaign Content</div>
+          <div class="campaign-section-title">Use a template or write custom copy</div>
+          <div class="campaign-section-sub">Templates are best for repeatable funnel motions. Custom copy is better when you want to experiment with a one-off campaign.</div>
+          <div class="campaign-mode-switch">
+            <button class="campaign-mode-btn active" id="campaign-mode-template" onclick="setCampaignContentMode('template')">Use Template</button>
+            <button class="campaign-mode-btn" id="campaign-mode-custom" onclick="setCampaignContentMode('custom')">Write Custom Copy</button>
+          </div>
+          <div id="campaign-template-wrap" style="margin-top:12px;">
+            <div class="form-label">Template</div>
+            <select class="form-input" id="campaign-template-select" onchange="updateCampaignTemplatePreview()"></select>
+            <div class="campaign-preview" style="margin-top:10px;">
+              <div class="campaign-preview-meta" id="campaign-template-meta">Pick a template to preview it.</div>
+              <div class="campaign-preview-body" id="campaign-template-preview">No template selected.</div>
+            </div>
+          </div>
+          <div id="campaign-custom-wrap" style="margin-top:12px;display:none;">
+            <div class="form-label">Campaign copy</div>
+            <textarea class="compose-textarea" style="min-height:130px;border:1px solid var(--border);background:var(--surface);border-radius:14px;padding:12px;" placeholder="Write the message this campaign should send..." id="broadcast-message"></textarea>
+          </div>
         </div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="sendBroadcast()">
-          📡 Send Broadcast
-        </button>
+
+        <div class="campaign-section">
+          <div class="campaign-section-label">4. Reply Handling</div>
+          <div class="campaign-section-title">When people reply to this campaign</div>
+          <div class="campaign-section-sub">This is set per campaign. It should not be global because a win-back campaign and a pricing campaign often need different reply ownership.</div>
+          <div class="campaign-row">
+            <div>
+              <div class="form-label">Handling</div>
+              <select class="form-input" id="campaign-reply-mode"></select>
+            </div>
+            <div>
+              <div class="form-label">Human queue</div>
+              <input class="form-input" id="campaign-human-queue" placeholder="sales" value="campaigns">
+            </div>
+          </div>
+          <div class="campaign-helper" id="campaign-reply-hint">Choose the team queue only if humans should be involved in replies.</div>
+        </div>
+
+        <div class="campaign-section">
+          <div class="campaign-section-label">5. Launch Or Test</div>
+          <div class="campaign-section-title">Run this campaign live or simulate it</div>
+          <div class="campaign-section-sub">Use simulation to pressure-test the funnel, reply handling, and inbox load before wiring this to WhatsApp campaigns at scale.</div>
+          <div class="campaign-row">
+            <div>
+              <div class="form-label">Simulation target count</div>
+              <input class="form-input" type="number" id="sim-broadcast-target-count" min="1" max="50" value="5">
+            </div>
+            <div>
+              <div class="form-label">Simulated replies</div>
+              <input class="form-input" type="number" id="sim-broadcast-reply-count" min="0" max="20" value="2">
+            </div>
+          </div>
+          <div class="campaign-helper" id="sim-broadcast-hint">Simulation creates sample recipients in the chosen stage, sends the campaign, and can generate reply load back into the inbox.</div>
+          <div class="campaign-actions">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="sendBroadcast()">Launch Campaign</button>
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;" onclick="simulateBroadcast()">Simulate Campaign</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1472,26 +1684,26 @@ body {
   </div>
 
   <!-- ============================================================
-       SCREEN: BOT CONFIG
+       SCREEN: AI ASSISTANT
        ============================================================ -->
   <div class="screen" id="screen-botconfig">
     <div class="config-layout">
       <div class="config-nav">
         <div class="config-nav-item active" onclick="showConfigSection(this,'persona')">
-          <span>🎭</span> <span>Persona</span>
+          <span>🎭</span> <span>Brand Voice</span>
         </div>
         <div class="config-nav-item" onclick="showConfigSection(this,'knowledge')">
-          <span>📚</span> <span>Knowledge Base</span>
+          <span>📚</span> <span>Business Knowledge</span>
         </div>
         <div class="config-nav-item" onclick="showConfigSection(this,'behavior')">
-          <span>⚡</span> <span>Behavior</span>
+          <span>⚡</span> <span>Reply Flows</span>
         </div>
       </div>
       <div class="config-content" id="config-content">
         <!-- Persona section -->
         <div id="config-persona">
-          <div class="config-section-title">Bot Persona</div>
-          <div class="config-section-sub">Define how your AI assistant communicates with customers.</div>
+          <div class="config-section-title">Brand Voice</div>
+          <div class="config-section-sub">Define how the AI should sound when it speaks as your business.</div>
           <div class="form-group">
             <div class="form-label">Business Name</div>
             <input class="form-input" type="text" placeholder="Your business name" id="config-business-name">
@@ -1510,76 +1722,79 @@ body {
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
-              <div class="toggle-label">Auto-reply</div>
-              <div class="toggle-desc">Bot automatically responds to incoming messages</div>
+              <div class="toggle-label">AI can reply automatically</div>
+              <div class="toggle-desc">Lets the AI send replies on conversations where the selected flow allows it</div>
             </div>
             <div class="toggle on" id="toggle-autoreply" onclick="this.classList.toggle('on')"></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
-              <div class="toggle-label">Smart Handoff</div>
-              <div class="toggle-desc">Bot detects when to transfer to a human agent</div>
+              <div class="toggle-label">Hand off to the team when needed</div>
+              <div class="toggle-desc">Lets the system move a conversation to a human queue when the customer needs a person</div>
             </div>
             <div class="toggle on" id="toggle-handoff" onclick="this.classList.toggle('on')"></div>
           </div>
           <div style="margin-top:20px;">
-            <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+            <button class="btn btn-primary" onclick="saveConfig()">Save Brand Settings</button>
           </div>
         </div>
 
         <!-- Knowledge Base section (hidden by default) -->
         <div id="config-knowledge" style="display:none">
-          <div class="config-section-title">Knowledge Base</div>
-          <div class="config-section-sub">Upload your product info, FAQs, and pricing. The bot uses this to answer customer questions.</div>
+          <div class="config-section-title">Business Knowledge</div>
+          <div class="config-section-sub">Add your product info, FAQs, pricing, and process details. The AI uses this to answer customers accurately.</div>
           <div class="form-group">
-            <div class="form-label">Knowledge Content <span style="font-weight:400;text-transform:none;color:var(--text3)">Paste your product info, FAQ, pricing etc.</span></div>
+            <div class="form-label">Knowledge Content <span style="font-weight:400;text-transform:none;color:var(--text3)">Paste product info, pricing, FAQs, and common answers.</span></div>
             <textarea class="form-input form-textarea" style="min-height:250px;" placeholder="Paste your product information, pricing, FAQs here..." id="kb-content"></textarea>
           </div>
-          <button class="btn btn-primary" onclick="saveKnowledgeBase()">💾 Save Knowledge Base</button>
+          <button class="btn btn-primary" onclick="saveKnowledgeBase()">💾 Save Knowledge</button>
         </div>
 
         <!-- Behavior section (hidden by default) -->
         <div id="config-behavior" style="display:none">
-          <div class="config-section-title">Bot Behavior</div>
-          <div class="config-section-sub">Fine-tune how the AI responds in different scenarios.</div>
+          <div class="config-section-title">Reply Flows</div>
+          <div class="config-section-sub">Decide when the AI should reply, when your team should reply, and when the AI should only draft a reply for review.</div>
           <div class="toggle-row">
             <div class="toggle-info">
-              <div class="toggle-label">Memory Recall</div>
-              <div class="toggle-desc">Bot references past conversations with each customer</div>
+              <div class="toggle-label">Use past conversation memory</div>
+              <div class="toggle-desc">Lets the AI use what it knows about the customer from earlier conversations</div>
             </div>
             <div class="toggle on" onclick="this.classList.toggle('on')"></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
-              <div class="toggle-label">Signal Detection</div>
-              <div class="toggle-desc">Detect buying signals, objections, and intent from messages</div>
+              <div class="toggle-label">Detect customer intent</div>
+              <div class="toggle-desc">Identifies buying signals, objections, support issues, and likely next steps</div>
             </div>
             <div class="toggle on" onclick="this.classList.toggle('on')"></div>
           </div>
           <div class="toggle-row">
             <div class="toggle-info">
-              <div class="toggle-label">Auto Lead Scoring</div>
-              <div class="toggle-desc">Automatically adjust lead scores based on conversation signals</div>
+              <div class="toggle-label">Update stage and score automatically</div>
+              <div class="toggle-desc">Lets the AI move leads through the pipeline and update lead score based on the conversation</div>
             </div>
             <div class="toggle on" onclick="this.classList.toggle('on')"></div>
           </div>
           <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
-            <div class="config-section-title" style="font-size:18px;">Reply Routing By Use Case</div>
-            <div class="config-section-sub">Decide whether the bot, a human, or a human with AI assist should own replies for each workflow.</div>
-            <div id="reply-policy-list"></div>
+            <div class="config-section-title" style="font-size:18px;">Default Reply Handling</div>
+            <div class="config-section-sub">This is what happens for a normal new conversation when no special campaign or sales-stage rule applies.</div>
+            <div id="reply-flow-default"></div>
           </div>
           <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
-            <div class="config-section-title" style="font-size:18px;">Routing Rules</div>
-            <div class="config-section-sub">Choose which policy should apply by default, by funnel stage, and by campaign key.</div>
-            <div id="routing-rule-default"></div>
+            <div class="config-section-title" style="font-size:18px;">Sales Stage Handling</div>
+            <div class="config-section-sub">Override the default handling for leads in a specific pipeline stage, like Negotiation or Proposal.</div>
             <div style="margin-top:16px;">
-              <div class="form-label">Funnel Stage Rules</div>
-              <div id="routing-rule-stages"></div>
+              <div id="reply-flow-stages"></div>
             </div>
-            <div style="margin-top:16px;">
-              <div class="form-label">Campaign Rules</div>
-              <div id="routing-rule-campaigns"></div>
-            </div>
+          </div>
+          <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
+            <div class="config-section-title" style="font-size:18px;">Safety Triggers</div>
+            <div class="config-section-sub">If a customer message contains these words, the conversation should move to a human queue even if the default flow would allow AI replies.</div>
+            <div id="reply-flow-safety"></div>
+          </div>
+          <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
+            <div class="config-section-title" style="font-size:18px;">Campaign Reply Handling</div>
+            <div class="config-section-sub">Choose campaign-specific reply handling when creating each campaign. That setting lives on the Campaigns screen, not here.</div>
           </div>
         </div>
       </div>
@@ -1724,6 +1939,53 @@ let contactNotes = [];
 let currentConversationFilter = 'all';
 let replyPolicies = [];
 let routingRules = [];
+let simulatorScenarios = {};
+let campaignTemplates = [];
+let campaignContentMode = 'template';
+let currentCampaignObjective = 'new_interest';
+
+const CAMPAIGN_OBJECTIVES = {
+  new_interest: {
+    label: 'Turn fresh interest into qualified leads',
+    description: 'Best for new or warm contacts who need a first meaningful touchpoint and qualification push.',
+    stage: 'New',
+    replyMode: 'bot_first',
+    humanQueue: 'sales',
+    templateName: 'welcome_new_lead',
+  },
+  proposal_followup: {
+    label: 'Revive proposal-stage deals',
+    description: 'Use when a lead has seen a proposal and now needs a structured nudge to re-engage.',
+    stage: 'Proposal',
+    replyMode: 'bot_assist',
+    humanQueue: 'sales',
+    templateName: 'proposal_sent',
+  },
+  closing_push: {
+    label: 'Move negotiation leads toward close',
+    description: 'Use when timing, discounts, objections, or final decision-making need tighter sales handling.',
+    stage: 'Negotiation',
+    replyMode: 'human_first',
+    humanQueue: 'sales',
+    templateName: 'gentle_followup',
+  },
+  win_back: {
+    label: 'Re-engage lost or dormant leads',
+    description: 'Use to restart conversations with cold leads who dropped off or stopped responding.',
+    stage: 'Lost',
+    replyMode: 'bot_first',
+    humanQueue: 'campaigns',
+    templateName: 'win_back',
+  },
+  customer_nurture: {
+    label: 'Nurture existing customers or referrals',
+    description: 'Use when the goal is referrals, upgrades, repeat business, or retention rather than qualification.',
+    stage: 'Won',
+    replyMode: 'bot_first',
+    humanQueue: 'success',
+    templateName: 'feedback_request',
+  },
+};
 
 // ================================================================
 //  NAVIGATION
@@ -1739,7 +2001,7 @@ function navigateTo(screen) {
 
   const titles = {
     overview:'Overview', conversations:'Conversations', pipeline:'Pipeline',
-    broadcasts:'Broadcasts', followups:'Follow-ups', botconfig:'Bot Config',
+    broadcasts:'Campaigns', followups:'Follow-ups', botconfig:'AI Assistant',
     settings:'Settings'
   };
   document.getElementById('page-title').textContent = titles[screen] || screen;
@@ -1832,6 +2094,7 @@ async function api(method, path, body = null) {
 // ================================================================
 async function loadOverview() {
   try {
+    await loadSimulatorScenarios();
     const data = await api('GET', '/api/overview');
     const s = data.stats;
     const operations = data.operations || {};
@@ -1874,6 +2137,90 @@ async function loadOverview() {
   } catch(e) {
     console.error('Load overview failed:', e);
   }
+}
+
+async function loadSimulatorScenarios() {
+  if (Object.keys(simulatorScenarios).length) return simulatorScenarios;
+  try {
+    const data = await api('GET', '/api/simulate/scenarios');
+    simulatorScenarios = data.scenarios || {};
+  } catch(e) {
+    simulatorScenarios = {
+      new_lead: { display_name: 'New inbound lead', default_message: 'Hi, I came across Nazar and want to understand how it helps my sales team.', pipeline_stage: 'New' },
+      pricing_question: { display_name: 'Pricing negotiation', default_message: 'Can you share pricing for a 10-member team and whether there is any discount?', pipeline_stage: 'Negotiation' },
+      support_escalation: { display_name: 'Support escalation', default_message: 'I need help urgently and want to speak with a human about my issue.', pipeline_stage: 'Qualified' },
+      campaign_reply: { display_name: 'Campaign reply', default_message: 'This campaign looks interesting. Can someone share more details?', pipeline_stage: 'Qualified' },
+      ai_assist: { display_name: 'Human queue with AI draft', default_message: 'I want more details on onboarding and implementation timeline before I decide.', pipeline_stage: 'Qualified' },
+    };
+  }
+  renderSimulatorScenarioOptions();
+  return simulatorScenarios;
+}
+
+function renderSimulatorScenarioOptions() {
+  const select = document.getElementById('sim-scenario');
+  if (!select) return;
+  const entries = Object.entries(simulatorScenarios || {});
+  if (!entries.length) return;
+  select.innerHTML = entries.map(([key, scenario]) =>
+    `<option value="${key}">${esc(scenario.display_name || key)}</option>`
+  ).join('');
+  if (!select.value) select.value = entries[0][0];
+  applySimulatorScenario(select.value, false);
+}
+
+function applySimulatorScenario(key, overwriteName = true) {
+  const scenario = simulatorScenarios[key];
+  if (!scenario) return;
+  const messageEl = document.getElementById('sim-message');
+  const stageEl = document.getElementById('sim-stage');
+  const nameEl = document.getElementById('sim-name');
+  const hintEl = document.getElementById('sim-hint');
+  if (messageEl) messageEl.value = scenario.default_message || '';
+  if (stageEl && scenario.pipeline_stage) stageEl.value = scenario.pipeline_stage;
+  if (overwriteName && nameEl && !nameEl.value.trim()) {
+    nameEl.value = '';
+  }
+  if (hintEl) {
+    hintEl.textContent = key === 'campaign_reply'
+      ? 'Routes the message like a campaign reply and shows how queues and policy rules behave.'
+      : key === 'ai_assist'
+        ? 'Creates a human-owned conversation with an AI draft ready for review.'
+        : 'Generates a real conversation, routing outcome, and CRM activity.';
+  }
+}
+
+async function simulateInboundScenario() {
+  const scenarioKey = document.getElementById('sim-scenario')?.value || 'new_lead';
+  const message = document.getElementById('sim-message')?.value.trim() || '';
+  const name = document.getElementById('sim-name')?.value.trim() || '';
+  const pipelineStage = document.getElementById('sim-stage')?.value || 'New';
+  try {
+    const result = await api('POST', '/api/simulate/inbound', {
+      scenario_key: scenarioKey,
+      message,
+      name,
+      pipeline_stage: pipelineStage,
+    });
+    showToast('🧪', `Simulated ${simulatorScenarios[scenarioKey]?.display_name || 'conversation'} · ${formatSimulatorAction(result.action)}`);
+    await Promise.all([loadOverview(), loadConversations(), loadBroadcasts()]);
+    navigateTo('conversations');
+    if (result.conversation?.conversation_id) {
+      setTimeout(() => selectConversation(result.conversation.conversation_id), 100);
+    }
+  } catch(e) {
+    showToast('❌', e.message);
+  }
+}
+
+function formatSimulatorAction(action) {
+  const map = {
+    bot_reply_sent: 'bot replied',
+    human_queue: 'queued for human',
+    ai_assist_ready: 'AI draft ready',
+    queued_for_human: 'conversation created',
+  };
+  return map[action] || action || 'done';
 }
 
 function generateInsight(data) {
@@ -2081,8 +2428,8 @@ function renderConversationDetail(data) {
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
         <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
         <div style="font-size:11px;color:var(--text3);padding-top:4px;">
-          Reply owner: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
-          ${conversation.human_queue ? ` · Queue: ${esc(conversation.human_queue)}` : ''}
+          Current handling: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
+          ${conversation.human_queue ? ` · Team queue: ${esc(conversation.human_queue)}` : ''}
           ${conversation.source_type === 'campaign' ? ` · Campaign: ${esc(conversation.source_ref || 'broadcast_reply')}` : ''}
         </div>
       </div>
@@ -2173,57 +2520,138 @@ async function loadRoutingRules() {
   }
 }
 
-function renderBroadcastUseCaseOptions() {
-  const select = document.getElementById('broadcast-reply-use-case');
+async function loadCampaignTemplates() {
+  try {
+    const data = await api('GET', '/api/templates?status=approved');
+    campaignTemplates = (data.templates || []).filter(template => template.approval_status === 'approved');
+  } catch(e) {
+    console.error('Load campaign templates failed:', e);
+    campaignTemplates = [];
+  }
+  initializeCampaignBuilder();
+  renderCampaignTemplateOptions();
+}
+
+function initializeCampaignBuilder() {
+  const root = document.getElementById('screen-broadcasts');
+  if (!root || root.dataset.builderReady === 'true') return;
+  const stageSelect = document.getElementById('campaign-target-stage');
+  if (stageSelect) {
+    stageSelect.innerHTML = `<option value="">All active contacts</option>${STAGES.map(stage => `<option value="${stage}">${stage}</option>`).join('')}`;
+  }
+  renderBroadcastUseCaseOptions();
+  renderCampaignGoals();
+  setCampaignContentMode(campaignContentMode, true);
+  applyCampaignObjective(currentCampaignObjective, { force: true });
+  root.dataset.builderReady = 'true';
+}
+
+function renderCampaignGoals() {
+  const el = document.getElementById('campaign-goals');
+  if (!el) return;
+  el.innerHTML = Object.entries(CAMPAIGN_OBJECTIVES).map(([key, objective]) => `
+    <div class="campaign-goal ${currentCampaignObjective === key ? 'active' : ''}" onclick="applyCampaignObjective('${key}')">
+      <div class="campaign-goal-name">${esc(objective.label)}</div>
+      <div class="campaign-goal-desc">${esc(objective.description)}</div>
+    </div>
+  `).join('');
+}
+
+function applyCampaignObjective(key, options = {}) {
+  const objective = CAMPAIGN_OBJECTIVES[key] || CAMPAIGN_OBJECTIVES.new_interest;
+  currentCampaignObjective = key in CAMPAIGN_OBJECTIVES ? key : 'new_interest';
+  renderCampaignGoals();
+  const goalHint = document.getElementById('campaign-goal-hint');
+  if (goalHint) {
+    goalHint.innerHTML = `<strong>${esc(objective.label)}:</strong> ${esc(objective.description)} Targeting defaults to <strong>${esc(objective.stage)}</strong> and the recommended reply handling is <strong>${esc(formatReplyMode(objective.replyMode))}</strong>.`;
+  }
+  const stageSelect = document.getElementById('campaign-target-stage');
+  if (stageSelect) stageSelect.value = objective.stage || '';
+  const replyMode = document.getElementById('campaign-reply-mode');
+  if (replyMode) replyMode.value = objective.replyMode || 'bot_first';
+  const queueInput = document.getElementById('campaign-human-queue');
+  if (queueInput) queueInput.value = objective.humanQueue || 'sales';
+  if (options.force) {
+    const existingKey = document.getElementById('broadcast-campaign-key')?.value.trim();
+    if (!existingKey) {
+      const generated = slugifyKey(`${key}_${new Date().toLocaleDateString('en-CA').replace(/-/g, '_')}`);
+      document.getElementById('broadcast-campaign-key').value = generated;
+    }
+  }
+  renderCampaignTemplateOptions(objective.templateName);
+}
+
+function renderCampaignTemplateOptions(preferredTemplateName = '') {
+  const select = document.getElementById('campaign-template-select');
   if (!select) return;
-  const options = replyPolicies.length ? replyPolicies : [{ use_case_key: 'broadcast_reply', display_name: 'Broadcast Replies', reply_mode: 'bot_first' }];
+  const templates = [...campaignTemplates];
+  const currentSelection = getSelectedCampaignTemplate()?.name || '';
+  const preferred = preferredTemplateName || CAMPAIGN_OBJECTIVES[currentCampaignObjective]?.templateName || '';
+  templates.sort((a, b) => {
+    const aPreferred = a.name === preferred ? -1 : 0;
+    const bPreferred = b.name === preferred ? -1 : 0;
+    return aPreferred - bPreferred || (a.name || '').localeCompare(b.name || '');
+  });
+  select.innerHTML = templates.length
+    ? templates.map(template => `
+        <option value="${template.id}" ${(template.name === currentSelection || (!currentSelection && template.name === preferred)) ? 'selected' : ''}>
+          ${esc(template.name)} · ${esc(capitalize(template.category || 'utility'))}
+        </option>
+      `).join('')
+    : `<option value="">No approved templates yet</option>`;
+  updateCampaignTemplatePreview();
+}
+
+function getSelectedCampaignTemplate() {
+  const selectedId = document.getElementById('campaign-template-select')?.value || '';
+  return campaignTemplates.find(template => template.id === selectedId) || null;
+}
+
+function updateCampaignTemplatePreview() {
+  const template = getSelectedCampaignTemplate();
+  const metaEl = document.getElementById('campaign-template-meta');
+  const bodyEl = document.getElementById('campaign-template-preview');
+  if (!metaEl || !bodyEl) return;
+  if (!template) {
+    metaEl.textContent = 'Pick a template to preview it.';
+    bodyEl.textContent = 'No template selected.';
+    return;
+  }
+  const variables = (template.variables || []).length ? `Variables: ${(template.variables || []).join(', ')}` : 'No dynamic variables';
+  metaEl.textContent = `${capitalize(template.category || 'utility')} · ${template.language || 'en'} · ${variables}`;
+  bodyEl.textContent = template.body || '';
+}
+
+function setCampaignContentMode(mode, silent = false) {
+  campaignContentMode = mode === 'custom' ? 'custom' : 'template';
+  document.getElementById('campaign-mode-template')?.classList.toggle('active', campaignContentMode === 'template');
+  document.getElementById('campaign-mode-custom')?.classList.toggle('active', campaignContentMode === 'custom');
+  const templateWrap = document.getElementById('campaign-template-wrap');
+  const customWrap = document.getElementById('campaign-custom-wrap');
+  if (templateWrap) templateWrap.style.display = campaignContentMode === 'template' ? 'block' : 'none';
+  if (customWrap) customWrap.style.display = campaignContentMode === 'custom' ? 'block' : 'none';
+  if (!silent) {
+    const hint = document.getElementById('sim-broadcast-hint');
+    if (hint) {
+      hint.textContent = campaignContentMode === 'template'
+        ? 'Simulation will render the selected template against sample contacts, then feed replies back into the inbox.'
+        : 'Simulation will send your custom campaign copy to sample contacts, then feed replies back into the inbox.';
+    }
+  }
+}
+
+function renderBroadcastUseCaseOptions() {
+  const select = document.getElementById('campaign-reply-mode');
+  if (!select) return;
   select.innerHTML = `
-    <option value="">Use campaign rule</option>
-    ${options.map(policy => `
-    <option value="${policy.use_case_key}">
-      ${esc(policy.display_name)} · ${formatReplyMode(policy.reply_mode)}
-    </option>
-  `).join('')}`;
+    ${['bot_first','human_first','bot_assist','manual_only'].map(mode => `
+      <option value="${mode}">${formatReplyMode(mode)}</option>
+    `).join('')}
+  `;
 }
 
 function renderReplyPolicies() {
-  const container = document.getElementById('reply-policy-list');
-  if (!container) return;
-  if (!replyPolicies.length) {
-    container.innerHTML = '<div style="color:var(--text3);font-size:13px;">No reply policies configured yet.</div>';
-    return;
-  }
-  container.innerHTML = replyPolicies.map(policy => `
-    <div style="border:1px solid var(--border);background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
-        <div>
-          <div style="font-size:14px;font-weight:700;">${esc(policy.display_name)}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${esc(policy.description || policy.use_case_key)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:6px;">Use case key: ${esc(policy.use_case_key)}</div>
-        </div>
-        <span class="tag tag-cold">${formatReplyMode(policy.reply_mode)}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div>
-          <div class="form-label">Reply owner</div>
-          <select class="form-input" id="policy-mode-${policy.use_case_key}">
-            ${['bot_first','human_first','bot_assist','manual_only'].map(mode => `<option value="${mode}" ${policy.reply_mode===mode?'selected':''}>${formatReplyMode(mode)}</option>`).join('')}
-          </select>
-        </div>
-        <div>
-          <div class="form-label">Human queue</div>
-          <input class="form-input" id="policy-queue-${policy.use_case_key}" value="${esc(policy.fallback_queue || 'sales')}">
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <div class="form-label">Force human keywords</div>
-        <input class="form-input" id="policy-keywords-${policy.use_case_key}" value="${esc((policy.force_human_keywords || []).join(', '))}" placeholder="complaint, refund, manager">
-      </div>
-      <div style="margin-top:10px;display:flex;justify-content:flex-end;">
-        <button class="btn btn-sm btn-primary" onclick="saveReplyPolicy('${policy.use_case_key}')">Save Policy</button>
-      </div>
-    </div>
-  `).join('');
+  renderReplyFlows();
 }
 
 function findRoutingRule(scopeType, scopeKey) {
@@ -2231,70 +2659,82 @@ function findRoutingRule(scopeType, scopeKey) {
 }
 
 function renderRoutingRules() {
-  renderDefaultRoutingRule();
-  renderStageRoutingRules();
-  renderCampaignRoutingRules();
+  renderReplyFlows();
 }
 
-function renderDefaultRoutingRule() {
-  const container = document.getElementById('routing-rule-default');
+function getReplyPolicy(useCaseKey) {
+  return replyPolicies.find(policy => policy.use_case_key === useCaseKey) || null;
+}
+
+function stageFlowKey(stage) {
+  return `stage_${slugifyKey(stage)}`;
+}
+
+function renderReplyFlows() {
+  renderDefaultReplyFlow();
+  renderStageReplyFlows();
+  renderSafetyTriggers();
+}
+
+function renderDefaultReplyFlow() {
+  const container = document.getElementById('reply-flow-default');
   if (!container) return;
-  const rule = findRoutingRule('default', 'default');
+  const defaultPolicy = getReplyPolicy('default_inbound') || { reply_mode: 'bot_first', fallback_queue: 'sales', force_human_keywords: [] };
   container.innerHTML = `
     <div style="border:1px solid var(--border);background:var(--surface2);border-radius:14px;padding:16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
-          <div style="font-size:14px;font-weight:700;">Default inbound rule</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px;">Used when no campaign rule or funnel-stage rule matches.</div>
+          <div class="form-label">For most new conversations</div>
+          <select class="form-input" id="default-flow-mode">
+            ${['bot_first','human_first','bot_assist','manual_only'].map(mode => `<option value="${mode}" ${defaultPolicy.reply_mode===mode?'selected':''}>${formatReplyMode(mode)}</option>`).join('')}
+          </select>
         </div>
-        <select class="form-input" id="routing-default-policy" style="max-width:260px;">
-          ${replyPolicies.map(policy => `<option value="${policy.use_case_key}" ${rule?.policy_use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
-        </select>
+        <div>
+          <div class="form-label">If a person should handle it, send to</div>
+          <input class="form-input" id="default-flow-queue" value="${esc(defaultPolicy.fallback_queue || 'sales')}" placeholder="sales">
+        </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-        <button class="btn btn-sm btn-primary" onclick="saveRoutingRule('default','default','Default inbound','routing-default-policy')">Save Default Rule</button>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <button class="btn btn-sm btn-primary" onclick="saveDefaultReplyFlow()">Save Default Handling</button>
       </div>
     </div>
   `;
 }
 
-function renderStageRoutingRules() {
-  const container = document.getElementById('routing-rule-stages');
+function renderStageReplyFlows() {
+  const container = document.getElementById('reply-flow-stages');
   if (!container) return;
+  const defaultPolicy = getReplyPolicy('default_inbound') || { reply_mode: 'bot_first', fallback_queue: 'sales' };
   container.innerHTML = STAGES.map(stage => {
     const rule = findRoutingRule('pipeline_stage', stage);
+    const policy = getReplyPolicy(rule?.policy_use_case_key) || defaultPolicy;
+    const selectedMode = rule?.policy_use_case_key === 'default_inbound' || !rule ? 'same_as_default' : (policy.reply_mode || 'bot_first');
     return `
-      <div style="display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--surface2);">
+      <div style="display:grid;grid-template-columns:180px 1fr 1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--surface2);">
         <div style="font-size:13px;font-weight:600;">${stage}</div>
-        <select class="form-input" id="routing-stage-${stage}">
-          ${replyPolicies.map(policy => `<option value="${policy.use_case_key}" ${rule?.policy_use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
+        <select class="form-input" id="stage-flow-mode-${stage}">
+          <option value="same_as_default" ${selectedMode==='same_as_default'?'selected':''}>Use default handling</option>
+          ${['bot_first','human_first','bot_assist','manual_only'].map(mode => `<option value="${mode}" ${selectedMode===mode?'selected':''}>${formatReplyMode(mode)}</option>`).join('')}
         </select>
-        <button class="btn btn-sm btn-ghost" onclick="saveRoutingRule('pipeline_stage', '${stage}', '${stage} stage', 'routing-stage-${stage}')">Save</button>
+        <input class="form-input" id="stage-flow-queue-${stage}" value="${esc(policy.fallback_queue || defaultPolicy.fallback_queue || 'sales')}" placeholder="sales">
+        <button class="btn btn-sm btn-ghost" onclick="saveStageReplyFlow('${stage}')">Save</button>
       </div>
     `;
   }).join('');
 }
 
-function renderCampaignRoutingRules() {
-  const container = document.getElementById('routing-rule-campaigns');
+function renderSafetyTriggers() {
+  const container = document.getElementById('reply-flow-safety');
   if (!container) return;
-  const campaignRules = routingRules.filter(rule => rule.scope_type === 'campaign');
+  const defaultPolicy = getReplyPolicy('default_inbound') || { force_human_keywords: [] };
   container.innerHTML = `
-    ${campaignRules.map(rule => `
-      <div style="display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;background:var(--surface2);">
-        <div style="font-size:13px;font-weight:600;">${esc(rule.scope_key)}</div>
-        <select class="form-input" id="routing-campaign-${rule.scope_key}">
-          ${replyPolicies.map(policy => `<option value="${policy.use_case_key}" ${rule.policy_use_case_key===policy.use_case_key?'selected':''}>${esc(policy.display_name)}</option>`).join('')}
-        </select>
-        <button class="btn btn-sm btn-ghost" onclick="saveRoutingRule('campaign', '${rule.scope_key}', '${rule.scope_key}', 'routing-campaign-${rule.scope_key}')">Save</button>
+    <div style="border:1px solid var(--border);background:var(--surface2);border-radius:14px;padding:16px;">
+      <div class="form-label">Always send to a person if the message includes</div>
+      <input class="form-input" id="default-safety-keywords" value="${esc((defaultPolicy.force_human_keywords || []).join(', '))}" placeholder="complaint, refund, manager">
+      <div style="font-size:12px;color:var(--text2);margin-top:8px;">Use simple trigger words. Example: complaint, refund, legal, manager.</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <button class="btn btn-sm btn-primary" onclick="saveSafetyTriggers()">Save Safety Triggers</button>
       </div>
-    `).join('')}
-    <div style="display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:center;border:1px dashed var(--border2);border-radius:12px;padding:12px;background:var(--surface);">
-      <input class="form-input" id="routing-new-campaign-key" placeholder="campaign_key">
-      <select class="form-input" id="routing-new-campaign-policy">
-        ${replyPolicies.map(policy => `<option value="${policy.use_case_key}">${esc(policy.display_name)}</option>`).join('')}
-      </select>
-      <button class="btn btn-sm btn-primary" onclick="saveNewCampaignRule()">Add Campaign Rule</button>
     </div>
   `;
 }
@@ -2312,12 +2752,85 @@ async function saveReplyPolicy(useCaseKey) {
       fallback_queue,
       force_human_keywords,
     });
-    showToast('🧭', 'Reply policy saved');
+    showToast('🧭', 'Reply flow saved');
     await loadReplyPolicies();
     await loadRoutingRules();
     if (selectedConvId) await selectConversation(selectedConvId);
   } catch(e) {
     showToast('❌', 'Policy save failed: ' + e.message);
+  }
+}
+
+async function saveDefaultReplyFlow() {
+  try {
+    const reply_mode = document.getElementById('default-flow-mode')?.value || 'bot_first';
+    const fallback_queue = document.getElementById('default-flow-queue')?.value.trim() || 'sales';
+    const currentPolicy = getReplyPolicy('default_inbound') || { force_human_keywords: [] };
+    await api('PUT', '/api/reply-policies/default_inbound', {
+      reply_mode,
+      fallback_queue,
+      force_human_keywords: currentPolicy.force_human_keywords || [],
+    });
+    await api('PUT', '/api/routing-rules/default/default', {
+      display_name: 'Default inbound',
+      policy_use_case_key: 'default_inbound',
+      active: true,
+    });
+    showToast('🧭', 'Default handling saved');
+    await loadReplyPolicies();
+    await loadRoutingRules();
+  } catch(e) {
+    showToast('❌', 'Default handling failed: ' + e.message);
+  }
+}
+
+async function saveSafetyTriggers() {
+  try {
+    const keywords = (document.getElementById('default-safety-keywords')?.value || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+    const currentPolicy = getReplyPolicy('default_inbound') || { reply_mode: 'bot_first', fallback_queue: 'sales' };
+    await api('PUT', '/api/reply-policies/default_inbound', {
+      reply_mode: currentPolicy.reply_mode || 'bot_first',
+      fallback_queue: currentPolicy.fallback_queue || 'sales',
+      force_human_keywords: keywords,
+    });
+    showToast('🧭', 'Safety triggers saved');
+    await loadReplyPolicies();
+    await loadRoutingRules();
+  } catch(e) {
+    showToast('❌', 'Safety trigger update failed: ' + e.message);
+  }
+}
+
+async function saveStageReplyFlow(stage) {
+  try {
+    const mode = document.getElementById(`stage-flow-mode-${stage}`)?.value || 'same_as_default';
+    const queue = document.getElementById(`stage-flow-queue-${stage}`)?.value.trim() || 'sales';
+    let policyUseCaseKey = 'default_inbound';
+    if (mode !== 'same_as_default') {
+      policyUseCaseKey = stageFlowKey(stage);
+      const defaultPolicy = getReplyPolicy('default_inbound') || { force_human_keywords: [] };
+      await api('PUT', `/api/reply-policies/${policyUseCaseKey}`, {
+        display_name: `${stage} Stage`,
+        description: `Reply handling for leads in ${stage}.`,
+        reply_mode: mode,
+        fallback_queue: queue,
+        force_human_keywords: defaultPolicy.force_human_keywords || [],
+        active: true,
+      });
+    }
+    await api('PUT', `/api/routing-rules/${encodeURIComponent('pipeline_stage')}/${encodeURIComponent(stage)}`, {
+      display_name: `${stage} stage`,
+      policy_use_case_key: policyUseCaseKey,
+      active: true,
+    });
+    showToast('🧭', `${stage} stage handling saved`);
+    await loadReplyPolicies();
+    await loadRoutingRules();
+  } catch(e) {
+    showToast('❌', 'Stage handling failed: ' + e.message);
   }
 }
 
@@ -2329,7 +2842,7 @@ async function saveRoutingRule(scopeType, scopeKey, displayName, selectId) {
       policy_use_case_key: policyUseCaseKey,
       active: true,
     });
-    showToast('🧭', 'Routing rule saved');
+    showToast('🧭', 'Rule saved');
     await loadRoutingRules();
   } catch(e) {
     showToast('❌', 'Routing rule failed: ' + e.message);
@@ -2361,7 +2874,7 @@ async function assignConversation(conversationId, userId, assignToMe = false) {
 async function updateConversationUseCase(conversationId, useCaseKey) {
   try {
     await api('POST', `/api/conversations/${conversationId}/use-case`, { use_case_key: useCaseKey });
-    showToast('🧭', 'Conversation routing updated');
+    showToast('🧭', 'Conversation flow updated');
     if (selectedConvId === conversationId) await selectConversation(conversationId);
     await loadConversations();
   } catch(e) {
@@ -2696,20 +3209,60 @@ async function submitNewContact() {
 // ================================================================
 //  BROADCAST
 // ================================================================
+function getCampaignComposerPayload() {
+  const objective = currentCampaignObjective || 'new_interest';
+  const campaignKey = slugifyKey(document.getElementById('broadcast-campaign-key')?.value || '') || slugifyKey(`${objective}_${Date.now()}`);
+  const replyMode = document.getElementById('campaign-reply-mode')?.value || 'bot_first';
+  const humanQueue = document.getElementById('campaign-human-queue')?.value.trim() || 'campaigns';
+  const stage = document.getElementById('campaign-target-stage')?.value || undefined;
+  const template = getSelectedCampaignTemplate();
+  const customMessage = document.getElementById('broadcast-message')?.value.trim() || '';
+  const payload = {
+    objective,
+    stage,
+    campaign_key: campaignKey,
+    reply_mode: replyMode,
+    human_queue: humanQueue,
+  };
+  if (campaignContentMode === 'template') {
+    if (!template) throw new Error('Pick a template first');
+    payload.template = template.name;
+    payload.template_id = template.id;
+    payload.message = '';
+  } else {
+    if (!customMessage) throw new Error('Write campaign copy first');
+    payload.message = customMessage;
+  }
+  return payload;
+}
+
 async function sendBroadcast() {
-  const msg = document.getElementById('broadcast-message').value.trim();
-  if (!msg) { showToast('⚠️','Write a message first'); return; }
-  const campaignKey = slugifyKey(document.getElementById('broadcast-campaign-key')?.value || '');
-  const replyUseCaseKey = document.getElementById('broadcast-reply-use-case')?.value || '';
   try {
-    const result = await api('POST', '/api/broadcasts', {
-      message: msg,
-      campaign_key: campaignKey || undefined,
-      reply_use_case_key: replyUseCaseKey || undefined,
-    });
-    showToast('📡', result.job ? `Broadcast queued (${result.job.id.slice(0, 8)})` : 'Broadcast queued');
-    document.getElementById('broadcast-message').value = '';
+    const payload = getCampaignComposerPayload();
+    const result = await api('POST', '/api/campaigns', payload);
+    showToast('📡', result.job ? `Campaign queued (${result.job.id.slice(0, 8)})` : 'Campaign queued');
+    if (campaignContentMode === 'custom') document.getElementById('broadcast-message').value = '';
     await loadBroadcasts();
+  } catch(e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function simulateBroadcast() {
+  const payload = getCampaignComposerPayload();
+  const targetCount = parseInt(document.getElementById('sim-broadcast-target-count')?.value || '5', 10) || 5;
+  const simulateReplyCount = parseInt(document.getElementById('sim-broadcast-reply-count')?.value || '0', 10) || 0;
+  try {
+    const result = await api('POST', '/api/simulate/campaign', {
+      ...payload,
+      target_count: targetCount,
+      simulate_reply_count: simulateReplyCount,
+    });
+    showToast('📡', `Simulated ${result.target_count} campaign sends and ${result.simulate_reply_count} replies`);
+    await Promise.all([loadBroadcasts(), loadOverview(), loadConversations()]);
+    if ((result.reply_results || []).length > 0) {
+      navigateTo('conversations');
+    }
   } catch(e) {
     showToast('❌', e.message);
   }
@@ -2717,9 +3270,9 @@ async function sendBroadcast() {
 
 async function loadBroadcasts() {
   try {
-    await Promise.all([loadReplyPolicies(), loadRoutingRules()]);
+    await Promise.all([loadReplyPolicies(), loadRoutingRules(), loadCampaignTemplates()]);
     const [historyData, analyticsData] = await Promise.all([
-      api('GET', '/api/broadcasts/history'),
+      api('GET', '/api/campaigns/history'),
       api('GET', '/api/analytics/inbox'),
     ]);
     const stats = historyData.stats || {};
@@ -2730,7 +3283,7 @@ async function loadBroadcasts() {
     document.getElementById('bc-campaign-replies').textContent = metrics.campaign_reply_conversations || 0;
     renderBroadcastHistory(historyData.broadcasts || [], historyData.jobs || []);
   } catch(e) {
-    console.error('Load broadcasts failed:', e);
+    console.error('Load campaigns failed:', e);
   }
 }
 
@@ -2740,7 +3293,7 @@ function renderBroadcastHistory(broadcasts, jobs) {
   if (!broadcasts.length && !jobs.length) {
     el.innerHTML = `<div class="empty-state">
       <div class="empty-icon">📡</div>
-      <div class="empty-title">No broadcasts yet</div>
+      <div class="empty-title">No campaigns yet</div>
       <div class="empty-sub">Queued and completed campaigns will show up here.</div>
     </div>`;
     return;
@@ -2748,6 +3301,10 @@ function renderBroadcastHistory(broadcasts, jobs) {
   const items = broadcasts.length ? broadcasts : jobs.map(job => ({
     id: job.id,
     message: job.payload?.message || '[template]',
+    template: job.payload?.template || '',
+    objective: job.payload?.objective || '',
+    filter_stage: job.payload?.stage || '',
+    campaign_key: job.payload?.campaign_key || '',
     target_count: (job.result?.sent || 0) + (job.result?.failed || 0),
     sent: job.result?.sent || 0,
     failed: job.result?.failed || 0,
@@ -2755,17 +3312,40 @@ function renderBroadcastHistory(broadcasts, jobs) {
     status: job.status,
   }));
   el.innerHTML = items.map(item => `
-    <div style="padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface2);margin-bottom:12px;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+    <div class="campaign-history-card">
+      <div class="campaign-history-top">
         <div>
-          <div style="font-size:13px;font-weight:700;">${esc((item.message || '').slice(0, 90) || 'Broadcast')}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:6px;">${item.target_count || 0} targeted · ${item.sent || 0} sent · ${item.failed || 0} failed${item.campaign_key ? ` · ${esc(item.campaign_key)}` : ''}</div>
+          <div class="campaign-history-title">${esc(formatCampaignHistoryTitle(item))}</div>
+          <div class="campaign-history-sub">${esc(formatCampaignHistorySub(item))}</div>
         </div>
         <span class="tag tag-cold">${esc(item.status || 'completed')}</span>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px;">${timeAgo(item.created_at)}</div>
+      <div class="campaign-history-metrics">
+        <span class="campaign-history-metric">${item.target_count || 0} targeted</span>
+        <span class="campaign-history-metric">${item.sent || 0} sent</span>
+        <span class="campaign-history-metric">${item.failed || 0} failed</span>
+        ${item.filter_stage ? `<span class="campaign-history-metric">Stage: ${esc(item.filter_stage)}</span>` : ''}
+        ${item.template ? `<span class="campaign-history-metric">Template: ${esc(item.template)}</span>` : '<span class="campaign-history-metric">Custom copy</span>'}
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;">${timeAgo(item.created_at)}</div>
     </div>
   `).join('');
+}
+
+function formatCampaignHistoryTitle(item) {
+  if (item.objective && CAMPAIGN_OBJECTIVES[item.objective]) return CAMPAIGN_OBJECTIVES[item.objective].label;
+  if (item.campaign_key) return item.campaign_key.replace(/_/g, ' ');
+  if (item.template) return `Template campaign · ${item.template}`;
+  return ((item.message || '').slice(0, 70) || 'Campaign').trim();
+}
+
+function formatCampaignHistorySub(item) {
+  const parts = [];
+  if (item.campaign_key) parts.push(`Key ${item.campaign_key}`);
+  if (item.objective && CAMPAIGN_OBJECTIVES[item.objective]) parts.push(CAMPAIGN_OBJECTIVES[item.objective].description);
+  if (item.message) parts.push((item.message || '').slice(0, 110));
+  else if (item.template) parts.push(`Uses WhatsApp template ${item.template}`);
+  return parts.filter(Boolean).join(' · ');
 }
 
 // ================================================================
@@ -2886,10 +3466,10 @@ function formatTime(ts) {
 
 function formatReplyMode(mode) {
   const map = {
-    bot_first: 'Bot first',
-    human_first: 'Human first',
-    bot_assist: 'Human with AI assist',
-    manual_only: 'Manual only',
+    bot_first: 'AI replies automatically',
+    human_first: 'Team replies first',
+    bot_assist: 'Team reviews an AI draft',
+    manual_only: 'Team only, no AI reply',
   };
   return map[mode] || mode || 'Bot first';
 }
@@ -2937,6 +3517,7 @@ async function bootstrapApp() {
   await ensureSession();
   await loadTeamMembers();
   await loadReplyPolicies();
+  await loadSimulatorScenarios();
   loadOverview();
 }
 

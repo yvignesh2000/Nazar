@@ -1,84 +1,141 @@
-# Nazar — Product Knowledge Base
-# (Sample — Replace with your actual product info)
+# SunMitra Solar — Product Knowledge Base
 
-## About Nazar
+## About SunMitra Solar
 
-Nazar is a WhatsApp Sales Intelligence Platform that helps businesses automate customer conversations, manage sales pipelines, and close more deals using AI.
+SunMitra Solar helps homeowners, apartment associations, schools, clinics, warehouses, and small factories install rooftop solar systems. The company handles consultation, site survey, design, subsidy guidance, installation, net metering coordination, and after-sales support.
 
-## Plans & Pricing
+Primary service areas:
+- Bengaluru
+- Mysuru
+- Hyderabad
 
-### Starter Plan — ₹2,999/month
-- Up to 500 contacts
-- AI-powered auto-replies
-- Basic pipeline management
-- WhatsApp Business API integration
-- Email support
+Target customers:
+- Homeowners with monthly electricity bills above Rs 4,000
+- Businesses with large daytime electricity usage
+- Apartment associations exploring common-area solar
 
-### Growth Plan — ₹7,999/month
-- Up to 5,000 contacts
-- Everything in Starter
-- Per-customer AI memory
-- Broadcast messaging
-- Template library
-- Priority support
-- Team collaboration (up to 3 users)
+## Core Offerings
 
-### Enterprise Plan — ₹14,999/month
-- Unlimited contacts
-- Everything in Growth
-- Custom AI persona training
-- Advanced analytics & attribution
-- API access
-- Dedicated account manager
-- Team collaboration (up to 10 users)
-- Custom integrations
+### Residential Rooftop Solar
+- Typical sizes: 3kW, 5kW, 8kW, 10kW
+- Best for villas, independent homes, and bungalows
+- Goal: reduce monthly bill, improve long-term savings, add backup readiness
 
-All plans include:
-- Zero per-message markup (pay Meta directly for WhatsApp)
-- INR billing with UPI, card, and bank transfer
-- 14-day free trial, no credit card required
-- Cancel anytime
+### Commercial Rooftop Solar
+- Typical sizes: 10kW to 200kW+
+- Best for clinics, schools, showrooms, offices, warehouses, and factories
+- Goal: reduce operating cost and stabilize long-term power expense
 
-## Key Features
+### Free Solar Savings Audit
+- Free first consultation
+- Preliminary savings estimate based on monthly bill and rooftop type
+- Free site survey for qualified leads in serviceable locations
 
-### AI Memory
-Every customer interaction is remembered. The AI references past conversations naturally, so customers never have to repeat themselves. "Since you mentioned last time that quarterly billing works better..."
+## Pricing Guidance
 
-### Smart Pipeline
-Visual Kanban board with stages: New → Qualified → Proposal → Negotiation → Won/Lost. Deal values, lead scoring, and AI-detected buying signals on every card.
+Exact pricing depends on roof type, approved load, structure, panel choice, inverter brand, and subsidy eligibility.
 
-### Broadcasts
-Send personalized messages to segments. Unlike competitors, Nazar uses customer memory to personalize each message — not just "Hi {name}" but contextually relevant follow-ups.
+Reference ranges:
 
-### Bot + Human Handoff
-AI handles routine conversations. When things get complex — custom pricing, complaints, negotiations — it seamlessly hands off to a human with full context.
+### Residential
+- 3kW: Rs 2.1L to Rs 2.6L before subsidy
+- 5kW: Rs 3.1L to Rs 3.9L before subsidy
+- 8kW: Rs 4.9L to Rs 6.1L before subsidy
+- 10kW: Rs 6.0L to Rs 7.5L before subsidy
 
-### WhatsApp Compliance
-Nazar is a structured sales assistant, fully compliant with Meta's Jan 2026 AI chatbot policy. Not a general-purpose chatbot.
+### Commercial
+- 10kW and above: quote-based after technical assessment
+
+Important pricing rules:
+- Final commercial quotes are always handled by a human advisor
+- If the customer asks for discount, custom quote, AMC bundling, or financing comparison, route to human sales
+
+## Subsidy and Financing
+
+- Residential customers may be eligible for government subsidy depending on current policy and system size
+- Commercial customers typically do not get the same subsidy structure as residential users
+- EMI / financing options are available through partner lenders for selected profiles
+- Financing approval depends on customer profile and documentation
+
+## Process
+
+1. Customer shares location and electricity bill
+2. SunMitra shares preliminary savings estimate
+3. Qualified lead gets site survey
+4. Design + proposal shared
+5. Commercial / pricing discussion handled by sales advisor
+6. Installation scheduled after approval and payment milestone
+7. Net metering coordination and activation
+
+## Timelines
+
+- Initial qualification call: same day or within 24 hours
+- Site survey: usually within 2 to 4 days in serviceable areas
+- Proposal turnaround: usually 1 to 3 business days after survey
+- Residential installation: usually 2 to 7 days after approval
+- Net metering approval timeline depends on DISCOM and local process
+
+## Qualification Questions
+
+Ask these early:
+- Which city / area is the property in?
+- Is it a home or business?
+- What is the monthly electricity bill?
+- Do they own the roof?
+- Is the roof RCC sheet / metal sheet / terrace?
+- Are they looking for immediate installation or just exploring?
+
+## Lead Routing Rules
+
+Bot can handle:
+- Basic product explanation
+- Service area check
+- Savings-audit lead capture
+- General subsidy and process FAQs
+- Appointment interest capture
+
+Human should handle:
+- Custom quote requests
+- Discounts / negotiation
+- Commercial projects
+- Complaints / escalation
+- Financing disputes or documentation issues
+- Any message asking explicitly for a human manager or advisor
 
 ## FAQ
 
-Q: Is this compliant with Meta's WhatsApp policies?
-A: Yes. Nazar operates as a structured business tool for sales, support, and order management — all explicitly allowed.
+Q: How much can I save with rooftop solar?
+A: Savings depend on system size, bill amount, daytime usage, and roof conditions. A quick savings audit can provide an estimate.
 
-Q: Do I need a WhatsApp Business API account?
-A: Yes. We help you set it up. If you already have one (through Meta directly or a BSP), that works too.
+Q: Do you offer free site survey?
+A: Yes, for qualified leads in serviceable areas.
 
-Q: Can I use my own phone number?
-A: Yes. You connect your WhatsApp Business phone number. Customers message your number as usual.
+Q: Can you help with subsidy?
+A: Yes. SunMitra guides eligible residential customers through current subsidy-related steps.
 
-Q: How does pricing compare to WATI/Interakt?
-A: We're typically 30-50% cheaper because we charge zero markup on WhatsApp messages. You pay Meta directly for messaging costs.
+Q: Do you install for businesses?
+A: Yes. Commercial and industrial installations are supported, but final sizing and quote are handled by a human advisor.
 
-Q: What languages does the AI support?
-A: Hindi, English, Hinglish, and most major Indian languages. The AI auto-detects and responds in the customer's language.
+Q: How long does installation take?
+A: Most residential projects are installed within a few days after approval, but approvals and net metering timelines vary.
 
-Q: How secure is my data?
-A: All customer data is encrypted at rest with per-contact encryption keys. Even if someone accesses the database, individual customer data is unreadable without the master key.
+Q: Can I finance the project on EMI?
+A: Financing may be available through lending partners depending on eligibility.
 
-## Contact & Support
+## Campaigns
 
-- WhatsApp: +91 98765 43210
-- Email: support@nazar.app
-- Website: https://nazar.app
-- Office hours: Mon-Sat, 9 AM - 7 PM IST
+### Campaign: Free Solar Savings Audit
+Offer:
+- Free consultation
+- Estimated monthly savings
+- Free site survey for qualified leads
+
+Reply handling:
+- Basic FAQ can be handled by bot
+- Quote, discount, subsidy-edge-cases, and commercial leads should go to human sales
+
+## Contact
+
+- WhatsApp: +91 90000 11122
+- Email: support@sunmitrasolar.example
+- Working hours: Mon-Sat, 9 AM to 7 PM IST
