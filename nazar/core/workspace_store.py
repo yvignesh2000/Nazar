@@ -17,16 +17,18 @@ from db import (
     Workspace,
     WorkspaceConfigEntry,
     WorkspaceMembership,
+    WorkspaceOnboardingState,
     default_workspace_slug,
     init_db,
     session_scope,
 )
+from auth_store import normalize_role, role_label
 
 logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
 LEGACY_CONFIG_PATH = Path(__file__).parent.parent / "data" / "config.json"
-VALID_ROLES = {"owner", "admin", "agent"}
+VALID_ROLES = {"owner", "sales_lead", "sales_rep"}
 
 DEFAULT_WORKSPACE_CONFIG = {
     "business_name": "SunMitra Solar Demo",
@@ -57,8 +59,8 @@ def _workspace(session) -> Workspace:
 
 
 def _normalize_role(role: Optional[str]) -> str:
-    normalized = (role or "agent").strip().lower().replace(" ", "_")
-    return normalized if normalized in VALID_ROLES else "agent"
+    normalized = normalize_role(role, "sales_rep")
+    return normalized if normalized in VALID_ROLES else "sales_rep"
 
 
 def _serialize_membership(membership: WorkspaceMembership) -> dict:
@@ -68,7 +70,8 @@ def _serialize_membership(membership: WorkspaceMembership) -> dict:
         "membership_id": membership.id,
         "name": user.name,
         "email": user.email,
-        "role": membership.role,
+        "role": _normalize_role(membership.role),
+        "role_label": role_label(membership.role),
         "status": membership.status,
         "created_at": user.created_at.isoformat() if user.created_at else _now_iso(),
     }
@@ -194,6 +197,65 @@ def list_team_members() -> list:
         workspace = _workspace(session)
         memberships = _memberships(session, workspace.id)
         return [_serialize_membership(membership) for membership in memberships]
+
+
+def get_onboarding_state() -> dict:
+    initialize_workspace_store()
+    with session_scope() as session:
+        workspace = _workspace(session)
+        onboarding = session.execute(
+            select(WorkspaceOnboardingState).where(WorkspaceOnboardingState.workspace_id == workspace.id)
+        ).scalar_one_or_none()
+        if onboarding is None:
+            onboarding = WorkspaceOnboardingState(workspace_id=workspace.id)
+            session.add(onboarding)
+            session.flush()
+        return {
+            "workspace_bootstrapped": onboarding.workspace_bootstrapped,
+            "channel_connected": onboarding.channel_connected,
+            "knowledge_ready": onboarding.knowledge_ready,
+            "team_invited_or_skipped": onboarding.team_invited_or_skipped,
+            "first_campaign_ready": onboarding.first_campaign_ready,
+            "team_setup_skipped": onboarding.team_setup_skipped,
+            "current_step": onboarding.current_step,
+            "completed_at": onboarding.completed_at.isoformat() if onboarding.completed_at else None,
+        }
+
+
+def update_onboarding_state(updates: dict) -> dict:
+    initialize_workspace_store()
+    allowed = {
+        "workspace_bootstrapped",
+        "channel_connected",
+        "knowledge_ready",
+        "team_invited_or_skipped",
+        "first_campaign_ready",
+        "team_setup_skipped",
+        "current_step",
+    }
+    with session_scope() as session:
+        workspace = _workspace(session)
+        onboarding = session.execute(
+            select(WorkspaceOnboardingState).where(WorkspaceOnboardingState.workspace_id == workspace.id)
+        ).scalar_one_or_none()
+        if onboarding is None:
+            onboarding = WorkspaceOnboardingState(workspace_id=workspace.id)
+            session.add(onboarding)
+            session.flush()
+        for key, value in updates.items():
+            if key in allowed:
+                setattr(onboarding, key, value)
+        onboarding.updated_at = datetime.now(IST)
+        if (
+            onboarding.workspace_bootstrapped
+            and onboarding.channel_connected
+            and onboarding.knowledge_ready
+            and onboarding.team_invited_or_skipped
+            and onboarding.first_campaign_ready
+        ):
+            onboarding.completed_at = datetime.now(IST)
+            onboarding.current_step = "completed"
+    return get_onboarding_state()
 
 
 def get_membership_by_user_id(user_id: str, workspace_slug: Optional[str] = None) -> Optional[dict]:

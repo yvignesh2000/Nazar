@@ -108,6 +108,8 @@ class Workspace(Base):
     background_jobs = relationship("BackgroundJob", back_populates="workspace", cascade="all, delete-orphan")
     reply_policies = relationship("ReplyPolicy", back_populates="workspace", cascade="all, delete-orphan")
     routing_rules = relationship("RoutingRule", back_populates="workspace", cascade="all, delete-orphan")
+    invites = relationship("WorkspaceInvite", back_populates="workspace", cascade="all, delete-orphan")
+    onboarding_state = relationship("WorkspaceOnboardingState", back_populates="workspace", uselist=False, cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -122,6 +124,7 @@ class User(Base):
     memberships = relationship("WorkspaceMembership", back_populates="user", cascade="all, delete-orphan")
     assigned_conversations = relationship("Conversation", back_populates="assigned_user")
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    magic_links = relationship("AuthMagicLink", back_populates="user", cascade="all, delete-orphan")
 
 
 class WorkspaceMembership(Base):
@@ -151,6 +154,61 @@ class UserSession(Base):
     revoked_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="sessions")
+
+
+class WorkspaceInvite(Base):
+    __tablename__ = "workspace_invites"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=True)
+    role = Column(String(32), nullable=False, default="sales_rep", index=True)
+    status = Column(String(32), nullable=False, default="pending", index=True)
+    invite_token = Column(String(255), unique=True, nullable=False, index=True)
+    invited_by_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    accepted_user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    workspace = relationship("Workspace", back_populates="invites")
+
+
+class AuthMagicLink(Base):
+    __tablename__ = "auth_magic_links"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="pending", index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    invite_id = Column(String(36), ForeignKey("workspace_invites.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    user = relationship("User", back_populates="magic_links")
+
+
+class WorkspaceOnboardingState(Base):
+    __tablename__ = "workspace_onboarding_state"
+
+    workspace_id = Column(String(36), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True)
+    workspace_bootstrapped = Column(Boolean, nullable=False, default=False)
+    channel_connected = Column(Boolean, nullable=False, default=False)
+    knowledge_ready = Column(Boolean, nullable=False, default=False)
+    team_invited_or_skipped = Column(Boolean, nullable=False, default=False)
+    first_campaign_ready = Column(Boolean, nullable=False, default=False)
+    team_setup_skipped = Column(Boolean, nullable=False, default=False)
+    current_step = Column(String(64), nullable=False, default="workspace_basics")
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    workspace = relationship("Workspace", back_populates="onboarding_state")
 
 
 class WorkspaceConfigEntry(Base):
@@ -432,6 +490,24 @@ def init_db() -> None:
                     user_id=owner_user.id,
                     role="owner",
                     status="active",
+                )
+            )
+        elif membership.role in {"admin", "agent"}:
+            membership.role = "owner"
+
+        memberships = session.query(WorkspaceMembership).all()
+        for item in memberships:
+            if item.role == "admin":
+                item.role = "sales_lead"
+            elif item.role == "agent":
+                item.role = "sales_rep"
+
+        onboarding = session.query(WorkspaceOnboardingState).filter_by(workspace_id=workspace.id).one_or_none()
+        if onboarding is None:
+            session.add(
+                WorkspaceOnboardingState(
+                    workspace_id=workspace.id,
+                    workspace_bootstrapped=bool(workspace.name and owner_user.email),
                 )
             )
 

@@ -986,17 +986,43 @@ body {
    SCREEN 4 — CAMPAIGNS
    ================================================================ */
 .broadcasts-layout { flex:1; overflow-y:auto; padding:24px; }
-.campaigns-page { max-width:1180px; margin:0 auto; }
-.campaigns-grid {
-  display:grid;
-  grid-template-columns:repeat(2, minmax(0,1fr));
+.campaigns-page { width:100%; max-width:none; margin:0; }
+.campaigns-header {
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
   gap:16px;
+  margin-bottom:18px;
+}
+.campaigns-header-copy { max-width:760px; }
+.campaigns-header-copy .eyebrow {
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  color:var(--text3);
+  margin-bottom:8px;
+}
+.campaigns-header-copy .title {
+  font-size:28px;
+  font-weight:800;
+  letter-spacing:-.7px;
+}
+.campaigns-header-copy .sub {
+  font-size:13px;
+  color:var(--text2);
+  margin-top:8px;
+  line-height:1.55;
+}
+.campaigns-grid {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
 }
 .campaign-summary-card {
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:18px;
-  padding:18px;
+  border-radius:16px;
+  padding:16px 18px;
   cursor:pointer;
   transition:border-color .15s, transform .15s, background .15s;
 }
@@ -1008,31 +1034,41 @@ body {
   gap:12px;
   margin-bottom:14px;
 }
-.campaign-summary-title { font-size:15px; font-weight:700; }
+.campaign-summary-title { font-size:16px; font-weight:700; }
 .campaign-summary-sub { font-size:12px; color:var(--text2); margin-top:4px; line-height:1.45; }
+.campaign-summary-meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
 .campaign-summary-metrics {
   display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:10px;
-  margin-top:14px;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
 }
 .campaign-summary-metric {
-  padding:10px;
-  border-radius:12px;
+  padding:10px 12px;
+  border-radius:10px;
   border:1px solid var(--border);
   background:var(--surface2);
 }
 .campaign-summary-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; }
 .campaign-summary-value { font-size:16px; font-weight:700; }
-.campaign-summary-footer { margin-top:14px; font-size:11px; color:var(--text3); }
+.campaign-summary-footer {
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  font-size:11px;
+  color:var(--text3);
+}
+.campaign-summary-outcome { font-size:12px; color:var(--text2); line-height:1.45; }
 .bc-stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-.bc-stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
-.bc-stat-val { font-size:24px; font-weight:800; letter-spacing:-1px; margin-bottom:4px; }
+.bc-stat { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+.bc-stat-val { font-size:22px; font-weight:800; letter-spacing:-1px; margin-bottom:4px; }
 .bc-stat-label { font-size:11px; color:var(--text2); }
 
 .bc-list { display:flex; flex-direction:column; gap:10px; }
 .campaign-history-wrap {
-  margin-top:24px;
+  margin-top:20px;
   background:var(--surface);
   border:1px solid var(--border);
   border-radius:16px;
@@ -1047,6 +1083,40 @@ body {
 }
 .campaign-history-head .title { font-size:16px; font-weight:700; }
 .campaign-history-head .sub { font-size:12px; color:var(--text2); margin-top:4px; }
+.campaign-detail-overlay {
+  justify-content:flex-end;
+  padding:0;
+  background:rgba(3,4,8,.58);
+}
+.campaign-detail-panel {
+  width:min(520px, 100vw);
+  height:100vh;
+  max-height:100vh;
+  border-radius:0;
+  border-left:1px solid var(--border);
+  padding:20px;
+  overflow-y:auto;
+}
+.campaign-detail-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:16px;
+}
+.campaign-detail-stack {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.campaign-detail-section {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
+}
+.campaign-detail-section .analytics-card-title {
+  margin-bottom:10px;
+}
 .bc-item {
   background:var(--surface);
   border:1px solid var(--border);
@@ -1621,7 +1691,6 @@ body {
   .stats-grid { grid-template-columns:repeat(2,1fr); }
   .bc-stats-row { grid-template-columns:repeat(2,1fr); }
   .campaign-builder { max-width:none; }
-  .campaigns-grid { grid-template-columns:1fr; }
   .dashboard-top, .dashboard-operating { grid-template-columns:1fr 1fr; }
 }
 @media (max-width:900px) {
@@ -1633,6 +1702,8 @@ body {
   .overview-grid { grid-template-columns:1fr; }
   .campaign-row, .campaign-actions { grid-template-columns:1fr; }
   .campaign-summary-metrics { grid-template-columns:1fr; }
+  .campaign-summary-footer { flex-direction:column; align-items:flex-start; }
+  .campaign-detail-grid { grid-template-columns:1fr; }
   .dashboard-top, .dashboard-stats, .dashboard-operating { grid-template-columns:1fr; }
 }
 @media (max-width:600px) {
@@ -1932,12 +2003,12 @@ body {
   <div class="screen" id="screen-broadcasts">
     <div class="broadcasts-layout">
       <div class="campaigns-page">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Campaigns</div>
-            <div class="section-sub">See what has already been launched, how it performed, and start a new campaign only when you actually need one.</div>
+        <div class="campaigns-header">
+          <div class="campaigns-header-copy">
+            <div class="eyebrow">Outbound</div>
+            <div class="title">Campaigns</div>
+            <div class="sub">Track what has already gone out, which audiences responded, and which campaigns actually moved deals forward.</div>
           </div>
-          <button class="btn btn-primary" onclick="openCampaignModal()">+ New Campaign</button>
         </div>
 
         <div class="bc-stats-row">
@@ -2085,8 +2156,8 @@ body {
     </div>
   </div>
 
-  <div class="modal-overlay" id="campaign-detail-modal" onclick="if(event.target===this)closeCampaignDetailModal()">
-    <div class="modal-panel" style="max-width:720px;">
+  <div class="modal-overlay campaign-detail-overlay" id="campaign-detail-modal" onclick="if(event.target===this)closeCampaignDetailModal()">
+    <div class="modal-panel campaign-detail-panel">
       <div class="modal-head">
         <div>
           <div class="modal-title" id="campaign-detail-title">Campaign Detail</div>
@@ -2094,18 +2165,18 @@ body {
         </div>
         <button class="btn btn-ghost" onclick="closeCampaignDetailModal()">Close</button>
       </div>
-      <div class="bc-stats-row" style="margin-bottom:16px;">
+      <div class="campaign-detail-grid">
         <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-audience">0</div><div class="bc-stat-label">Audience</div></div>
         <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-sent">0</div><div class="bc-stat-label">Sent</div></div>
         <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-replies">0</div><div class="bc-stat-label">Replies</div></div>
         <div class="bc-stat"><div class="bc-stat-val" id="campaign-detail-won">0</div><div class="bc-stat-label">Won</div></div>
       </div>
-      <div class="analytics-grid" style="grid-template-columns:1fr 1fr;">
-        <div class="analytics-card">
+      <div class="campaign-detail-stack">
+        <div class="campaign-detail-section">
           <div class="analytics-card-title">Campaign Context</div>
           <div id="campaign-detail-context"></div>
         </div>
-        <div class="analytics-card">
+        <div class="campaign-detail-section">
           <div class="analytics-card-title">Funnel Movement</div>
           <div id="campaign-detail-funnel"></div>
         </div>
@@ -2357,7 +2428,7 @@ body {
        ============================================================ -->
   <div class="screen" id="screen-settings">
     <div class="settings-layout">
-      <div class="settings-section">
+      <div class="settings-section" id="settings-wa-section">
         <div class="settings-title">WhatsApp Connection</div>
         <div class="settings-sub">This is the live connection layer for Nazar. Sending as a rep, bot replies, and inbound webhook handling all depend on this being configured correctly.</div>
         <div class="connection-status" id="wa-connection">
@@ -2405,6 +2476,34 @@ body {
       </div>
 
       <div class="settings-section">
+        <div class="settings-title">Team</div>
+        <div class="settings-sub">Invite reps, adjust roles, and keep workspace access clean.</div>
+        <div class="form-group">
+          <div class="form-label">Invite teammate</div>
+          <div class="campaign-row">
+            <input class="form-input" type="text" placeholder="Name" id="invite-name">
+            <input class="form-input" type="email" placeholder="Email" id="invite-email">
+          </div>
+          <div class="campaign-row" style="margin-top:10px;">
+            <select class="form-input" id="invite-role">
+              <option value="sales_rep">Sales Rep</option>
+              <option value="sales_lead">Sales Lead</option>
+            </select>
+            <button class="btn btn-primary" onclick="inviteTeamMember()">Send Invite</button>
+          </div>
+          <div class="mini-meta" id="invite-dev-link"></div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Team members</div>
+          <div id="settings-team-members" class="list-stack"></div>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Pending invites</div>
+          <div id="settings-team-invites" class="list-stack"></div>
+        </div>
+      </div>
+
+      <div class="settings-section" id="settings-api-key-section">
         <div class="settings-title">API Key</div>
         <div class="settings-sub">Use this key to authenticate dashboard API requests.</div>
         <div class="form-group">
@@ -2412,6 +2511,71 @@ body {
           <input class="form-input" type="text" value="" id="settings-api-key" readonly style="font-family:monospace;font-size:12px;">
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="onboarding-overlay" id="auth-overlay">
+  <div class="onboarding-box">
+    <div class="ob-title" id="auth-title">Sign in to Nazar</div>
+    <div class="ob-sub" id="auth-sub">Use your work email to receive a magic link.</div>
+    <div id="auth-login-step">
+      <div class="form-group">
+        <div class="form-label">Work email</div>
+        <input class="form-input" type="email" id="auth-email" placeholder="you@company.com">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="requestMagicLink()">Send magic link</button>
+      </div>
+      <div class="mini-meta" id="auth-dev-link" style="margin-top:10px;"></div>
+    </div>
+    <div id="auth-bootstrap-step" style="display:none;">
+      <div class="form-group">
+        <div class="form-label">Business name</div>
+        <input class="form-input" type="text" id="bootstrap-business-name" placeholder="Your company">
+      </div>
+      <div class="campaign-row">
+        <div>
+          <div class="form-label">Business type</div>
+          <input class="form-input" type="text" id="bootstrap-business-type" placeholder="Solar, D2C, Real estate">
+        </div>
+        <div>
+          <div class="form-label">Timezone</div>
+          <input class="form-input" type="text" id="bootstrap-timezone" placeholder="Asia/Kolkata">
+        </div>
+      </div>
+      <div class="campaign-row" style="margin-top:10px;">
+        <div>
+          <div class="form-label">Owner name</div>
+          <input class="form-input" type="text" id="bootstrap-owner-name" placeholder="Your name">
+        </div>
+        <div>
+          <div class="form-label">Owner email</div>
+          <input class="form-input" type="email" id="bootstrap-owner-email" placeholder="you@company.com">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">
+        <button class="btn btn-primary" onclick="bootstrapWorkspace()">Create workspace</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="onboarding-overlay" id="onboarding-overlay">
+  <div class="onboarding-box">
+    <div class="ob-progress">
+      <div class="ob-step" id="ob-step-1"></div>
+      <div class="ob-step" id="ob-step-2"></div>
+      <div class="ob-step" id="ob-step-3"></div>
+      <div class="ob-step" id="ob-step-4"></div>
+      <div class="ob-step" id="ob-step-5"></div>
+    </div>
+    <div class="ob-title" id="onboarding-title">Finish setting up Nazar</div>
+    <div class="ob-sub" id="onboarding-sub"></div>
+    <div id="onboarding-body"></div>
+    <div class="ob-actions">
+      <button class="btn btn-ghost" id="onboarding-skip" onclick="skipOnboardingStep()">Skip for now</button>
+      <button class="btn btn-primary" id="onboarding-next" onclick="advanceOnboarding()">Continue</button>
     </div>
   </div>
 </div>
@@ -2515,6 +2679,7 @@ let teamMembers = [];
 let selectedConversationData = null;
 let contactNotes = [];
 let currentConversationFilter = 'all';
+let currentConversationSourceRef = '';
 let currentInsightAction = { screen: 'contacts' };
 let replyPolicies = [];
 let routingRules = [];
@@ -2528,6 +2693,9 @@ let campaignHistoryItems = [];
 let contactGroups = [];
 let campaignContentMode = 'template';
 let notificationItems = [];
+let teamInvites = [];
+let onboardingState = null;
+let authBootstrapState = null;
 let liveSocket = null;
 let liveSocketReconnectHandle = null;
 let liveSocketPingHandle = null;
@@ -2573,7 +2741,7 @@ function liveSocketUrl() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const params = new URLSearchParams();
   if (authToken) params.set('token', authToken);
-  else params.set('api_key', API_KEY);
+  else if (localStorage.getItem('nazar_use_dev_bootstrap') === '1') params.set('api_key', API_KEY);
   return `${protocol}//${window.location.host}/ws/live?${params.toString()}`;
 }
 
@@ -2699,13 +2867,60 @@ function setAuthContext(data) {
 
 function updateCurrentUserUI() {
   const userName = currentUser?.name || 'Admin';
-  const role = currentUser?.role || 'owner';
+  const role = currentUser?.role_label || capitalize((currentUser?.role || 'owner').replaceAll('_',' '));
   const initialsText = initials(userName || 'A');
   const workspaceName = currentWorkspace?.name || 'Nazar';
   document.getElementById('sidebar-user-av').textContent = initialsText;
   document.getElementById('sidebar-user-name').textContent = userName;
-  document.getElementById('sidebar-user-role').textContent = `${capitalize(role)} · ${workspaceName}`;
+  document.getElementById('sidebar-user-role').textContent = `${role} · ${workspaceName}`;
   document.getElementById('page-sub').textContent = currentWorkspace ? `${workspaceName} workspace` : '';
+  applyRoleVisibility();
+}
+
+function currentRole() {
+  return currentUser?.role || 'sales_rep';
+}
+
+function isOwner() {
+  return currentRole() === 'owner';
+}
+
+function isSalesLeadOrOwner() {
+  return ['owner', 'sales_lead'].includes(currentRole());
+}
+
+function applyRoleVisibility() {
+  const botNav = document.querySelector('.nav-item[data-screen="botconfig"]');
+  const settingsNav = document.querySelector('.nav-item[data-screen="settings"]');
+  if (botNav) botNav.style.display = isOwner() ? '' : 'none';
+  if (settingsNav) settingsNav.style.display = isSalesLeadOrOwner() ? '' : 'none';
+  const waSection = document.getElementById('settings-wa-section');
+  const apiKeySection = document.getElementById('settings-api-key-section');
+  if (waSection) waSection.style.display = isOwner() ? '' : 'none';
+  if (apiKeySection) apiKeySection.style.display = isOwner() ? '' : 'none';
+}
+
+async function loadBootstrapState() {
+  try {
+    authBootstrapState = await fetch(API_BASE + '/api/public/bootstrap-state').then(r => r.json());
+  } catch (e) {
+    authBootstrapState = { workspace_bootstrapped: true, owner_ready: true };
+  }
+}
+
+function showAuthOverlay(mode = 'login') {
+  document.getElementById('auth-overlay').classList.add('open');
+  document.getElementById('auth-login-step').style.display = mode === 'login' ? '' : 'none';
+  document.getElementById('auth-bootstrap-step').style.display = mode === 'bootstrap' ? '' : 'none';
+  document.getElementById('auth-title').textContent = mode === 'bootstrap' ? 'Create your Nazar workspace' : 'Sign in to Nazar';
+  document.getElementById('auth-sub').textContent = mode === 'bootstrap'
+    ? 'Set up the owner workspace first. Team invites come after the workspace is ready.'
+    : 'Use your work email to receive a magic link.';
+  document.getElementById('auth-dev-link').textContent = '';
+}
+
+function hideAuthOverlay() {
+  document.getElementById('auth-overlay').classList.remove('open');
 }
 
 // ================================================================
@@ -2714,11 +2929,62 @@ function updateCurrentUserUI() {
 function getHeaders() {
   const headers = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  else headers['X-Nazar-Key'] = API_KEY;
+  else if (localStorage.getItem('nazar_use_dev_bootstrap') === '1') headers['X-Nazar-Key'] = API_KEY;
   return headers;
 }
 
 async function ensureSession() {
+  await loadBootstrapState();
+
+  const params = new URLSearchParams(window.location.search);
+  const magicToken = params.get('magic_link');
+  const inviteToken = params.get('invite_token');
+
+  if (magicToken) {
+    try {
+      const data = await fetch(API_BASE + '/api/auth/verify-magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ token: magicToken }),
+      }).then(async resp => {
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Magic link failed');
+        return resp.json();
+      });
+      authToken = data.token || '';
+      setAuthContext(data);
+      localStorage.setItem('nazar_auth_token', authToken);
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    } catch (e) {
+      showToast('❌', e.message || 'Magic link failed');
+      showAuthOverlay('login');
+      return;
+    }
+  }
+
+  if (inviteToken) {
+    try {
+      const data = await fetch(API_BASE + `/api/team/invites/${encodeURIComponent(inviteToken)}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({}),
+      }).then(async resp => {
+        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Invite acceptance failed');
+        return resp.json();
+      });
+      if (data.dev_magic_link) {
+        document.getElementById('auth-dev-link').innerHTML = `Dev link: <a href="${data.dev_magic_link}">${data.dev_magic_link}</a>`;
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+      showAuthOverlay('login');
+      return;
+    } catch (e) {
+      showToast('❌', e.message || 'Invite acceptance failed');
+      showAuthOverlay('login');
+      return;
+    }
+  }
+
   if (authToken) {
     try {
       const resp = await fetch(API_BASE + '/api/auth/me', { headers: getHeaders() });
@@ -2730,21 +2996,72 @@ async function ensureSession() {
     } catch(e) {}
   }
 
+  if (localStorage.getItem('nazar_use_dev_bootstrap') === '1') {
+    try {
+      const resp = await fetch(API_BASE + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ api_key: API_KEY }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        authToken = data.token || '';
+        setAuthContext(data);
+        localStorage.setItem('nazar_auth_token', authToken);
+        localStorage.setItem('nazar_api_key', API_KEY);
+        return;
+      }
+    } catch(e) {
+      console.error('Dev session bootstrap failed:', e);
+    }
+  }
+
+  showAuthOverlay(authBootstrapState?.workspace_bootstrapped ? 'login' : 'bootstrap');
+}
+
+async function requestMagicLink() {
   try {
-    const resp = await fetch(API_BASE + '/api/auth/login', {
+    const email = document.getElementById('auth-email').value.trim();
+    const data = await fetch(API_BASE + '/api/auth/request-magic-link', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ api_key: API_KEY }),
+      body: JSON.stringify({ email }),
+    }).then(async resp => {
+      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Unable to send magic link');
+      return resp.json();
     });
-    if (resp.ok) {
-      const data = await resp.json();
-      authToken = data.token || '';
-      setAuthContext(data);
-      localStorage.setItem('nazar_auth_token', authToken);
-      localStorage.setItem('nazar_api_key', API_KEY);
-    }
-  } catch(e) {
-    console.error('Session bootstrap failed:', e);
+    document.getElementById('auth-dev-link').innerHTML = data.dev_magic_link
+      ? `Dev link: <a href="${data.dev_magic_link}">${data.dev_magic_link}</a>`
+      : 'Magic link sent. Check your email.';
+  } catch (e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function bootstrapWorkspace() {
+  try {
+    const payload = {
+      business_name: document.getElementById('bootstrap-business-name').value.trim(),
+      business_type: document.getElementById('bootstrap-business-type').value.trim(),
+      timezone: document.getElementById('bootstrap-timezone').value.trim() || 'Asia/Kolkata',
+      owner_name: document.getElementById('bootstrap-owner-name').value.trim(),
+      owner_email: document.getElementById('bootstrap-owner-email').value.trim(),
+    };
+    const data = await fetch(API_BASE + '/api/workspace/bootstrap', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(payload),
+    }).then(async resp => {
+      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Workspace bootstrap failed');
+      return resp.json();
+    });
+    authToken = data.token || '';
+    setAuthContext(data);
+    localStorage.setItem('nazar_auth_token', authToken);
+    hideAuthOverlay();
+    await initializeApp();
+  } catch (e) {
+    showToast('❌', e.message);
   }
 }
 
@@ -3033,6 +3350,13 @@ function generateInsight(data) {
 
 function openConversationFilter(type) {
   currentConversationFilter = type;
+  currentConversationSourceRef = '';
+  navigateTo('conversations');
+}
+
+function openCampaignReplies(campaignKey) {
+  currentConversationFilter = 'campaigns';
+  currentConversationSourceRef = campaignKey || '';
   navigateTo('conversations');
 }
 
@@ -3065,6 +3389,7 @@ async function loadConversations() {
     if (currentConversationFilter === 'human_required') params.set('human_required', 'true');
     if (currentConversationFilter === 'assigned_to_me') params.set('assigned_to_me', 'true');
     if (currentConversationFilter === 'campaigns') params.set('source_type', 'campaign');
+    if (currentConversationSourceRef) params.set('source_ref', currentConversationSourceRef);
     if (currentConversationFilter === 'sales_queue') params.set('queue', 'sales');
     if (currentConversationFilter === 'support_queue') params.set('queue', 'support');
     if (currentConversationFilter === 'ai_assist') params.set('ai_assist', 'true');
@@ -3250,25 +3575,23 @@ function renderInsightsSummary() {
 function renderInsightCards() {
   const el = document.getElementById('insights-grid');
   if (!el) return;
-  const cards = [...contactsData]
-    .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))
-    .slice(0, 6);
+  const cards = [...(insightsData.lead_cards || [])].slice(0, 8);
   if (!cards.length) {
     el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🧠</div><div class="empty-title">No insights yet</div><div class="empty-sub">Run campaigns and conversations first. Insights get sharper as Nazar sees more behavior.</div></div>`;
     return;
   }
-  el.innerHTML = cards.map(contact => {
-    const score = contact.lead_score || 0;
-    const risk = score >= 70 ? 'Low' : score >= 35 ? 'Moderate' : 'High';
-    const recommendation = recommendedAction(contact);
+  el.innerHTML = cards.map(card => {
+    const score = card.lead_score || 0;
+    const risk = card.risk_level || 'Moderate';
+    const riskTone = risk === 'High' ? 'low' : risk === 'Moderate' ? 'medium' : 'high';
     return `
-      <div class="insight-card">
+      <div class="insight-card" onclick="navigateTo('conversations');setTimeout(()=>selectConversationByContact('${card.contact_id}'),120)" style="cursor:pointer;">
         <div class="insight-card-top">
           <div>
-            <div class="insight-card-title">${esc(contact.name || contact.phone || 'Unknown')}</div>
-            <div class="insight-card-sub">${esc(contact.pipeline_stage || 'New')} · ${esc(contact.company || 'No company')}</div>
+            <div class="insight-card-title">${esc(card.name || 'Unknown')}</div>
+            <div class="insight-card-sub">${esc(card.stage || 'New')} · ${esc(card.company || 'No company')}</div>
           </div>
-          <span class="pill ${scoreTone(score)}">${score >= 70 ? 'high' : score >= 35 ? 'medium' : 'low'}</span>
+          <span class="pill ${scoreTone(score)}">${card.conversion_likelihood || score}% likely</span>
         </div>
         <div class="insight-metrics">
           <div class="insight-metric">
@@ -3276,39 +3599,20 @@ function renderInsightCards() {
             <div class="insight-metric-value">${score}%</div>
           </div>
           <div class="insight-metric">
-            <div class="insight-metric-label">Activity</div>
-            <div class="insight-metric-value">${esc(contact.last_replied_at ? timeAgo(contact.last_replied_at) : 'Quiet')}</div>
+            <div class="insight-metric-label">Intent</div>
+            <div class="insight-metric-value">${esc(card.intent_label || 'Unknown')}</div>
           </div>
           <div class="insight-metric">
             <div class="insight-metric-label">Risk</div>
-            <div class="insight-metric-value">${risk}</div>
+            <div class="insight-metric-value ${scoreTone(risk === 'High' ? 20 : risk === 'Moderate' ? 50 : 80)}">${risk}</div>
           </div>
         </div>
-        <div class="insight-note">${esc(insightSummary(contact))}</div>
-        <div class="insight-action">→ ${esc(recommendation)}</div>
+        <div class="insight-note"><strong>Objection summary:</strong> ${esc(card.objection_summary || 'No major objection visible yet.')}</div>
+        <div class="insight-note" style="margin-top:8px;"><strong>Risk:</strong> ${esc(card.risk_reason || 'No specific risk reason available.')}</div>
+        <div class="insight-action">→ ${esc(card.next_best_action || 'Keep the conversation moving toward the next stage.')}</div>
       </div>
     `;
   }).join('');
-}
-
-function insightSummary(contact) {
-  const stage = contact.pipeline_stage || 'New';
-  if (stage === 'Negotiation') return `${contact.name || 'This contact'} is in active commercial discussion. Keep the deal moving by reducing uncertainty and answering objections quickly.`;
-  if (stage === 'Proposal') return `${contact.name || 'This contact'} has seen enough value to stay in the funnel. The next job is pushing decision momentum, not repeating discovery.`;
-  if (stage === 'Qualified') return `${contact.name || 'This contact'} has engaged with enough signals to deserve focused follow-up. The goal now is to create urgency and move toward a concrete next step.`;
-  if (stage === 'Won') return `${contact.name || 'This contact'} is already converted. Use this moment for onboarding, expansion, or referral opportunities.`;
-  if (stage === 'Lost') return `${contact.name || 'This contact'} has dropped out. Re-entry needs a different value proposition, not the same follow-up message again.`;
-  return `${contact.name || 'This contact'} is still early in the funnel. Qualification and relevance matter more than pushing for a close immediately.`;
-}
-
-function recommendedAction(contact) {
-  const score = contact.lead_score || 0;
-  const stage = contact.pipeline_stage || 'New';
-  if (stage === 'Negotiation') return 'Send a concrete close plan and route replies to a human seller.';
-  if (stage === 'Proposal') return 'Follow up with a proposal-specific campaign or AI-assisted objection handling.';
-  if (stage === 'Qualified' && score >= 40) return 'Book a call or move the lead into a tighter closing motion.';
-  if (stage === 'Lost') return 'Move to a win-back campaign with a different angle.';
-  return 'Keep qualifying with relevant context and identify the next best action.';
 }
 
 // ================================================================
@@ -4314,6 +4618,7 @@ function filterByType(el, type) {
   document.querySelectorAll('.conv-filter').forEach(f => f.classList.remove('active'));
   el.classList.add('active');
   currentConversationFilter = type;
+  currentConversationSourceRef = '';
   selectedConvId = null;
   document.getElementById('conv-detail').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:14px;">Select a conversation to view</div>';
   document.getElementById('conv-right').style.display = 'none';
@@ -4473,6 +4778,8 @@ async function saveConfig() {
       welcome_message: document.getElementById('config-welcome').value,
       bot_enabled: document.getElementById('toggle-autoreply').classList.contains('on'),
     });
+    onboardingState = (await api('PATCH', '/api/onboarding', { knowledge_ready: true, current_step: 'team_setup' })).state;
+    maybeShowOnboarding();
     showToast('✅', 'Configuration saved');
   } catch(e) {
     showToast('❌', 'Failed to save: ' + e.message);
@@ -4483,6 +4790,8 @@ async function saveKnowledgeBase() {
   try {
     const content = document.getElementById('kb-content').value;
     await api('POST', '/api/kb/upload', { content });
+    onboardingState = (await api('PATCH', '/api/onboarding', { knowledge_ready: true, current_step: 'team_setup' })).state;
+    maybeShowOnboarding();
     showToast('✅', `Knowledge base saved (${content.length} chars)`);
   } catch(e) {
     showToast('❌', 'Failed to save: ' + e.message);
@@ -4500,12 +4809,20 @@ function selectTone(el) {
 async function loadSettings() {
   try {
     await loadTeamMembers();
-    await loadReplyPolicies();
-    await loadRoutingRules();
-    const [config, status] = await Promise.all([
-      api('GET', '/api/config'),
-      api('GET', '/api/whatsapp/status'),
-    ]);
+    if (isSalesLeadOrOwner()) {
+      await loadTeamInvites();
+      renderTeamManagement();
+    }
+    let config = {};
+    let status = {};
+    if (isOwner()) {
+      await loadReplyPolicies();
+      await loadRoutingRules();
+      [config, status] = await Promise.all([
+        api('GET', '/api/config'),
+        api('GET', '/api/whatsapp/status'),
+      ]);
+    }
     const connected = !!status.configured;
     document.getElementById('wa-dot').className = `conn-dot ${connected ? 'connected' : 'disconnected'}`;
     document.getElementById('wa-status').textContent = connected ? 'Connected' : 'Needs Setup';
@@ -4522,6 +4839,7 @@ async function loadSettings() {
     document.getElementById('webhook-url').textContent = status.webhook_url || (window.location.origin + '/webhook');
     renderWhatsAppDiagnostics(status);
     document.getElementById('settings-api-key').value = API_KEY;
+    applyRoleVisibility();
   } catch(e) {
     document.getElementById('wa-dot').className = 'conn-dot disconnected';
     document.getElementById('wa-status').textContent = 'Diagnostics Failed';
@@ -4529,6 +4847,237 @@ async function loadSettings() {
     document.getElementById('wa-diag-summary').textContent = 'Could not fetch connection diagnostics.';
     document.getElementById('wa-diagnostics').innerHTML = `<div class="cmd-result-sub">${esc(e.message || 'Unknown error')}</div>`;
   }
+}
+
+async function loadTeamInvites() {
+  if (!isSalesLeadOrOwner()) return;
+  try {
+    const data = await api('GET', '/api/team/invites');
+    teamInvites = data.invites || [];
+  } catch (e) {
+    teamInvites = [];
+  }
+}
+
+function renderTeamManagement() {
+  const membersEl = document.getElementById('settings-team-members');
+  const invitesEl = document.getElementById('settings-team-invites');
+  if (membersEl) {
+    membersEl.innerHTML = (teamMembers || []).map(member => `
+      <div class="cmd-result" style="align-items:flex-start;">
+        <span class="cmd-result-icon">👤</span>
+        <span class="cmd-result-text" style="display:flex;flex-direction:column;gap:4px;">
+          <strong>${esc(member.name)}</strong>
+          <span>${esc(member.email || 'No email')}</span>
+          <span class="cmd-result-sub">${esc(member.role_label || member.role)} · ${esc(member.status || 'active')}</span>
+        </span>
+        ${member.role === 'owner' ? '' : `
+          <div style="display:flex;gap:8px;flex-direction:column;min-width:150px;">
+            <select class="form-input" onchange="changeMemberRole('${escAttr(member.id)}', this.value)">
+              <option value="sales_rep" ${member.role==='sales_rep'?'selected':''}>Sales Rep</option>
+              <option value="sales_lead" ${member.role==='sales_lead'?'selected':''}>Sales Lead</option>
+            </select>
+            <button class="btn btn-sm btn-ghost" onclick="deactivateTeamMember('${escAttr(member.id)}')">Deactivate</button>
+          </div>
+        `}
+      </div>
+    `).join('') || `<div class="cmd-result-sub">No team members yet.</div>`;
+  }
+  if (invitesEl) {
+    invitesEl.innerHTML = (teamInvites || []).map(invite => `
+      <div class="cmd-result" style="align-items:flex-start;">
+        <span class="cmd-result-icon">✉️</span>
+        <span class="cmd-result-text" style="display:flex;flex-direction:column;gap:4px;">
+          <strong>${esc(invite.email)}</strong>
+          <span>${esc(invite.role_label || invite.role)} · ${esc(invite.status)}</span>
+          <span class="cmd-result-sub">Expires ${esc(timeAgo(invite.expires_at))}</span>
+        </span>
+        ${invite.status === 'sent' || invite.status === 'pending' ? `
+          <div style="display:flex;gap:8px;flex-direction:column;">
+            <button class="btn btn-sm btn-ghost" onclick="resendInvite('${escAttr(invite.id)}')">Resend</button>
+            <button class="btn btn-sm btn-ghost" onclick="revokeInvite('${escAttr(invite.id)}')">Revoke</button>
+          </div>
+        ` : ''}
+      </div>
+    `).join('') || `<div class="cmd-result-sub">No pending invites.</div>`;
+  }
+}
+
+async function inviteTeamMember() {
+  try {
+    const payload = {
+      name: document.getElementById('invite-name').value.trim(),
+      email: document.getElementById('invite-email').value.trim(),
+      role: document.getElementById('invite-role').value,
+    };
+    const result = await api('POST', '/api/team/invites', payload);
+    document.getElementById('invite-name').value = '';
+    document.getElementById('invite-email').value = '';
+    document.getElementById('invite-dev-link').innerHTML = result.dev_invite_link ? `Dev invite link: <a href="${result.dev_invite_link}">${result.dev_invite_link}</a>` : '';
+    showToast('✅', 'Invite sent');
+    await loadTeamInvites();
+    renderTeamManagement();
+  } catch (e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function resendInvite(inviteId) {
+  try {
+    const result = await api('POST', `/api/team/invites/${inviteId}/resend`, {});
+    document.getElementById('invite-dev-link').innerHTML = result.dev_invite_link ? `Dev invite link: <a href="${result.dev_invite_link}">${result.dev_invite_link}</a>` : '';
+    showToast('✅', 'Invite resent');
+    await loadTeamInvites();
+    renderTeamManagement();
+  } catch (e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function revokeInvite(inviteId) {
+  try {
+    await api('POST', `/api/team/invites/${inviteId}/revoke`, {});
+    showToast('✅', 'Invite revoked');
+    await loadTeamInvites();
+    renderTeamManagement();
+  } catch (e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function changeMemberRole(userId, role) {
+  try {
+    await api('PATCH', `/api/team/members/${userId}`, { role });
+    showToast('✅', 'Role updated');
+    await loadTeamMembers();
+    renderTeamManagement();
+  } catch (e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function deactivateTeamMember(userId) {
+  try {
+    await api('POST', `/api/team/members/${userId}/deactivate`, {});
+    showToast('✅', 'Team member deactivated');
+    await loadTeamMembers();
+    renderTeamManagement();
+  } catch (e) {
+    showToast('❌', e.message);
+  }
+}
+
+async function loadOnboarding() {
+  if (!authToken || !isSalesLeadOrOwner()) {
+    document.getElementById('onboarding-overlay').classList.remove('open');
+    return;
+  }
+  try {
+    const data = await api('GET', '/api/onboarding');
+    onboardingState = data.state || null;
+    maybeShowOnboarding();
+  } catch (e) {
+    console.error('Load onboarding failed:', e);
+  }
+}
+
+function onboardingStepIndex(state) {
+  const current = state?.current_step || 'workspace_basics';
+  return {
+    workspace_basics: 1,
+    channel_setup: 2,
+    knowledge_setup: 3,
+    team_setup: 4,
+    first_campaign: 5,
+    completed: 5,
+  }[current] || 1;
+}
+
+function maybeShowOnboarding() {
+  if (!onboardingState || onboardingState.completed_at) {
+    document.getElementById('onboarding-overlay').classList.remove('open');
+    return;
+  }
+  const step = onboardingStepIndex(onboardingState);
+  for (let i = 1; i <= 5; i += 1) {
+    const el = document.getElementById(`ob-step-${i}`);
+    if (!el) continue;
+    el.className = 'ob-step' + (i < step ? ' done' : i === step ? ' current' : '');
+  }
+  const overlay = document.getElementById('onboarding-overlay');
+  const title = document.getElementById('onboarding-title');
+  const sub = document.getElementById('onboarding-sub');
+  const body = document.getElementById('onboarding-body');
+  const skipBtn = document.getElementById('onboarding-skip');
+  const nextBtn = document.getElementById('onboarding-next');
+  const stepKey = onboardingState.current_step || 'workspace_basics';
+
+  if (stepKey === 'channel_setup') {
+    title.textContent = 'Connect a channel';
+    sub.textContent = 'Pick the live channel you want to activate first. You can continue without fully finishing it, but Nazar should know your active path.';
+    body.innerHTML = `<div class="cmd-result-sub">Open Settings to connect WhatsApp or confirm Telegram. Nazar will keep this step visible until a channel is marked ready.</div>`;
+    skipBtn.style.display = '';
+    nextBtn.textContent = 'I’ve reviewed this';
+  } else if (stepKey === 'knowledge_setup') {
+    title.textContent = 'Load business knowledge';
+    sub.textContent = 'Make sure the welcome message, handoff message, and business knowledge are ready before your team goes live.';
+    body.innerHTML = `<div class="cmd-result-sub">Open AI Setup and complete your business voice, handoff message, and knowledge base.</div>`;
+    skipBtn.style.display = '';
+    nextBtn.textContent = 'Knowledge looks ready';
+  } else if (stepKey === 'team_setup') {
+    title.textContent = 'Invite your team';
+    sub.textContent = 'Bring in your first Sales Lead or Sales Rep now. You can skip and do this later, but Nazar will keep it visible until you decide.';
+    body.innerHTML = `<div class="cmd-result-sub">Open Settings to invite your first teammate. Use Sales Lead for managers and Sales Rep for day-to-day operators.</div>`;
+    skipBtn.style.display = '';
+    nextBtn.textContent = 'Team step done';
+  } else if (stepKey === 'first_campaign') {
+    title.textContent = 'Prepare the first campaign';
+    sub.textContent = 'Make sure there are contacts in the workspace, then launch the first campaign so Nazar starts producing live commercial signal.';
+    body.innerHTML = `<div class="cmd-result-sub">Go to Campaigns when you’re ready. This step is about getting the workspace to first real use, not just setup.</div>`;
+    skipBtn.style.display = 'none';
+    nextBtn.textContent = 'Mark ready';
+  } else {
+    overlay.classList.remove('open');
+    return;
+  }
+  overlay.classList.add('open');
+}
+
+async function advanceOnboarding() {
+  if (!onboardingState) return;
+  const current = onboardingState.current_step;
+  const updates = {};
+  if (current === 'channel_setup') {
+    updates.channel_connected = true;
+    updates.current_step = 'knowledge_setup';
+  } else if (current === 'knowledge_setup') {
+    updates.knowledge_ready = true;
+    updates.current_step = 'team_setup';
+  } else if (current === 'team_setup') {
+    updates.team_invited_or_skipped = true;
+    updates.current_step = 'first_campaign';
+  } else if (current === 'first_campaign') {
+    updates.first_campaign_ready = true;
+  }
+  onboardingState = (await api('PATCH', '/api/onboarding', updates)).state;
+  maybeShowOnboarding();
+}
+
+async function skipOnboardingStep() {
+  if (!onboardingState) return;
+  const current = onboardingState.current_step;
+  const updates = {};
+  if (current === 'team_setup') {
+    updates.team_invited_or_skipped = true;
+    updates.team_setup_skipped = true;
+    updates.current_step = 'first_campaign';
+  } else if (current === 'channel_setup') {
+    updates.current_step = 'knowledge_setup';
+  } else if (current === 'knowledge_setup') {
+    updates.current_step = 'team_setup';
+  }
+  onboardingState = (await api('PATCH', '/api/onboarding', updates)).state;
+  maybeShowOnboarding();
 }
 
 function copyWebhookUrl() {
@@ -4590,6 +5139,8 @@ async function saveWhatsAppSettings() {
     const token = document.getElementById('settings-token').value.trim();
     if (token) payload.whatsapp_access_token = token;
     await api('PUT', '/api/config', payload);
+    onboardingState = (await api('PATCH', '/api/onboarding', { channel_connected: true, current_step: 'knowledge_setup' })).state;
+    maybeShowOnboarding();
     showToast('✅', 'WhatsApp settings saved');
     await loadSettings();
   } catch (e) {
@@ -4701,6 +5252,8 @@ async function sendBroadcast() {
   try {
     const payload = getCampaignComposerPayload();
     const result = await api('POST', '/api/campaigns', payload);
+    onboardingState = (await api('PATCH', '/api/onboarding', { first_campaign_ready: true })).state;
+    maybeShowOnboarding();
     showToast('📡', result.job ? `Campaign queued (${result.job.id.slice(0, 8)})` : 'Campaign queued');
     if (campaignContentMode === 'custom') document.getElementById('broadcast-message').value = '';
     closeCampaignModal();
@@ -4785,6 +5338,11 @@ function renderBroadcastHistory(broadcasts, jobs) {
         <div>
           <div class="campaign-summary-title">${esc(formatCampaignHistoryTitle(item))}</div>
           <div class="campaign-summary-sub">${esc(formatCampaignHistorySub(item))}</div>
+          <div class="campaign-summary-meta">
+            <span class="tag tag-cold">${esc(item.filter_stage || 'All active')}</span>
+            ${item.filter_tag ? `<span class="tag tag-cold">${esc(item.filter_tag)}</span>` : ''}
+            <span class="tag tag-cold">${esc(item.template ? `Template · ${item.template}` : 'Custom copy')}</span>
+          </div>
         </div>
         <span class="tag tag-cold">${esc(item.status || 'completed')}</span>
       </div>
@@ -4805,12 +5363,14 @@ function renderBroadcastHistory(broadcasts, jobs) {
           <div class="campaign-summary-label">Replies</div>
           <div class="campaign-summary-value">${item.metrics?.reply_conversations || 0}</div>
         </div>
+        <div class="campaign-summary-metric">
+          <div class="campaign-summary-label">Moved</div>
+          <div class="campaign-summary-value">${(item.metrics?.qualified || 0) + (item.metrics?.proposal || 0) + (item.metrics?.won || 0)}</div>
+        </div>
       </div>
       <div class="campaign-summary-footer">
-        ${item.filter_stage ? `Stage: ${esc(item.filter_stage)} · ` : ''}
-        ${item.filter_tag ? `Group: ${esc(item.filter_tag)} · ` : ''}
-        ${item.template ? `Template: ${esc(item.template)} · ` : 'Custom copy · '}
-        ${timeAgo(item.created_at)}
+        <span>${timeAgo(item.created_at)}</span>
+        <div class="campaign-summary-outcome">${esc(formatCampaignOutcome(item))}</div>
       </div>
     </div>
   `).join('');
@@ -4833,6 +5393,21 @@ function formatCampaignHistorySub(item) {
   return parts.filter(Boolean).join(' · ');
 }
 
+function rateOf(numerator, denominator) {
+  if (!denominator) return '0%';
+  return `${Math.round((numerator / denominator) * 100)}%`;
+}
+
+function formatCampaignOutcome(item) {
+  const metrics = item.metrics || {};
+  const audience = item.target_count || 0;
+  const replies = metrics.reply_conversations || 0;
+  const moved = (metrics.qualified || 0) + (metrics.proposal || 0) + (metrics.won || 0);
+  const won = metrics.won || 0;
+  if (!audience) return 'No measurable audience yet.';
+  return `${replies} replied (${rateOf(replies, audience)}) · ${moved} moved in funnel · ${won} won`;
+}
+
 function closeCampaignDetailModal() {
   document.getElementById('campaign-detail-modal')?.classList.remove('open');
 }
@@ -4852,13 +5427,25 @@ function openCampaignDetailByIndex(index) {
     <div class="list-item"><strong>Audience filters</strong><br>${esc(item.filter_stage || 'All active contacts')}${item.filter_tag ? ` · group ${esc(item.filter_tag)}` : ''}</div>
     <div class="list-item"><strong>Content</strong><br>${esc(item.template ? `Template: ${item.template}` : 'Custom copy')}</div>
     <div class="list-item"><strong>Launched</strong><br>${esc(timeAgo(item.created_at))}</div>
+    <div class="list-item"><strong>Reply rate</strong><br>${rateOf(metrics.reply_conversations || 0, item.target_count || 0)}</div>
+    <div class="list-item"><strong>Conversion rate</strong><br>${rateOf(metrics.won || 0, item.target_count || 0)}</div>
   `;
   document.getElementById('campaign-detail-funnel').innerHTML = `
     <div class="list-item"><strong>Reply conversations</strong><br>${metrics.reply_conversations || 0}</div>
     <div class="list-item"><strong>Need reply now</strong><br>${metrics.needs_reply || 0}</div>
     <div class="list-item"><strong>AI drafts ready</strong><br>${metrics.ai_assist_ready || 0}</div>
     <div class="list-item"><strong>Qualified / Proposal / Won</strong><br>${metrics.qualified || 0} / ${metrics.proposal || 0} / ${metrics.won || 0}</div>
+    <div class="list-item"><strong>Outcome summary</strong><br>${esc(formatCampaignOutcome(item))}</div>
   `;
+  const context = document.getElementById('campaign-detail-context');
+  if (context) {
+    context.insertAdjacentHTML('beforeend', `
+      <div class="list-item">
+        <strong>Action</strong><br>
+        <button class="btn btn-sm btn-ghost" onclick="closeCampaignDetailModal();openCampaignReplies('${escAttr(item.campaign_key || '')}')">Open campaign replies</button>
+      </div>
+    `);
+  }
   document.getElementById('campaign-detail-modal')?.classList.add('open');
 }
 
@@ -5043,10 +5630,17 @@ function findContactIdFromConversationId(identifier) {
 // ================================================================
 async function bootstrapApp() {
   await ensureSession();
+  if (!authToken) return;
+  hideAuthOverlay();
+  await initializeApp();
+}
+
+async function initializeApp() {
   await loadTeamMembers();
   await loadReplyPolicies();
   updateTopbarPrimaryAction('overview');
   await loadOverview();
+  await loadOnboarding();
   connectLiveUpdates();
 }
 

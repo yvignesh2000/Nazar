@@ -43,7 +43,24 @@ load_dotenv(APP_DIR / ".env")
 sys.path.insert(0, str(APP_DIR / "core"))
 
 from db import Contact as DbContact, Conversation, ConversationMessage, SessionLocal, get_storage_backend_name, init_db
-from auth_store import create_session, get_default_owner_context, get_session, revoke_session, role_allowed
+from auth_store import (
+    accept_workspace_invite,
+    bootstrap_workspace_owner,
+    create_session,
+    create_workspace_invite,
+    deactivate_member,
+    get_default_owner_context,
+    get_session,
+    list_workspace_invites,
+    normalize_role,
+    request_magic_link,
+    resend_workspace_invite,
+    revoke_session,
+    revoke_workspace_invite,
+    role_allowed,
+    update_member_role,
+    verify_magic_link,
+)
 from audit_store import list_audit_events, record_audit_event
 from analytics_store import get_operational_metrics
 from contact_manager import (
@@ -100,7 +117,15 @@ from telegram_adapter import (
     telegram_chat_id,
     telegram_ready,
 )
-from workspace_store import get_membership_by_user_id, get_workspace_config, initialize_workspace_store, list_team_members, update_workspace_config
+from workspace_store import (
+    get_membership_by_user_id,
+    get_onboarding_state,
+    get_workspace_config,
+    initialize_workspace_store,
+    list_team_members,
+    update_onboarding_state,
+    update_workspace_config,
+)
 
 # --- Logging ---
 logging.basicConfig(
@@ -117,6 +142,173 @@ ENV_WHATSAPP_ACCESS_TOKEN = os.environ.get("WA_ACCESS_TOKEN", "")
 ENV_WHATSAPP_VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "nazar_verify_2026")
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _parse_classification_note(note: str) -> dict:
+    text = str(note or "")
+    if text.startswith("AI classification —"):
+        text = text.replace("AI classification —", "", 1).strip()
+    parsed = {
+        "intent": "",
+        "stage": "",
+        "score": "",
+        "owner": "",
+        "reasons": [],
+    }
+    if not text:
+        return parsed
+    intent = re.search(r"intent:\s*([^;]+)", text, re.I)
+    stage = re.search(r"stage:\s*([^;]+)", text, re.I)
+    score = re.search(r"lead score:\s*([^;]+)", text, re.I)
+    owner = re.search(r"owner:\s*([^;]+)", text, re.I)
+    reasons = re.search(r"reasons:\s*(.+)$", text, re.I)
+    if intent:
+        parsed["intent"] = intent.group(1).strip()
+    if stage:
+        parsed["stage"] = stage.group(1).strip()
+    if score:
+        parsed["score"] = score.group(1).strip()
+    if owner:
+        parsed["owner"] = owner.group(1).strip()
+    if reasons:
+        parsed["reasons"] = [item.strip() for item in reasons.group(1).split(",") if item.strip()]
+    return parsed
+
+
+def _humanize_intent(intent: str) -> str:
+    mapping = {
+        "general_info": "General enquiry",
+        "pricing_quote": "Pricing request",
+        "discount_negotiation": "Price negotiation",
+        "site_survey_booking": "Site survey booking",
+        "commercial_project": "Commercial project",
+        "support_issue": "Support issue",
+        "complaint_escalation": "Complaint or escalation",
+        "financing_subsidy": "Financing or subsidy",
+        "purchase_ready": "Ready to buy",
+    }
+    return mapping.get(intent or "", (intent or "Unknown").replace("_", " ").strip().title() or "Unknown")
+
+
+def _risk_level_for_contact(contact: dict, memory: dict) -> tuple[str, str]:
+    now = datetime.now(IST)
+    last_touch_raw = contact.get("last_replied_at") or contact.get("last_contacted_at") or memory.get("last_interaction") or ""
+    days_since = 999
+    if last_touch_raw:
+      try:
+          last_dt = datetime.fromisoformat(last_touch_raw)
+          if last_dt.tzinfo is None:
+              last_dt = last_dt.replace(tzinfo=IST)
+          days_since = (now - last_dt).days
+      except Exception:
+          days_since = 999
+    score = int(contact.get("lead_score") or 0)
+    stage = contact.get("pipeline_stage") or "New"
+    signals = memory.get("signal_counts") or {}
+    objections = int(signals.get("objection") or 0) + int(signals.get("price_sensitivity") or 0)
+    if stage in {"Proposal", "Negotiation"} and days_since >= 4:
+        return "High", f"No meaningful reply for {days_since} days at a late deal stage."
+    if objections >= 2 and stage in {"Qualified", "Proposal", "Negotiation"}:
+        return "High", "The lead is showing repeated objections or pricing friction."
+    if score < 35 or days_since >= 7:
+        return "High", "The lead is cooling off and needs intervention soon."
+    if stage in {"Qualified", "Proposal", "Negotiation"} or objections >= 1 or days_since >= 3:
+        return "Moderate", "The deal is active, but it needs a deliberate next step to avoid stalling."
+    return "Low", "The lead is active enough right now and does not show immediate stall risk."
+
+
+def _conversion_likelihood(contact: dict, memory: dict, classification: dict) -> int:
+    score = int(contact.get("lead_score") or 0)
+    stage = contact.get("pipeline_stage") or "New"
+    stage_bonus = {
+        "New": 0,
+        "Qualified": 8,
+        "Proposal": 18,
+        "Negotiation": 28,
+        "Won": 40,
+        "Lost": -20,
+    }.get(stage, 0)
+    intent_bonus = {
+        "purchase_ready": 18,
+        "site_survey_booking": 10,
+        "pricing_quote": 8,
+        "discount_negotiation": 6,
+        "commercial_project": 12,
+        "financing_subsidy": 4,
+        "support_issue": -8,
+        "complaint_escalation": -16,
+    }.get(classification.get("intent") or "", 0)
+    objection_penalty = int((memory.get("signal_counts") or {}).get("objection") or 0) * 4
+    return max(1, min(99, score + stage_bonus + intent_bonus - objection_penalty))
+
+
+def _objection_summary(contact: dict, memory: dict, classification: dict) -> str:
+    signals = memory.get("signal_counts") or {}
+    reasons = classification.get("reasons") or []
+    intent = classification.get("intent") or ""
+    if intent in {"pricing_quote", "discount_negotiation"}:
+        return "Pricing and commercial clarity are the main blockers. The lead needs a confident cost explanation and a recommended system size."
+    if intent == "financing_subsidy":
+        return "The lead is interested but needs financing, subsidy, or ROI clarity before moving forward."
+    if intent == "commercial_project":
+        return "This deal likely needs consultative handling around project scope, installation complexity, and decision process."
+    if intent in {"support_issue", "complaint_escalation"}:
+        return "Trust is the blocker. This conversation should focus on resolution before any commercial push."
+    if signals.get("objection"):
+        return "The lead is showing objections that need to be answered directly before pushing the next stage."
+    if signals.get("price_sensitivity"):
+        return "Price sensitivity is visible. Position savings, subsidy, and payback period instead of just quoting cost."
+    if reasons:
+        return reasons[0]
+    return "No major objection is visible yet. The main job is to keep momentum and qualify the next decision step."
+
+
+def _next_best_action(contact: dict, memory: dict, classification: dict) -> str:
+    stage = contact.get("pipeline_stage") or "New"
+    intent = classification.get("intent") or ""
+    if intent in {"pricing_quote", "discount_negotiation"}:
+        return "Send a pricing recommendation with a clear system-size suggestion, then move the lead toward proposal."
+    if intent == "financing_subsidy":
+        return "Answer subsidy and financing questions clearly, then ask for the next operational step like a survey or consultation."
+    if intent == "site_survey_booking":
+        return "Offer concrete time slots and push the lead to book the survey."
+    if intent == "purchase_ready":
+        return "Move fast. Push for proposal acceptance, survey scheduling, or close."
+    if stage == "Negotiation":
+        return "Reduce uncertainty, answer objections quickly, and ask for the decision-making next step."
+    if stage == "Proposal":
+        return "Follow up specifically on the proposal and convert hesitation into a concrete yes/no next step."
+    if stage == "Qualified":
+        return "Qualify budget, roof conditions, and timeline, then move the lead into proposal."
+    if stage == "Lost":
+        return "Use a different re-entry angle instead of repeating the same pitch."
+    return "Keep qualifying the lead and identify the next concrete step instead of staying in general discovery."
+
+
+def _lead_insight_card(contact: dict) -> dict:
+    memory = get_customer_summary(contact["contact_id"])
+    classification = _parse_classification_note(memory.get("latest_classification_note", ""))
+    risk_level, risk_reason = _risk_level_for_contact(contact, memory)
+    conversion = _conversion_likelihood(contact, memory, classification)
+    summary = _objection_summary(contact, memory, classification)
+    next_action = _next_best_action(contact, memory, classification)
+    return {
+        "contact_id": contact["contact_id"],
+        "name": contact.get("name") or contact.get("phone") or "Unknown",
+        "company": contact.get("company") or "",
+        "stage": contact.get("pipeline_stage") or "New",
+        "lead_score": int(contact.get("lead_score") or 0),
+        "conversion_likelihood": conversion,
+        "risk_level": risk_level,
+        "risk_reason": risk_reason,
+        "intent": classification.get("intent") or "",
+        "intent_label": _humanize_intent(classification.get("intent") or ""),
+        "objection_summary": summary,
+        "next_best_action": next_action,
+        "last_activity": contact.get("last_replied_at") or contact.get("last_contacted_at") or memory.get("last_interaction") or "",
+        "signals": memory.get("signal_counts") or {},
+        "classification_reasons": classification.get("reasons") or [],
+    }
 
 app = FastAPI(title="Nazar", version="1.0.0")
 app.add_middleware(
@@ -505,6 +697,83 @@ async def api_auth_logout(request: Request):
 @app.get("/api/auth/me")
 async def api_auth_me(request: Request):
     return _auth_context(request)
+
+
+@app.get("/api/public/bootstrap-state")
+async def api_public_bootstrap_state():
+    config = get_workspace_config()
+    onboarding = get_onboarding_state()
+    owner_ready = bool(config.get("business_name")) and onboarding.get("workspace_bootstrapped")
+    return {
+        "workspace_name": config.get("business_name") or "Nazar",
+        "workspace_bootstrapped": onboarding.get("workspace_bootstrapped", False),
+        "owner_ready": owner_ready,
+    }
+
+
+@app.post("/api/workspace/bootstrap")
+async def api_workspace_bootstrap(request: Request):
+    body = await request.json()
+    try:
+        session_data = bootstrap_workspace_owner(
+            workspace_name=body.get("business_name", ""),
+            business_type=body.get("business_type", ""),
+            timezone_name=body.get("timezone", ""),
+            owner_name=body.get("owner_name", ""),
+            owner_email=body.get("owner_email", ""),
+        )
+        update_workspace_config(
+            {
+                "business_name": body.get("business_name", ""),
+                "business_type": body.get("business_type", ""),
+                "workspace_timezone": body.get("timezone", ""),
+            }
+        )
+        return session_data
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/auth/request-magic-link")
+async def api_request_magic_link(request: Request):
+    body = await request.json()
+    try:
+        return request_magic_link(body.get("email", ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/auth/verify-magic-link")
+async def api_verify_magic_link(request: Request):
+    body = await request.json()
+    try:
+        return verify_magic_link(body.get("token", ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/onboarding")
+async def api_get_onboarding(request: Request):
+    _require_roles(request, "sales_rep")
+    return {
+        "state": get_onboarding_state(),
+        "workspace": get_workspace_config(),
+    }
+
+
+@app.patch("/api/onboarding")
+async def api_update_onboarding(request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    body = await request.json()
+    state = update_onboarding_state(body or {})
+    record_audit_event(
+        "onboarding",
+        "workspace",
+        "updated",
+        body or {},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"state": state}
 
 
 # ====================================================================
@@ -944,6 +1213,7 @@ async def api_list_conversations(
     assigned_to_me: bool = False,
     queue: str = None,
     source_type: str = None,
+    source_ref: str = None,
     ai_assist: bool = False,
 ):
     context = _require_roles(request, "agent")
@@ -959,6 +1229,7 @@ async def api_list_conversations(
             only_needs_reply=needs_reply,
             queue=queue,
             source_type=source_type,
+            source_ref=source_ref,
             require_ai_assist=ai_assist,
         )
     }
@@ -1492,7 +1763,7 @@ async def api_simulate_broadcast(request: Request):
 
 @app.get("/api/config")
 async def api_get_config(request: Request):
-    _require_roles(request, "admin", "owner")
+    _require_roles(request, "owner")
     config = get_workspace_config()
     wa = _whatsapp_config()
     config["whatsapp_connected"] = _whatsapp_ready()
@@ -1508,7 +1779,7 @@ async def api_get_config(request: Request):
 
 @app.put("/api/config")
 async def api_update_config(request: Request):
-    _require_roles(request, "admin", "owner")
+    _require_roles(request, "owner")
     body = await request.json()
     if "whatsapp_access_token" in body and not str(body.get("whatsapp_access_token") or "").strip():
         body.pop("whatsapp_access_token")
@@ -1534,7 +1805,7 @@ async def api_update_config(request: Request):
 
 @app.get("/api/whatsapp/status")
 async def api_whatsapp_status(request: Request):
-    _require_roles(request, "admin", "owner")
+    _require_roles(request, "owner")
     wa = _whatsapp_config()
     recent_jobs = list_jobs(limit=25)
     failed_jobs = [job for job in recent_jobs if job.get("status") == "failed"]
@@ -1559,7 +1830,7 @@ async def api_whatsapp_status(request: Request):
 
 @app.get("/api/telegram/status")
 async def api_telegram_status(request: Request):
-    _require_roles(request, "admin", "owner")
+    _require_roles(request, "owner")
     recent_jobs = list_jobs(limit=50)
     poll_jobs = [job for job in recent_jobs if job.get("kind") == "telegram_poll"]
     return {
@@ -1571,7 +1842,7 @@ async def api_telegram_status(request: Request):
 
 @app.post("/api/whatsapp/test-send")
 async def api_whatsapp_test_send(request: Request):
-    _require_roles(request, "admin", "owner")
+    _require_roles(request, "owner")
     body = await request.json()
     phone = (body.get("phone") or _whatsapp_config()["test_number"] or "").strip()
     mode = (body.get("mode") or "template").strip().lower()
@@ -1620,8 +1891,92 @@ async def api_get_kb(request: Request):
 
 @app.get("/api/team")
 async def api_team(request: Request):
-    _require_roles(request, "agent")
+    _require_roles(request, "sales_rep")
     return {"team": list_team_members()}
+
+
+@app.get("/api/team/invites")
+async def api_team_invites(request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    return {"invites": list_workspace_invites()}
+
+
+@app.post("/api/team/invites")
+async def api_create_team_invite(request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    body = await request.json()
+    try:
+        result = create_workspace_invite(
+            workspace_slug=None,
+            email=body.get("email", ""),
+            name=body.get("name", ""),
+            role=body.get("role", "sales_rep"),
+            invited_by_user_id=_actor_user_id(request),
+        )
+        record_audit_event(
+            "team_invite",
+            result["invite"]["id"],
+            "created",
+            {"email": result["invite"]["email"], "role": result["invite"]["role"]},
+            actor_user_id=_actor_user_id(request),
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/team/invites/{invite_id}/resend")
+async def api_resend_team_invite(invite_id: str, request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    try:
+        result = resend_workspace_invite(invite_id)
+        record_audit_event("team_invite", invite_id, "resent", {}, actor_user_id=_actor_user_id(request))
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/team/invites/{invite_id}/revoke")
+async def api_revoke_team_invite(invite_id: str, request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    try:
+        result = revoke_workspace_invite(invite_id)
+        record_audit_event("team_invite", invite_id, "revoked", {}, actor_user_id=_actor_user_id(request))
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/team/invites/{invite_token}/accept")
+async def api_accept_team_invite(invite_token: str, request: Request):
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    try:
+        return accept_workspace_invite(invite_token, name=body.get("name"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.patch("/api/team/members/{user_id}")
+async def api_update_team_member(user_id: str, request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    body = await request.json()
+    try:
+        member = update_member_role(user_id, body.get("role", "sales_rep"))
+        record_audit_event("team_member", user_id, "role_updated", {"role": member["role"]}, actor_user_id=_actor_user_id(request))
+        return {"member": member}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/team/members/{user_id}/deactivate")
+async def api_deactivate_team_member(user_id: str, request: Request):
+    _require_roles(request, "owner", "sales_lead")
+    try:
+        member = deactivate_member(user_id)
+        record_audit_event("team_member", user_id, "deactivated", {}, actor_user_id=_actor_user_id(request))
+        return {"member": member}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/reply-policies")
@@ -1897,7 +2252,23 @@ async def api_insights(request: Request):
     contacts = list_contacts()
     pipeline = get_pipeline_summary()
     digest = generate_daily_digest(contacts, pipeline)
-    return {"insights": digest.get("insights", []), "at_risk": digest.get("at_risk", [])}
+    lead_cards = [
+        _lead_insight_card(contact)
+        for contact in contacts
+        if (contact.get("pipeline_stage") or "New") not in {"Won", "Lost"}
+    ]
+    lead_cards.sort(
+        key=lambda item: (
+            {"High": 0, "Moderate": 1, "Low": 2}.get(item["risk_level"], 3),
+            -(item["conversion_likelihood"] or 0),
+            -(item["lead_score"] or 0),
+        )
+    )
+    return {
+        "insights": digest.get("insights", []),
+        "at_risk": digest.get("at_risk", []),
+        "lead_cards": lead_cards[:12],
+    }
 
 
 @app.get("/api/llm/health")
