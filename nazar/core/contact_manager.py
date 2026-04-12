@@ -747,6 +747,7 @@ def list_conversation_records(
     only_needs_reply: bool = False,
     queue: Optional[str] = None,
     source_type: Optional[str] = None,
+    source_ref: Optional[str] = None,
     require_ai_assist: bool = False,
 ) -> list:
     initialize_storage()
@@ -767,6 +768,8 @@ def list_conversation_records(
             query = query.where(Conversation.human_queue == queue)
         if source_type:
             query = query.where(Conversation.source_type == source_type)
+        if source_ref:
+            query = query.where(Conversation.source_ref == source_ref)
         if require_ai_assist:
             query = query.where(Conversation.ai_assist_status == "available")
         conversations = session.execute(
