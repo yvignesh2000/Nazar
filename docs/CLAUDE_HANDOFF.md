@@ -12,15 +12,9 @@ Repository:
 Main branch in use:
 - `codex/product-foundation`
 
-Latest pushed commit before this handoff update:
-- `0e365fd`
-- `Support campaign-specific conversation filtering`
-
-This handoff is being written alongside a new commit that includes:
-- campaign-level knowledge packs
-- updated product copy rewrite
-- onboarding bypass for testing
-- current public Cloudflare share link for testers
+Latest major milestones:
+- **Phase 1 Infrastructure:** Migrated from local SQLite + Cloudflare tunnels to a robust cloud setup (Docker, Postgres, Railway).
+- **Core Engine:** Campaign-level knowledge packs, AI-native reply generation, and per-contact vector memory are functional.
 
 Claude should still run:
 - `git status`
@@ -54,57 +48,35 @@ Core promise:
 
 ## 3. Current Runtime / Hosting
 
+### Cloud Deployment (Phase 1 Complete)
+Nazar has been structurally migrated from a local prototype to a production-ready infrastructure:
+- **Hosting:** Deployed on Railway.app.
+- **Database:** Migrated to Managed PostgreSQL.
+- **Containerization:** Repackaged using `Dockerfile` (API) and `Dockerfile.worker` (Background jobs). A `docker-compose.yml` supports local dev parity.
+- **Stability:** Added a `/health` endpoint and fixed nginx WebSocket protocols for live UI updates.
+
 ### Local runtime
+When running locally:
+- Use `docker compose up --build` to run Postgres, API (`localhost:8002`), and Worker simultaneously.
+- Configuration is in `nazar/.env` (cloned from `nazar/.env.template`).
 
-Primary runtime is still local.
+## 3.5. Product Strategy & Active Roadmap
+Nazar is explicitly being built as a **SaaS product** (not a managed service). The goal is to reach a self-serve tier similar to WATI/Interakt, but with superior AI capabilities. 
 
-Current app runtime:
-- API server on `http://localhost:8002`
-- worker running separately
+We have just completed Phase 1 (Infrastructure) and are moving iteratively through the following approved roadmap:
 
-Server start command:
-- `python3 -m uvicorn server:app --host 0.0.0.0 --port 8002`
-
-Worker start command:
-- `python3 worker.py`
-
-Working directory for both:
-- [`/Users/vignesh-12220/Documents/App Development/NAZAR/nazar`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar)
-
-### Database
-
-Current storage backend:
-- SQLite via SQLAlchemy
-
-Primary DB file:
-- [`nazar/data/nazar.db`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/data/nazar.db)
-
-There is already a relational foundation in:
-- [`nazar/core/db.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/db.py)
-
-The codebase is better positioned for a Postgres move later than it used to be.
-
-### Public sharing
-
-There is no stable VPS deployment yet.
-
-Testing has been done through:
-- local runtime
-- temporary Cloudflare tunnels
-
-This means:
-- same shared instance
-- same DB
-- same workspace
-- not isolated per tester
-
-Current public test URL at handoff time:
-- `https://create-losses-acquisitions-hepatitis.trycloudflare.com`
-
-Important:
-- this URL is temporary
-- it only works while the local server, worker, and tunnel are running
-- it is not a separate environment
+1. **Phase 2: Core SaaS Foundation (Multi-tenancy) -> ACTIVE**
+   - Immediate next step. Strict data isolation by `workspace_id` across all tables.
+   - Without this, onboarding multiple paying customers is impossible.
+2. **Phase 3: The "Must-Haves" (Automation & Templates)**
+   - Drip sequences and follow-ups.
+   - WhatsApp template creation and approval manager.
+3. **Phase 4: Monetization & Self-Serve (Billing)**
+   - Automated onboarding / embedded signup.
+   - Stripe/Razorpay integration and workspace usage quotas.
+4. **Phase 5: The "Moat" (Visual Flow Builder & SPA Frontend)**
+   - Drag-and-drop Visual Flow Builder.
+   - Transitioning `index.html` to a React/Vite SPA.
 
 ### Current channel state
 
