@@ -34,10 +34,19 @@
   --text2: #a1a1aa;
   --text3: #52525b;
   --sidebar-w: 240px;
-  --topbar-h: 56px;
+  --topbar-h: 48px;
   --radius: 10px;
   --glass: rgba(15,15,18,0.75);
   --glass-border: rgba(255,255,255,0.06);
+  /* Spacing scale — 4px grid */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+  --sp-8: 32px; --sp-10: 40px;
+  /* Type scale */
+  --text-xs: 11px; --text-sm: 13px; --text-base: 14px;
+  --text-lg: 18px; --text-xl: 24px; --text-2xl: 32px;
+  /* Radius scale */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px;
 }
 
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
@@ -98,43 +107,29 @@ body {
   cursor:pointer;
 }
 .logo-mark {
-  width:36px; height:36px;
-  background:linear-gradient(135deg,var(--accent),#a78bfa);
-  border-radius:10px;
+  width:32px; height:32px;
+  background:var(--accent);
+  border-radius:var(--r-sm);
   display:flex; align-items:center; justify-content:center;
-  font-size:18px;
-  box-shadow:0 0 24px rgba(99,102,241,.35);
-  position:relative;
-}
-.logo-mark::after {
-  content:'';
-  position:absolute;
-  inset:-2px;
-  border-radius:12px;
-  background:linear-gradient(135deg,var(--accent),#a78bfa);
-  opacity:.2;
-  filter:blur(8px);
-  z-index:-1;
+  font-size:16px;
+  flex-shrink:0;
 }
 .logo-text {
-  font-weight:800;
-  font-size:22px;
-  letter-spacing:-1px;
-  background:linear-gradient(135deg,#fff 30%,var(--accent));
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
+  font-weight:700;
+  font-size:var(--text-lg);
+  letter-spacing:-.5px;
+  color:var(--text);
 }
 .logo-tag {
-  font-size:9px;
+  font-size:var(--text-xs);
   color:var(--accent);
   background:var(--accent-glow);
-  border:1px solid rgba(99,102,241,.25);
-  border-radius:4px;
-  padding:1px 5px;
+  border:1px solid rgba(99,102,241,.2);
+  border-radius:var(--r-sm);
+  padding:2px 6px;
   font-weight:600;
-  letter-spacing:.5px;
   margin-left:2px;
-  margin-top:-10px;
+  margin-top:-8px;
 }
 
 .nav-section { padding:16px 12px 6px; }
@@ -150,11 +145,11 @@ body {
 .nav-item {
   display:flex;
   align-items:center;
-  gap:10px;
-  padding:9px 12px;
-  border-radius:8px;
+  gap:var(--sp-2);
+  padding:var(--sp-2) var(--sp-3);
+  border-radius:var(--r-sm);
   cursor:pointer;
-  font-size:13.5px;
+  font-size:var(--text-sm);
   font-weight:400;
   color:var(--text2);
   transition:all .15s ease;
@@ -234,21 +229,17 @@ body {
   gap:16px;
   flex-shrink:0;
 }
-.page-title {
-  font-size:15px;
-  font-weight:700;
-  letter-spacing:-.3px;
-}
-.topbar-sub { font-size:12px; color:var(--text3); }
+.page-title { display:none; }
+.topbar-sub { display:none; }
 .topbar-search {
-  margin-left:auto;
+  flex:1;
   display:flex; align-items:center;
   background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:8px;
-  padding:7px 12px;
-  gap:8px;
-  width:220px;
+  border-radius:var(--r-sm);
+  padding:var(--sp-2) var(--sp-3);
+  gap:var(--sp-2);
+  max-width:340px;
   transition:border-color .15s;
 }
 .topbar-search:focus-within { border-color:var(--accent); }
@@ -269,12 +260,12 @@ body {
 }
 
 .icon-btn {
-  width:34px; height:34px;
-  border-radius:8px;
-  background:var(--surface2);
+  width:32px; height:32px;
+  border-radius:var(--r-sm);
+  background:transparent;
   border:1px solid var(--border);
   display:flex; align-items:center; justify-content:center;
-  cursor:pointer; font-size:15px;
+  cursor:pointer; font-size:14px;
   transition:all .15s;
   position:relative;
   color:var(--text2);
@@ -314,9 +305,9 @@ body {
 
 /* BUTTONS */
 .btn {
-  font-size:12.5px; font-weight:500;
-  padding:8px 16px;
-  border-radius:8px;
+  font-size:var(--text-sm); font-weight:500;
+  padding:var(--sp-2) var(--sp-4);
+  border-radius:var(--r-sm);
   cursor:pointer;
   font-family:inherit;
   border:none;
@@ -361,19 +352,18 @@ body {
 }
 .card:hover { border-color:var(--border2); }
 .card-head {
-  padding:14px 18px;
+  padding:var(--sp-3) var(--sp-4);
   border-bottom:1px solid var(--border);
   display:flex;
   align-items:center;
   justify-content:space-between;
 }
 .card-title {
-  font-size:13px;
-  font-weight:700;
-  letter-spacing:.2px;
+  font-size:var(--text-sm);
+  font-weight:600;
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:var(--sp-2);
 }
 
 /* CHIPS & TAGS */
@@ -452,36 +442,36 @@ body {
 .stat-card {
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:18px;
+  border-radius:var(--r-md);
+  padding:var(--sp-4);
   position:relative;
   overflow:hidden;
   cursor:default;
   transition:border-color .15s, transform .15s;
 }
-.stat-card:hover { border-color:var(--border2); transform:translateY(-2px); }
+.stat-card:hover { border-color:var(--border2); transform:translateY(-1px); }
 .stat-glow {
   position:absolute;
   top:0; left:0; right:0; height:2px;
 }
 .stat-label {
-  font-size:11px;
+  font-size:var(--text-xs);
   font-weight:500;
-  color:var(--text2);
+  color:var(--text3);
   letter-spacing:.5px;
-  margin-bottom:10px;
+  margin-bottom:var(--sp-2);
   text-transform:uppercase;
 }
 .stat-val {
-  font-size:28px;
-  font-weight:800;
-  letter-spacing:-1.5px;
+  font-size:var(--text-2xl);
+  font-weight:700;
+  letter-spacing:-1px;
   line-height:1;
-  margin-bottom:8px;
+  margin-bottom:var(--sp-2);
   animation:countUp .4s ease-out;
 }
 .stat-delta {
-  font-size:11.5px;
+  font-size:var(--text-xs);
   display:flex;
   align-items:center;
   gap:4px;
@@ -490,9 +480,9 @@ body {
 .down { color:var(--red); }
 .stat-icon {
   position:absolute;
-  top:16px; right:16px;
-  font-size:22px;
-  opacity:.08;
+  top:var(--sp-4); right:var(--sp-4);
+  font-size:20px;
+  opacity:.07;
 }
 
 /* AI INSIGHT STRIP */
@@ -528,44 +518,43 @@ body {
 .dashboard-shell {
   display:flex;
   flex-direction:column;
-  gap:20px;
+  gap:var(--sp-5);
 }
 .dashboard-top {
-  display:grid;
-  grid-template-columns:1.25fr .95fr;
-  gap:18px;
+  display:flex;
+  flex-direction:column;
+  gap:var(--sp-5);
 }
 .focus-card {
   background:
-    radial-gradient(circle at top right, rgba(99,102,241,.18), transparent 36%),
-    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)),
+    radial-gradient(circle at top right, rgba(99,102,241,.12), transparent 40%),
     var(--surface);
   border:1px solid var(--border);
-  border-radius:20px;
-  padding:24px;
+  border-radius:var(--r-lg);
+  padding:var(--sp-6);
   position:relative;
   overflow:hidden;
 }
 .focus-kicker {
-  font-size:11px;
+  font-size:var(--text-xs);
   text-transform:uppercase;
   letter-spacing:1px;
-  color:var(--accent-hover);
-  font-weight:700;
-  margin-bottom:12px;
+  color:var(--text3);
+  font-weight:600;
+  margin-bottom:var(--sp-3);
 }
 .focus-title {
-  font-size:28px;
-  line-height:1.05;
-  letter-spacing:-1px;
-  font-weight:800;
-  max-width:16ch;
-  margin-bottom:12px;
+  font-size:var(--text-xl);
+  line-height:1.1;
+  letter-spacing:-.5px;
+  font-weight:700;
+  max-width:22ch;
+  margin-bottom:var(--sp-3);
 }
 .focus-body {
   color:var(--text2);
-  font-size:14px;
-  line-height:1.65;
+  font-size:var(--text-base);
+  line-height:1.6;
   max-width:58ch;
 }
 .focus-actions {
@@ -576,34 +565,36 @@ body {
 }
 .dashboard-stats {
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
+  grid-template-columns:repeat(4,1fr);
+  gap:var(--sp-3);
 }
 .dashboard-operating {
   display:grid;
   grid-template-columns:repeat(4,1fr);
-  gap:12px;
+  gap:var(--sp-3);
 }
 .ops-card {
-  background:var(--surface);
+  background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:16px;
-  padding:16px;
+  border-radius:var(--r-md);
+  padding:var(--sp-4);
   cursor:pointer;
   transition:border-color .15s, transform .15s, background .15s;
 }
-.ops-card:hover { border-color:var(--border2); transform:translateY(-1px); background:var(--surface2); }
-.ops-label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.8px; margin-bottom:10px; }
-.ops-value { font-size:30px; font-weight:800; letter-spacing:-1.2px; margin-bottom:6px; }
-.ops-meta { font-size:12px; color:var(--text2); line-height:1.45; }
+.ops-card:hover { border-color:var(--border2); transform:translateY(-1px); background:var(--surface3); }
+.ops-label { font-size:var(--text-xs); color:var(--text3); text-transform:uppercase; letter-spacing:.8px; margin-bottom:var(--sp-2); }
+.ops-value { font-size:var(--text-xl); font-weight:700; letter-spacing:-.5px; margin-bottom:var(--sp-1); }
+.ops-meta { font-size:var(--text-xs); color:var(--text2); line-height:1.5; }
 
 /* Shared overview grid */
 .overview-grid {
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:18px;
+  grid-template-columns:1fr;
+  gap:var(--sp-4);
 }
 .overview-grid .card { margin-bottom:0; }
+/* Hide pipeline mini from dashboard — it has its own dedicated screen */
+.overview-grid > .card:last-child { display:none; }
 
 .activity-row {
   display:flex; align-items:center; gap:12px;
@@ -664,10 +655,10 @@ body {
   width:100%;
   background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:8px;
-  padding:9px 12px;
+  border-radius:var(--r-sm);
+  padding:var(--sp-2) var(--sp-3);
   color:var(--text);
-  font-size:13px;
+  font-size:var(--text-sm);
   font-family:inherit;
   outline:none;
   transition:border-color .15s;
@@ -736,20 +727,20 @@ body {
 .bubble.bot { margin-left:0; }
 .bubble.user { margin-left:auto; }
 .bubble-inner {
-  padding:10px 14px;
-  border-radius:14px;
-  font-size:13px;
+  padding:var(--sp-2) var(--sp-3);
+  border-radius:var(--r-md);
+  font-size:var(--text-sm);
   line-height:1.6;
 }
 .bubble.bot .bubble-inner {
   background:var(--surface2);
   border:1px solid var(--border);
-  border-bottom-left-radius:4px;
+  border-bottom-left-radius:3px;
 }
 .bubble.user .bubble-inner {
-  background:rgba(99,102,241,.12);
-  border:1px solid rgba(99,102,241,.2);
-  border-bottom-right-radius:4px;
+  background:rgba(99,102,241,.1);
+  border:1px solid rgba(99,102,241,.18);
+  border-bottom-right-radius:3px;
 }
 .bubble-time { font-size:10px; color:var(--text3); margin-top:4px; padding:0 2px; }
 .bubble.user .bubble-time { text-align:right; }
@@ -830,8 +821,8 @@ body {
 .intel-card {
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px;
+  border-radius:var(--r-md);
+  padding:var(--sp-3);
 }
 .intel-title {
   font-size:10px;
@@ -909,7 +900,7 @@ body {
 }
 .pipeline-stats { display:flex; gap:24px; }
 .ps-item { text-align:center; }
-.ps-val { font-size:20px; font-weight:800; letter-spacing:-1px; }
+.ps-val { font-size:var(--text-xl); font-weight:700; letter-spacing:-.5px; }
 .ps-label { font-size:10.5px; color:var(--text2); }
 
 .kanban-board {
@@ -1003,9 +994,9 @@ body {
   margin-bottom:8px;
 }
 .campaigns-header-copy .title {
-  font-size:28px;
-  font-weight:800;
-  letter-spacing:-.7px;
+  font-size:var(--text-xl);
+  font-weight:700;
+  letter-spacing:-.3px;
 }
 .campaigns-header-copy .sub {
   font-size:13px;
@@ -1021,8 +1012,8 @@ body {
 .campaign-summary-card {
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:16px;
-  padding:16px 18px;
+  border-radius:var(--r-lg);
+  padding:var(--sp-4);
   cursor:pointer;
   transition:border-color .15s, transform .15s, background .15s;
 }
@@ -1034,23 +1025,23 @@ body {
   gap:12px;
   margin-bottom:14px;
 }
-.campaign-summary-title { font-size:16px; font-weight:700; }
+.campaign-summary-title { font-size:var(--text-base); font-weight:600; }
 .campaign-summary-sub { font-size:12px; color:var(--text2); margin-top:4px; line-height:1.45; }
 .campaign-summary-meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
 .campaign-summary-metrics {
   display:grid;
-  grid-template-columns:repeat(5,minmax(0,1fr));
+  grid-template-columns:repeat(4,minmax(0,1fr));
   gap:8px;
   margin-top:12px;
 }
 .campaign-summary-metric {
-  padding:10px 12px;
-  border-radius:10px;
+  padding:var(--sp-2) var(--sp-3);
+  border-radius:var(--r-md);
   border:1px solid var(--border);
   background:var(--surface2);
 }
-.campaign-summary-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.8px; margin-bottom:6px; }
-.campaign-summary-value { font-size:16px; font-weight:700; }
+.campaign-summary-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.8px; margin-bottom:5px; }
+.campaign-summary-value { font-size:15px; font-weight:700; }
 .campaign-summary-footer {
   margin-top:12px;
   display:flex;
@@ -1060,19 +1051,24 @@ body {
   font-size:11px;
   color:var(--text3);
 }
-.campaign-summary-outcome { font-size:12px; color:var(--text2); line-height:1.45; }
+.campaign-summary-outcome { font-size:12px; color:var(--text); line-height:1.45; }
+.list-item {
+  padding:var(--sp-2) 0;
+  border-bottom:1px solid var(--border);
+  font-size:var(--text-sm);
+  line-height:1.55;
+  color:var(--text);
+}
+.list-item:last-child { border-bottom:none; }
+.list-item strong { display:block; font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.7px; margin-bottom:3px; }
 .bc-stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-.bc-stat { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
-.bc-stat-val { font-size:22px; font-weight:800; letter-spacing:-1px; margin-bottom:4px; }
+.bc-stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); padding:var(--sp-4); }
+.bc-stat-val { font-size:var(--text-xl); font-weight:700; letter-spacing:-.5px; margin-bottom:4px; }
 .bc-stat-label { font-size:11px; color:var(--text2); }
 
 .bc-list { display:flex; flex-direction:column; gap:10px; }
 .campaign-history-wrap {
-  margin-top:20px;
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:18px;
+  margin-top:var(--sp-4);
 }
 .campaign-history-head {
   display:flex;
@@ -1161,7 +1157,7 @@ body {
   margin:0 auto;
 }
 .campaign-builder-head { margin-bottom:18px; }
-.campaign-builder-title { font-size:20px; font-weight:800; letter-spacing:-.4px; margin-bottom:6px; }
+.campaign-builder-title { font-size:var(--text-lg); font-weight:700; letter-spacing:-.2px; margin-bottom:6px; }
 .campaign-builder-sub { font-size:12.5px; color:var(--text2); line-height:1.5; }
 .campaign-section {
   background:var(--surface2);
@@ -1265,9 +1261,9 @@ body {
   overflow-y:auto;
   background:var(--surface);
   border:1px solid var(--border2);
-  border-radius:24px;
+  border-radius:var(--r-lg);
   box-shadow:0 32px 90px rgba(0,0,0,.45);
-  padding:24px;
+  padding:var(--sp-6);
 }
 .campaign-modal-panel {
   width:min(560px, 100vw);
@@ -1287,7 +1283,7 @@ body {
   gap:16px;
   margin-bottom:18px;
 }
-.modal-title { font-size:22px; font-weight:800; letter-spacing:-.8px; }
+.modal-title { font-size:var(--text-xl); font-weight:700; letter-spacing:-.3px; }
 .modal-sub { font-size:13px; color:var(--text2); margin-top:6px; line-height:1.55; max-width:64ch; }
 .campaign-sticky-footer {
   position:sticky;
@@ -1361,7 +1357,7 @@ body {
   display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
   margin-bottom:20px;
 }
-.section-title { font-size:18px; font-weight:700; }
+.section-title { font-size:var(--text-lg); font-weight:600; }
 .section-sub { font-size:13px; color:var(--text2); margin-top:4px; }
 .toolbar-row {
   display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:18px;
@@ -1372,7 +1368,7 @@ body {
   border-collapse:collapse;
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:16px;
+  border-radius:var(--r-lg);
   overflow:hidden;
 }
 .data-table th, .data-table td {
@@ -1406,22 +1402,25 @@ body {
   grid-template-columns:repeat(2, minmax(0,1fr));
   gap:16px;
 }
+@media (min-width:1400px) {
+  .insights-grid { grid-template-columns:repeat(3, minmax(0,1fr)); }
+}
 .insight-card {
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:16px;
-  padding:18px;
+  border-radius:var(--r-lg);
+  padding:var(--sp-4);
 }
 .insight-card-top {
   display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;
 }
-.insight-card-title { font-size:16px; font-weight:700; }
+.insight-card-title { font-size:15px; font-weight:700; }
 .insight-card-sub { font-size:12px; color:var(--text2); margin-top:3px; }
 .insight-metrics {
   display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px;
 }
 .insight-metric {
-  background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:10px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--r-md); padding:var(--sp-2) var(--sp-3);
 }
 .insight-metric-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.7px; margin-bottom:5px; }
 .insight-metric-value { font-size:14px; font-weight:700; }
@@ -1429,12 +1428,13 @@ body {
   font-size:12px; color:var(--text2); line-height:1.5; margin-bottom:12px;
 }
 .insight-action {
-  background:rgba(34,197,94,.08);
-  border:1px solid rgba(34,197,94,.18);
-  color:#b7f7c8;
-  border-radius:12px;
-  padding:11px 12px;
-  font-size:12px;
+  background:var(--accent-glow);
+  border:1px solid rgba(99,102,241,.2);
+  color:var(--accent-hover);
+  border-radius:var(--r-md);
+  padding:var(--sp-2) var(--sp-3);
+  font-size:var(--text-xs);
+  line-height:1.5;
 }
 .analytics-grid {
   display:grid;
@@ -1444,19 +1444,19 @@ body {
 .analytics-card {
   background:var(--surface);
   border:1px solid var(--border);
-  border-radius:16px;
-  padding:18px;
+  border-radius:var(--r-lg);
+  padding:var(--sp-4);
 }
-.analytics-card-title { font-size:15px; font-weight:700; margin-bottom:14px; }
+.analytics-card-title { font-size:var(--text-base); font-weight:600; margin-bottom:var(--sp-4); }
 .metric-bars { display:flex; flex-direction:column; gap:12px; }
-.metric-bar-row { display:grid; grid-template-columns:150px 1fr 64px; gap:10px; align-items:center; font-size:12px; }
+.metric-bar-row { display:grid; grid-template-columns:110px 1fr 40px; gap:10px; align-items:center; font-size:var(--text-xs); color:var(--text2); }
 .metric-bar-track {
-  height:10px; border-radius:999px; background:var(--surface2); overflow:hidden; border:1px solid var(--border);
+  height:7px; border-radius:999px; background:var(--surface2); overflow:hidden; border:1px solid var(--border);
 }
 .metric-bar-fill { height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--purple)); }
 .list-stack { display:flex; flex-direction:column; gap:10px; }
 .list-row {
-  border:1px solid var(--border); border-radius:12px; background:var(--surface2); padding:12px;
+  border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface2); padding:var(--sp-3) var(--sp-4);
 }
 .list-row-title { font-size:13px; font-weight:600; margin-bottom:4px; }
 .list-row-sub { font-size:12px; color:var(--text2); line-height:1.45; }
@@ -1497,7 +1497,7 @@ body {
 .config-nav-item.active { background:var(--accent-glow); color:var(--text); font-weight:500; }
 
 .config-content { flex:1; overflow-y:auto; padding:28px; }
-.config-section-title { font-size:18px; font-weight:700; margin-bottom:4px; letter-spacing:-.3px; }
+.config-section-title { font-size:var(--text-lg); font-weight:600; margin-bottom:4px; }
 .config-section-sub { font-size:13px; color:var(--text2); margin-bottom:28px; }
 
 .form-group { margin-bottom:22px; }
@@ -1511,10 +1511,10 @@ body {
   width:100%;
   background:var(--surface2);
   border:1px solid var(--border);
-  border-radius:8px;
-  padding:10px 14px;
+  border-radius:var(--r-sm);
+  padding:var(--sp-2) var(--sp-3);
   color:var(--text);
-  font-size:13px;
+  font-size:var(--text-sm);
   font-family:inherit;
   outline:none;
   transition:border-color .15s;
@@ -1691,7 +1691,8 @@ body {
   .stats-grid { grid-template-columns:repeat(2,1fr); }
   .bc-stats-row { grid-template-columns:repeat(2,1fr); }
   .campaign-builder { max-width:none; }
-  .dashboard-top, .dashboard-operating { grid-template-columns:1fr 1fr; }
+  .dashboard-stats { grid-template-columns:1fr 1fr; }
+  .dashboard-operating { grid-template-columns:1fr 1fr; }
 }
 @media (max-width:900px) {
   .sidebar { width:60px; }
@@ -1704,7 +1705,7 @@ body {
   .campaign-summary-metrics { grid-template-columns:1fr; }
   .campaign-summary-footer { flex-direction:column; align-items:flex-start; }
   .campaign-detail-grid { grid-template-columns:1fr; }
-  .dashboard-top, .dashboard-stats, .dashboard-operating { grid-template-columns:1fr; }
+  .dashboard-stats, .dashboard-operating { grid-template-columns:1fr; }
 }
 @media (max-width:600px) {
   .sidebar { display:none; }
@@ -2049,17 +2050,12 @@ body {
 
       <div class="campaign-builder" style="max-width:none;border:none;background:none;padding:0;margin:0;">
         <div class="campaign-section">
-          <div class="campaign-section-label">1. Campaign Name</div>
-          <div class="campaign-section-title">What should the team call this campaign?</div>
-          <div class="campaign-section-sub">Use a clear name so the team can recognize it later in campaign history, conversations, and analytics.</div>
+          <div class="campaign-section-label">Campaign name</div>
           <input class="form-input" id="campaign-name" placeholder="April proposal follow-up" oninput="ensureCampaignKey()" onblur="loadCampaignKnowledge()">
-          <div class="campaign-helper">This is the name the team will see when reviewing results and replies.</div>
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">2. Audience</div>
-          <div class="campaign-section-title">Who is this campaign for?</div>
-          <div class="campaign-section-sub">Target a stage, a contact group, or both.</div>
+          <div class="campaign-section-label">Audience</div>
           <div class="campaign-row" style="margin-bottom:10px;">
             <div>
               <div class="form-label">Saved audience</div>
@@ -2079,25 +2075,17 @@ body {
               <select class="form-input" id="campaign-target-group" onchange="refreshCampaignAudiencePreview()"></select>
             </div>
           </div>
-          <div class="campaign-row" style="margin-top:10px;">
-            <div>
-              <div class="form-label">Internal campaign key</div>
-              <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation" onchange="loadCampaignKnowledge()">
-            </div>
-            <div>
-              <div class="form-label">Who will receive this</div>
-              <div class="campaign-preview" style="min-height:auto;">
-                <div class="campaign-preview-body" id="campaign-audience-preview">Checking current audience size…</div>
-              </div>
+          <input type="hidden" id="broadcast-campaign-key" onchange="loadCampaignKnowledge()">
+          <div style="margin-top:10px;">
+            <div class="form-label">Who will receive this</div>
+            <div class="campaign-preview" style="min-height:auto;">
+              <div class="campaign-preview-body" id="campaign-audience-preview">Checking current audience size…</div>
             </div>
           </div>
-          <div class="campaign-helper">Nazar uses the internal key to track replies and performance for this exact campaign.</div>
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">3. Campaign Content</div>
-          <div class="campaign-section-title">What will you send?</div>
-          <div class="campaign-section-sub">Use a template for repeatable campaigns, or write a custom message for a one-off push.</div>
+          <div class="campaign-section-label">Message</div>
           <div class="campaign-mode-switch">
             <button class="campaign-mode-btn active" id="campaign-mode-template" onclick="setCampaignContentMode('template')">Use Template</button>
             <button class="campaign-mode-btn" id="campaign-mode-custom" onclick="setCampaignContentMode('custom')">Write Custom Copy</button>
@@ -2117,9 +2105,8 @@ body {
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">4. Campaign Knowledge</div>
-          <div class="campaign-section-title">What should Nazar know for this campaign?</div>
-          <div class="campaign-section-sub">Add campaign-specific notes and documents so replies use the right offer, FAQ, and objection handling.</div>
+          <div class="campaign-section-label">Campaign knowledge</div>
+          <div class="campaign-section-sub" style="margin-bottom:12px;">Add notes or files so replies use the right context, offer, and objection handling.</div>
           <div class="form-group">
             <div class="form-label">Campaign notes</div>
             <textarea class="form-input form-textarea" id="campaign-knowledge-notes" style="min-height:110px;" placeholder="Paste campaign details, offer terms, FAQ, or objection handling here."></textarea>
@@ -2143,9 +2130,7 @@ body {
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">5. Reply Handling</div>
-          <div class="campaign-section-title">How should replies be handled?</div>
-          <div class="campaign-section-sub">Choose whether Nazar handles replies automatically or whether your team should step in.</div>
+          <div class="campaign-section-label">Reply handling</div>
           <div class="campaign-row">
             <div>
               <div class="form-label">Reply handling</div>
@@ -2165,9 +2150,7 @@ body {
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">6. Launch</div>
-          <div class="campaign-section-title">Final check</div>
-          <div class="campaign-section-sub">Check the audience, message, and reply handling. Then launch the campaign.</div>
+          <div class="campaign-section-label">Ready to launch</div>
         </div>
       </div>
       <div class="campaign-sticky-footer">
@@ -3604,6 +3587,9 @@ function renderInsightCards() {
   const el = document.getElementById('insights-grid');
   if (!el) return;
   const cards = [...(insightsData.lead_cards || [])].slice(0, 8);
+  // Hide the text-summary row when rich lead cards are available — they cover the same ground
+  const summaryEl = document.getElementById('insights-summary');
+  if (summaryEl) summaryEl.style.display = cards.length ? 'none' : '';
   if (!cards.length) {
     el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🧠</div><div class="empty-title">No deal insights yet</div><div class="empty-sub">Run campaigns and conversations first. Nazar will surface risks, objections, and next actions as more signal comes in.</div></div>`;
     return;
@@ -3685,12 +3671,12 @@ function renderAnalyticsCards(metrics, pipeline, broadcasts) {
 
   const recommendations = document.getElementById('analytics-recommendations');
   const recs = [];
-  if ((metrics.needs_reply || 0) > 0) recs.push(`${metrics.needs_reply} conversations still need replies. Tighten the inbox response loop first.`);
-  if ((metrics.campaign_reply_conversations || 0) > 0) recs.push(`Campaign replies are active. Compare reply load against your current campaign targeting and human queue capacity.`);
-  if ((broadcasts || []).length > 0) recs.push(`You have run ${(broadcasts || []).length} campaigns so far. Use this screen to compare which motions create replies and stage movement.`);
-  if ((metrics.ai_assist_available || 0) > 0) recs.push(`${metrics.ai_assist_available} conversations have AI drafts ready. This is where human-assisted closing should accelerate.`);
+  if ((metrics.needs_reply || 0) > 0) recs.push({ title: 'Inbox Backlog', text: `${metrics.needs_reply} conversations still need replies. Tighten the inbox response loop first.` });
+  if ((metrics.campaign_reply_conversations || 0) > 0) recs.push({ title: 'Campaign Load', text: `Campaign replies are active. Compare reply load against your current campaign targeting and human queue capacity.` });
+  if ((broadcasts || []).length > 0) recs.push({ title: 'Campaign History', text: `You have run ${(broadcasts || []).length} campaigns so far. Use this screen to compare which motions create replies and stage movement.` });
+  if ((metrics.ai_assist_available || 0) > 0) recs.push({ title: 'Draft Ready', text: `${metrics.ai_assist_available} conversations have AI drafts ready. This is where human-assisted closing should accelerate.` });
   recommendations.innerHTML = recs.length
-    ? recs.map(text => `<div class="list-row"><div class="list-row-title">AI recommendation</div><div class="list-row-sub">${esc(text)}</div></div>`).join('')
+    ? recs.map(rec => `<div class="list-row"><div class="list-row-title">${esc(rec.title)}</div><div class="list-row-sub">${esc(rec.text)}</div></div>`).join('')
     : `<div class="list-row"><div class="list-row-title">No operating recommendations yet</div><div class="list-row-sub">As more campaigns and conversations run through Nazar, it will show where your team is losing momentum.</div></div>`;
 }
 
@@ -5493,7 +5479,7 @@ function renderBroadcastHistory(broadcasts, jobs) {
             ${(item.knowledge?.file_count || item.knowledge?.has_notes || item.knowledge?.has_instruction) ? '<span class="tag tag-cold">Knowledge pack</span>' : ''}
           </div>
         </div>
-        <span class="tag tag-cold">${esc(item.status || 'completed')}</span>
+        <span class="tag ${item.status === 'completed' ? 'tag-won' : item.status === 'running' || item.status === 'active' ? 'tag-warm' : 'tag-cold'}">${esc(item.status || 'completed')}</span>
       </div>
       <div class="campaign-summary-metrics">
         <div class="campaign-summary-metric">
@@ -5503,10 +5489,6 @@ function renderBroadcastHistory(broadcasts, jobs) {
         <div class="campaign-summary-metric">
           <div class="campaign-summary-label">Sent</div>
           <div class="campaign-summary-value">${item.sent || 0}</div>
-        </div>
-        <div class="campaign-summary-metric">
-          <div class="campaign-summary-label">Failed</div>
-          <div class="campaign-summary-value">${item.failed || 0}</div>
         </div>
         <div class="campaign-summary-metric">
           <div class="campaign-summary-label">Replies</div>
@@ -5534,11 +5516,10 @@ function formatCampaignHistoryTitle(item) {
 
 function formatCampaignHistorySub(item) {
   const parts = [];
-  if (item.campaign_key) parts.push(`Key ${item.campaign_key}`);
-  if (item.filter_stage) parts.push(`Stage ${item.filter_stage}`);
-  if (item.filter_tag) parts.push(`Group ${item.filter_tag}`);
-  if (item.message) parts.push((item.message || '').slice(0, 110));
-  else if (item.template) parts.push(`Uses WhatsApp template ${item.template}`);
+  if (item.filter_stage && item.filter_stage !== 'All active contacts') parts.push(item.filter_stage);
+  if (item.filter_tag) parts.push(item.filter_tag);
+  if (item.template) parts.push(item.template);
+  else if (item.message) parts.push((item.message || '').slice(0, 80));
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -5566,26 +5547,28 @@ function openCampaignDetailByIndex(index) {
   if (!item) return;
   const metrics = item.metrics || {};
   document.getElementById('campaign-detail-title').textContent = formatCampaignHistoryTitle(item);
-  document.getElementById('campaign-detail-sub').textContent = formatCampaignHistorySub(item) || 'Campaign detail';
+  const _detailParts = [];
+  if (item.filter_stage) _detailParts.push(item.filter_stage);
+  if (item.template) _detailParts.push(item.template);
+  if (item.created_at) _detailParts.push(timeAgo(item.created_at));
+  document.getElementById('campaign-detail-sub').textContent = _detailParts.join(' · ') || 'Campaign detail';
   document.getElementById('campaign-detail-audience').textContent = item.target_count || 0;
   document.getElementById('campaign-detail-sent').textContent = item.sent || 0;
   document.getElementById('campaign-detail-replies').textContent = metrics.reply_conversations || 0;
   document.getElementById('campaign-detail-won').textContent = metrics.won || 0;
   document.getElementById('campaign-detail-context').innerHTML = `
-    <div class="list-item"><strong>Status</strong><br>${esc(item.status || 'completed')}</div>
-    <div class="list-item"><strong>Audience filters</strong><br>${esc(item.filter_stage || 'All active contacts')}${item.filter_tag ? ` · group ${esc(item.filter_tag)}` : ''}</div>
-    <div class="list-item"><strong>Content</strong><br>${esc(item.template ? `Template: ${item.template}` : 'Custom copy')}</div>
-    <div class="list-item"><strong>Knowledge pack</strong><br>${item.knowledge?.file_count || item.knowledge?.has_notes || item.knowledge?.has_instruction ? `${item.knowledge?.file_count || 0} file(s)${item.knowledge?.has_notes ? ' · notes added' : ''}${item.knowledge?.has_instruction ? ' · AI instruction' : ''}` : 'No campaign-specific knowledge added'}</div>
-    <div class="list-item"><strong>Launched</strong><br>${esc(timeAgo(item.created_at))}</div>
-    <div class="list-item"><strong>Reply rate</strong><br>${rateOf(metrics.reply_conversations || 0, item.target_count || 0)}</div>
-    <div class="list-item"><strong>Conversion rate</strong><br>${rateOf(metrics.won || 0, item.target_count || 0)}</div>
+    <div class="list-item"><strong>Audience</strong>${esc(item.filter_stage || 'All active contacts')}${item.filter_tag ? ` · ${esc(item.filter_tag)}` : ''}</div>
+    <div class="list-item"><strong>Message</strong>${esc(item.template ? item.template : 'Custom copy')}</div>
+    <div class="list-item"><strong>Reply rate</strong>${rateOf(metrics.reply_conversations || 0, item.target_count || 0)}</div>
+    <div class="list-item"><strong>Conversion</strong>${rateOf(metrics.won || 0, item.target_count || 0)}</div>
+    ${item.knowledge?.file_count || item.knowledge?.has_notes || item.knowledge?.has_instruction ? `<div class="list-item"><strong>Knowledge</strong>${item.knowledge?.file_count || 0} file(s)${item.knowledge?.has_notes ? ' · notes' : ''}${item.knowledge?.has_instruction ? ' · AI instruction' : ''}</div>` : ''}
   `;
   document.getElementById('campaign-detail-funnel').innerHTML = `
-    <div class="list-item"><strong>Reply conversations</strong><br>${metrics.reply_conversations || 0}</div>
-    <div class="list-item"><strong>Need reply now</strong><br>${metrics.needs_reply || 0}</div>
-    <div class="list-item"><strong>AI drafts ready</strong><br>${metrics.ai_assist_ready || 0}</div>
-    <div class="list-item"><strong>Qualified / Proposal / Won</strong><br>${metrics.qualified || 0} / ${metrics.proposal || 0} / ${metrics.won || 0}</div>
-    <div class="list-item"><strong>Outcome summary</strong><br>${esc(formatCampaignOutcome(item))}</div>
+    <div class="list-item"><strong>Replies</strong>${metrics.reply_conversations || 0}</div>
+    <div class="list-item"><strong>Needs reply</strong>${metrics.needs_reply || 0}</div>
+    <div class="list-item"><strong>AI drafts ready</strong>${metrics.ai_assist_ready || 0}</div>
+    <div class="list-item"><strong>Qualified · Proposal · Won</strong>${metrics.qualified || 0} · ${metrics.proposal || 0} · ${metrics.won || 0}</div>
+    <div class="list-item"><strong>Outcome</strong>${esc(formatCampaignOutcome(item))}</div>
   `;
   const context = document.getElementById('campaign-detail-context');
   if (context) {
