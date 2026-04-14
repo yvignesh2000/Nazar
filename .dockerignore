@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+dist/
+build/
+
+# Local dev
+.env
+*.db
+*.sqlite
+*.sqlite3
+
+# Data (don't bake into image — mount as volume or use cloud storage)
+nazar/data/nazar.db
+nazar/data/contacts/
+nazar/data/campaign_knowledge/
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Docs (not needed in container)
+docs/
+README.md
+DEPLOYMENT.md

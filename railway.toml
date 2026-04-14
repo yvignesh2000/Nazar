@@ -1,0 +1,38 @@
+[build]
+builder = "dockerfile"
+
+# ── API service ──────────────────────────────────────────────────────────────
+# Railway will auto-detect this as the default service.
+# Set the following env vars in Railway dashboard:
+#   DATABASE_URL        (Railway provides this automatically for Postgres plugin)
+#   WA_PHONE_NUMBER_ID
+#   WA_ACCESS_TOKEN
+#   WA_VERIFY_TOKEN
+#   OPENROUTER_API_KEY
+#   GROQ_API_KEY
+#   NAZAR_API_KEY
+#   NAZAR_OWNER_NAME
+#   NAZAR_OWNER_EMAIL
+#   NAZAR_WORKSPACE_SLUG  (e.g. "your-business")
+#   NAZAR_WORKSPACE_NAME  (e.g. "Your Business Name")
+#   NAZAR_ENV=production
+#   TELEGRAM_BOT_TOKEN    (optional)
+#   TELEGRAM_BOT_USERNAME (optional)
+
+[[services]]
+name = "api"
+dockerfile = "Dockerfile"
+
+[services.deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "worker"
+dockerfile = "Dockerfile.worker"
+
+[services.deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

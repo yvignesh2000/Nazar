@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
+
+# Load .env so DATABASE_URL is available when running `alembic upgrade head`
+# directly (without the app server having already loaded it).
+_env_file = Path(__file__).resolve().parent.parent / "nazar" / ".env"
+if _env_file.exists():
+    load_dotenv(_env_file)
 
 from nazar.core.db import Base, get_database_url
 

@@ -1,6 +1,7 @@
 [Unit]
 Description=Nazar API
-After=network.target
+After=network.target postgresql.service
+Wants=postgresql.service
 
 [Service]
 Type=simple
@@ -8,9 +9,16 @@ User=nazar
 Group=nazar
 WorkingDirectory=/opt/nazar
 EnvironmentFile=/opt/nazar/nazar/.env
-ExecStart=/usr/bin/python3 /opt/nazar/nazar/server.py
+Environment=PYTHONPATH=/opt/nazar
+ExecStart=/opt/nazar/.venv/bin/uvicorn nazar.server:app \
+    --host 0.0.0.0 \
+    --port 8002 \
+    --workers 1 \
+    --log-level info
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

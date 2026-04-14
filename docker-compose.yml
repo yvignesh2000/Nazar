@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  # ── Postgres ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nazar
+      POSTGRES_USER: nazar
+      POSTGRES_PASSWORD: nazar_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nazar"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── API ───────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file:
+      - nazar/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://nazar:nazar_dev@db:5432/nazar
+      NAZAR_ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Mount data dir so campaign knowledge files persist locally
+      - ./nazar/data:/app/nazar/data
+
+  # ── Worker ────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file:
+      - nazar/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://nazar:nazar_dev@db:5432/nazar
+      NAZAR_ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./nazar/data:/app/nazar/data
+
+volumes:
+  postgres_data:

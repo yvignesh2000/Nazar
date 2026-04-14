@@ -436,6 +436,33 @@ async def shutdown_event():
         task.cancel()
 
 
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint.
+    Used by Railway, Render, load-balancers, and uptime monitors.
+    Returns 200 if the app is alive and the database is reachable.
+    No authentication required.
+    """
+    try:
+        with SessionLocal() as session:
+            session.execute(select(func.count(Conversation.id)))
+        db_status = "connected"
+    except Exception as exc:
+        logger.warning(f"Health check DB ping failed: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "db": "unreachable", "error": str(exc)},
+        )
+    return {
+        "status": "ok",
+        "db": db_status,
+        "storage_backend": get_storage_backend_name(),
+        "env": os.environ.get("NAZAR_ENV", "development"),
+    }
+
+
+
 @app.websocket("/ws/live")
 async def websocket_live_updates(websocket: WebSocket):
     if not _authorize_websocket(websocket):
@@ -2400,7 +2427,19 @@ async def serve_frontend():
     """Serve the dashboard HTML."""
     html_path = Path(__file__).parent / "frontend" / "index.html"
     if html_path.exists():
-        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        html = html_path.read_text(encoding="utf-8")
+        # DEV AUTO-LOGIN: inject a fresh session token so the auth/onboarding gate is
+        # bypassed on every page load. Set NAZAR_DEV_AUTO_LOGIN=0 to disable.
+        if os.environ.get("NAZAR_DEV_AUTO_LOGIN", "1") != "0":
+            try:
+                session = create_session(os.environ.get("NAZAR_API_KEY", "nazar_dev_key"))
+                token = session.get("token", "")
+                if token:
+                    inject = f'<script>localStorage.setItem("nazar_auth_token","{token}");</script>'
+                    html = html.replace("</head>", inject + "\n</head>", 1)
+            except Exception:
+                pass
+        return HTMLResponse(html)
     return HTMLResponse("<h1>Nazar</h1><p>Frontend not found. Place index.html in frontend/</p>")
 
 

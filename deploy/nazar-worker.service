@@ -1,6 +1,7 @@
 [Unit]
 Description=Nazar Worker
 After=network.target nazar-api.service
+Wants=nazar-api.service
 
 [Service]
 Type=simple
@@ -8,9 +9,12 @@ User=nazar
 Group=nazar
 WorkingDirectory=/opt/nazar
 EnvironmentFile=/opt/nazar/nazar/.env
-ExecStart=/usr/bin/python3 /opt/nazar/nazar/worker.py
+Environment=PYTHONPATH=/opt/nazar
+ExecStart=/opt/nazar/.venv/bin/python nazar/worker.py
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
