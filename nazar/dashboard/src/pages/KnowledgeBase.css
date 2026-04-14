@@ -1,0 +1,30 @@
+.kb-editor {
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.kb-meta {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-gray-100);
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+.kb-textarea {
+  width: 100%;
+  border: none;
+  outline: none;
+  padding: var(--space-4);
+  font-size: var(--font-size-sm);
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 400px;
+  color: var(--color-gray-800);
+}
+
+.kb-textarea::placeholder {
+  color: var(--color-gray-400);
+}

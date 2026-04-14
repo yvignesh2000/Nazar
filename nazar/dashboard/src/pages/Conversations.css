@@ -1,0 +1,117 @@
+.conv-search-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  color: var(--color-gray-400);
+}
+
+.conv-search-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-900);
+}
+
+.conv-search-bar input::placeholder {
+  color: var(--color-gray-400);
+}
+
+.conv-list {
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.conv-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-gray-100);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.conv-item:last-child {
+  border-bottom: none;
+}
+
+.conv-item:hover {
+  background: var(--color-gray-50);
+}
+
+.conv-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  flex-shrink: 0;
+}
+
+.conv-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.conv-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.conv-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.conv-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+  white-space: nowrap;
+}
+
+.conv-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.conv-preview {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-500);
+  flex: 1;
+  min-width: 0;
+}
+
+.conv-badges {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+}
+
+.conv-unread {
+  background: var(--color-primary-600);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  min-width: 20px;
+  text-align: center;
+}

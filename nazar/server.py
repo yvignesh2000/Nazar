@@ -14,6 +14,9 @@ import os
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
 import asyncio
 import json
 import logging
@@ -46,6 +49,13 @@ from customer_memory import (
 )
 from conversation import handle_inbound, generate_ai_reply, should_handoff
 from llm_router import call_llm_safe, get_health_status as llm_health
+from handoff_manager import (
+    is_bot_active, get_contact_handoff_state, get_all_handoff_states,
+    trigger_handoff, resume_bot, mark_human_responded,
+    evaluate_handoff, evaluate_response_handoff,
+    check_auto_resume, get_handoff_queue, get_handoff_history,
+    get_handoff_stats, build_team_notification,
+)
 from transcription import transcribe_audio, TranscriptionError
 from outbound import (
     execute_broadcast, log_broadcast, get_broadcast_history,
@@ -91,8 +101,8 @@ app.add_middleware(
 # Track processed messages to avoid duplicates
 _processed_messages: deque = deque(maxlen=10000)
 
-# Track bot mode per contact (True = bot handles, False = human handles)
-_bot_mode: dict = {}  # contact_id -> bool
+# Bot mode is now managed by handoff_manager (persistent to disk)
+# _bot_mode dict removed -- use is_bot_active(contact_id) instead
 
 
 def _log_task_error(task: asyncio.Task):
@@ -110,6 +120,21 @@ def _check_api_key(request: Request):
     key = request.headers.get("X-Nazar-Key", "")
     if key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+# ====================================================================
+#  CONFIG HELPER
+# ====================================================================
+
+def _load_config() -> dict:
+    """Load bot configuration from data/config.json."""
+    config_path = DATA_DIR / "config.json"
+    if config_path.exists():
+        try:
+            return json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"business_name": "our company", "bot_enabled": True, "smart_handoff": True}
 
 
 # ====================================================================
@@ -280,33 +305,115 @@ def _handle_status_update(status: dict):
 
 
 async def _handle_text_message(phone: str, text: str, msg_id: str):
-    """Handle an inbound text message."""
+    """Handle an inbound text message with full handoff pipeline."""
     try:
         phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
 
-        # Check if human handoff is active for this contact
-        contact = get_contact_by_phone(phone_e164)
-        if contact:
-            contact_id = contact["contact_id"]
-            if not _bot_mode.get(contact_id, True):
-                # Bot is off for this contact — just save the message, don't reply
-                save_message(contact_id, "inbound", text, wa_message_id=msg_id)
-                logger.info(f"[{phone}] Bot off — message saved for human")
-                return
+        # Load config for handoff settings
+        config = _load_config()
+        handoff_message = config.get(
+            "handoff_message",
+            "I'll connect you with a team member who can help with this directly.",
+        )
+        smart_handoff = config.get("smart_handoff", True)
+        auto_resume_hours = config.get("auto_resume_hours", 0)
+        notify_phone = config.get("notify_phone", "")
 
-        # Check for handoff triggers
-        if should_handoff(text):
-            if contact:
-                _bot_mode[contact["contact_id"]] = False
-            await send_whatsapp_message(phone, "I'll connect you with a team member who can help. They'll be with you shortly!")
-            logger.info(f"[{phone}] Human handoff triggered")
+        # 1. Get or create contact
+        contact = get_contact_by_phone(phone_e164)
+
+        # 2. If bot is off (human mode), just save the message silently
+        if contact and not is_bot_active(contact["contact_id"]):
+            save_message(contact["contact_id"], "inbound", text, wa_message_id=msg_id)
+            logger.info(f"[{phone}] Bot off -- message saved for human")
             return
 
-        # Normal AI response
+        contact_id = contact["contact_id"] if contact else None
+        contact_name = contact.get("name", "") if contact else ""
+
+        # 3. Get recent messages for AI handoff context
+        recent_messages = []
+        if contact_id:
+            try:
+                recent_messages = get_conversation_history(contact_id, days=3)
+            except Exception:
+                pass
+
+        # 4. Evaluate handoff (keyword + optional AI intent check)
+        async def haiku_call(messages):
+            return await call_llm_safe(messages, tier="haiku", phone=phone)
+
+        handoff_result = None
+        if contact_id:
+            handoff_result = await evaluate_handoff(
+                contact_id=contact_id,
+                message=text,
+                recent_messages=recent_messages,
+                llm_call=haiku_call if smart_handoff else None,
+                contact_name=contact_name,
+                contact_phone=phone_e164,
+                smart_handoff_enabled=smart_handoff,
+            )
+
+        if handoff_result:
+            # Save the inbound message first
+            if contact_id:
+                save_message(contact_id, "inbound", text, wa_message_id=msg_id)
+
+            # Send handoff message to customer
+            await send_whatsapp_message(phone, handoff_message)
+
+            # Save the handoff message as outbound
+            if contact_id:
+                save_message(contact_id, "outbound", handoff_message, sent_by="bot")
+
+            # Notify team if configured
+            if notify_phone:
+                notification = build_team_notification(
+                    contact_name=contact_name,
+                    contact_phone=phone_e164,
+                    reason=handoff_result.get("reason", "Handoff triggered"),
+                    message_excerpt=text,
+                )
+                t = asyncio.create_task(send_whatsapp_message(notify_phone, notification))
+                t.add_done_callback(_log_task_error)
+
+            logger.info(
+                f"[{phone}] Handoff triggered: {handoff_result.get('reason', 'unknown')} "
+                f"[method={handoff_result.get('detection_method', 'unknown')}]"
+            )
+            return
+
+        # 5. Normal AI response
         async def llm_call(messages):
             return await call_llm_safe(messages, tier="sonnet", phone=phone)
 
         response = await handle_inbound(phone_e164, text, llm_call)
+
+        # 6. Check if the AI's own response indicates a handoff
+        if contact_id:
+            response_handoff = await evaluate_response_handoff(
+                contact_id=contact_id,
+                ai_response=response,
+                contact_name=contact_name,
+                contact_phone=phone_e164,
+            )
+            if response_handoff:
+                logger.info(
+                    f"[{phone}] AI self-triggered handoff: "
+                    f"{response_handoff.get('reason', 'AI response indicated handoff')}"
+                )
+                # Notify team
+                if notify_phone:
+                    notification = build_team_notification(
+                        contact_name=contact_name,
+                        contact_phone=phone_e164,
+                        reason=response_handoff.get("reason", "AI initiated handoff"),
+                        message_excerpt=response[:150],
+                    )
+                    t = asyncio.create_task(send_whatsapp_message(notify_phone, notification))
+                    t.add_done_callback(_log_task_error)
+
         await send_whatsapp_message(phone, response)
 
     except Exception as e:
@@ -492,7 +599,7 @@ async def api_list_conversations(request: Request, status: str = None):
             "lead_score": c.get("lead_score", 0),
             "last_message": last_msg.get("content", "")[:100] if last_msg else "",
             "last_time": last_msg.get("timestamp", "") if last_msg else c.get("last_replied_at", ""),
-            "bot_mode": _bot_mode.get(c["contact_id"], True),
+            "bot_mode": is_bot_active(c["contact_id"]),
             "message_count": c.get("total_messages", 0),
         })
     conversations.sort(key=lambda x: x["last_time"] or "", reverse=True)
@@ -511,7 +618,8 @@ async def api_get_conversation(contact_id: str, request: Request, days: int = 7)
         "contact": contact,
         "messages": messages,
         "memory": memory_summary,
-        "bot_mode": _bot_mode.get(contact_id, True),
+        "bot_mode": is_bot_active(contact_id),
+        "handoff_state": get_contact_handoff_state(contact_id),
     }
 
 
@@ -540,6 +648,10 @@ async def api_send_message(contact_id: str, request: Request):
     save_message(contact_id, "outbound", text, sent_by="human", wa_message_id=wa_msg_id)
     memory_add_message(contact_id, "outbound", text)
 
+    # Mark that a human has responded to this handoff
+    if not is_bot_active(contact_id):
+        mark_human_responded(contact_id)
+
     # Update contact
     update_contact(contact_id, last_contacted_at=datetime.now(IST).isoformat())
 
@@ -551,9 +663,56 @@ async def api_handover(contact_id: str, request: Request):
     _check_api_key(request)
     body = await request.json()
     bot_on = body.get("bot_mode", True)
-    _bot_mode[contact_id] = bot_on
+
+    if bot_on:
+        entry = resume_bot(contact_id, resumed_by="manual", reason="Toggled from dashboard")
+    else:
+        contact = get_contact(contact_id)
+        entry = trigger_handoff(
+            contact_id=contact_id,
+            reason="Manually switched to human mode from dashboard",
+            triggered_by="manual",
+            contact_name=contact.get("name", "") if contact else "",
+            contact_phone=contact.get("phone", "") if contact else "",
+            detection_method="manual",
+        )
+
     logger.info(f"Bot mode for {contact_id}: {'ON' if bot_on else 'OFF'}")
-    return {"bot_mode": bot_on}
+    return {"bot_mode": bot_on, "handoff_state": entry}
+
+
+# ====================================================================
+#  DASHBOARD API — HANDOFF QUEUE
+# ====================================================================
+
+@app.get("/api/handoffs")
+async def api_handoff_queue(request: Request):
+    _check_api_key(request)
+    queue = get_handoff_queue()
+    stats = get_handoff_stats()
+    return {"queue": queue, "stats": stats}
+
+
+@app.get("/api/handoffs/history")
+async def api_handoff_history(request: Request):
+    _check_api_key(request)
+    history = get_handoff_history(limit=100)
+    return {"history": history}
+
+
+@app.get("/api/handoffs/stats")
+async def api_handoff_stats(request: Request):
+    _check_api_key(request)
+    return get_handoff_stats()
+
+
+@app.post("/api/handoffs/{contact_id}/resume")
+async def api_resume_bot(contact_id: str, request: Request):
+    _check_api_key(request)
+    body = await request.json()
+    reason = body.get("reason", "Resumed from dashboard")
+    entry = resume_bot(contact_id, resumed_by="manual", reason=reason)
+    return {"ok": True, "handoff_state": entry}
 
 
 # ====================================================================
@@ -912,6 +1071,34 @@ async def serve_frontend():
     if html_path.exists():
         return HTMLResponse(html_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>Nazar</h1><p>Frontend not found. Place index.html in frontend/</p>")
+
+
+# ====================================================================
+#  AUTO-RESUME BACKGROUND TASK
+# ====================================================================
+
+async def _auto_resume_loop():
+    """Background loop that checks for timed-out handoffs every 5 minutes."""
+    while True:
+        try:
+            await asyncio.sleep(300)  # Check every 5 minutes
+            config = _load_config()
+            auto_resume_hours = config.get("auto_resume_hours", 0)
+            if auto_resume_hours > 0:
+                resumed = check_auto_resume(auto_resume_hours)
+                if resumed:
+                    logger.info(f"Auto-resumed {len(resumed)} contact(s): {resumed}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Auto-resume loop error: {e}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks."""
+    asyncio.create_task(_auto_resume_loop())
+    logger.info("Handoff auto-resume background task started")
 
 
 # ====================================================================

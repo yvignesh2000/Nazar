@@ -1,0 +1,134 @@
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.overview-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.panel {
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.panel-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-gray-100);
+}
+
+.panel-body {
+  padding: var(--space-2) 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.panel-empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-gray-400);
+  font-size: var(--font-size-sm);
+}
+
+/* Activity items */
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  transition: background var(--transition-fast);
+}
+
+.activity-item:hover {
+  background: var(--color-gray-50);
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary-500);
+  flex-shrink: 0;
+}
+
+.activity-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-name {
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+}
+
+.activity-detail {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+}
+
+.activity-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Contact rows */
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  transition: background var(--transition-fast);
+}
+
+.contact-row:hover {
+  background: var(--color-gray-50);
+}
+
+.contact-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.contact-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-name {
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+}
+
+.contact-phone {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+@media (max-width: 900px) {
+  .overview-panels {
+    grid-template-columns: 1fr;
+  }
+}

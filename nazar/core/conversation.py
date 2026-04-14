@@ -251,13 +251,10 @@ async def generate_ai_reply(
 
 
 def should_handoff(message: str) -> bool:
-    """Check if the customer message warrants human handoff."""
-    lower = message.lower()
-    handoff_triggers = [
-        "talk to a person", "talk to someone", "real person",
-        "human", "agent", "manager", "supervisor",
-        "complaint", "escalate", "unsubscribe",
-        "not happy", "terrible", "worst", "sue",
-        "lawyer", "legal",
-    ]
-    return any(trigger in lower for trigger in handoff_triggers)
+    """
+    Legacy keyword-based handoff check.
+    Kept for backward compatibility but the real logic lives in
+    handoff_manager.evaluate_handoff() which is called from server.py.
+    """
+    from handoff_manager import check_keyword_handoff
+    return check_keyword_handoff(message) is not None

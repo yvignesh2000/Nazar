@@ -1,0 +1,217 @@
+.stat-grid--3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 2px solid var(--color-gray-200);
+  margin-bottom: var(--space-5);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-gray-500);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all var(--transition-fast);
+}
+
+.tab:hover {
+  color: var(--color-gray-700);
+}
+
+.tab--active {
+  color: var(--color-primary-600);
+  border-bottom-color: var(--color-primary-600);
+}
+
+.tab-count {
+  background: var(--color-orange-500);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+}
+
+/* Handoff Grid */
+.handoff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--space-4);
+}
+
+.handoff-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  transition: box-shadow var(--transition-fast);
+}
+
+.handoff-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.handoff-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.handoff-contact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.handoff-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-orange-50);
+  color: var(--color-orange-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.handoff-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.handoff-phone {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+.handoff-reason {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+  line-height: 1.5;
+}
+
+.handoff-excerpt {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-500);
+  font-style: italic;
+  background: var(--color-gray-50);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-orange-500);
+}
+
+.handoff-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.handoff-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+.handoff-card-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-gray-100);
+}
+
+/* History */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.history-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-gray-100);
+  transition: background var(--transition-fast);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-item:hover {
+  background: var(--color-gray-50);
+}
+
+.history-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.history-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+}
+
+.history-event {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  text-transform: capitalize;
+  display: none; /* use badge instead */
+}
+
+.history-detail {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+}
+
+.history-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+  margin-top: 2px;
+}
+
+@media (max-width: 800px) {
+  .stat-grid--3 {
+    grid-template-columns: 1fr;
+  }
+  .handoff-grid {
+    grid-template-columns: 1fr;
+  }
+}

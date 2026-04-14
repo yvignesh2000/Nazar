@@ -923,6 +923,9 @@ body {
    ================================================================ */
 .followups-layout { flex:1; overflow-y:auto; padding:24px; }
 .fu-cards { display:flex; flex-direction:column; gap:10px; }
+.stat-mini { display:flex; flex-direction:column; align-items:center; padding:10px 18px; background:var(--surface); border:1px solid var(--border); border-radius:8px; min-width:90px; }
+.stat-mini-val { font-size:22px; font-weight:700; color:var(--text); }
+.stat-mini-lbl { font-size:11px; color:var(--text3); margin-top:2px; text-transform:uppercase; letter-spacing:0.5px; }
 .fu-card {
   background:var(--surface);
   border:1px solid var(--border);
@@ -1218,6 +1221,11 @@ body {
       <span>Follow-ups</span>
       <span class="nav-badge green" id="followup-badge" style="display:none">0</span>
     </div>
+    <div class="nav-item" data-screen="handoffs" onclick="navigateTo('handoffs')">
+      <span class="nav-icon">🤝</span>
+      <span>Handoffs</span>
+      <span class="nav-badge" id="handoff-badge" style="display:none;background:var(--orange)">0</span>
+    </div>
   </div>
 
   <div class="nav-section">
@@ -1450,6 +1458,40 @@ body {
   </div>
 
   <!-- ============================================================
+       SCREEN: HANDOFFS
+       ============================================================ -->
+  <div class="screen" id="screen-handoffs">
+    <div class="followups-layout">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:18px;font-weight:700;">Handoff Queue</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px;">Contacts waiting for a human response</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="loadHandoffs()">Refresh</button>
+        </div>
+      </div>
+      <!-- Stats bar -->
+      <div class="ho-stats" id="handoff-stats-bar" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;"></div>
+      <!-- Queue cards -->
+      <div class="fu-cards" id="handoff-cards">
+        <div class="empty-state">
+          <div class="empty-icon">🤖</div>
+          <div class="empty-title">No active handoffs</div>
+          <div class="empty-sub">The bot is handling all conversations. Handoffs will appear here when a customer needs human help.</div>
+        </div>
+      </div>
+      <!-- History section -->
+      <div style="margin-top:32px;">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px;">Recent Handoff Activity</div>
+        <div id="handoff-history-list" style="display:flex;flex-direction:column;gap:6px;">
+          <div style="color:var(--text3);font-size:13px;">No handoff history yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        SCREEN: BOT CONFIG
        ============================================================ -->
   <div class="screen" id="screen-botconfig">
@@ -1496,9 +1538,21 @@ body {
           <div class="toggle-row">
             <div class="toggle-info">
               <div class="toggle-label">Smart Handoff</div>
-              <div class="toggle-desc">Bot detects when to transfer to a human agent</div>
+              <div class="toggle-desc">Use AI to detect frustration, complex queries, and escalations (uses haiku-tier tokens)</div>
             </div>
             <div class="toggle on" id="toggle-handoff" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <div class="form-label">Handoff Message</div>
+            <textarea class="form-input form-textarea" style="min-height:60px;" placeholder="Message sent when handoff triggers" id="config-handoff-msg"></textarea>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Team Notification Phone <span style="font-weight:400;text-transform:none;color:var(--text3)">WhatsApp number to notify on handoff (E.164)</span></div>
+            <input class="form-input" type="text" placeholder="+919876543210" id="config-notify-phone">
+          </div>
+          <div class="form-group">
+            <div class="form-label">Auto-Resume After (hours) <span style="font-weight:400;text-transform:none;color:var(--text3)">0 = disabled</span></div>
+            <input class="form-input" type="number" min="0" max="168" value="0" id="config-auto-resume-hours">
           </div>
           <div style="margin-top:20px;">
             <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
@@ -1691,8 +1745,8 @@ function navigateTo(screen) {
 
   const titles = {
     overview:'Overview', conversations:'Conversations', pipeline:'Pipeline',
-    broadcasts:'Broadcasts', followups:'Follow-ups', botconfig:'Bot Config',
-    settings:'Settings'
+    broadcasts:'Broadcasts', followups:'Follow-ups', handoffs:'Handoffs',
+    botconfig:'Bot Config', settings:'Settings'
   };
   document.getElementById('page-title').textContent = titles[screen] || screen;
 
@@ -1701,6 +1755,7 @@ function navigateTo(screen) {
   else if (screen === 'conversations') loadConversations();
   else if (screen === 'pipeline') loadPipeline();
   else if (screen === 'followups') loadFollowups();
+  else if (screen === 'handoffs') loadHandoffs();
   else if (screen === 'botconfig') loadConfig();
   else if (screen === 'settings') loadSettings();
 }
@@ -1765,6 +1820,15 @@ async function loadOverview() {
   } catch(e) {
     console.error('Load overview failed:', e);
   }
+
+  // Update handoff badge
+  try {
+    const hdata = await api('GET', '/api/handoffs');
+    const qlen = (hdata.queue || []).length;
+    const badge = document.getElementById('handoff-badge');
+    if (qlen > 0) { badge.style.display = 'flex'; badge.textContent = qlen; }
+    else { badge.style.display = 'none'; }
+  } catch(e) {}
 }
 
 function generateInsight(data) {
@@ -1850,6 +1914,7 @@ function renderConversationDetail(data) {
         <button class="btn btn-sm ${botMode?'btn-ghost':'btn-primary'}" onclick="toggleBot('${c.contact_id}',${!botMode})">
           ${botMode?'🤖 Bot Active':'👤 Human Mode'}
         </button>
+        ${!botMode && data.handoff_state ? `<span style="font-size:11px;color:var(--orange);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(data.handoff_state.reason||'')}">${esc((data.handoff_state.reason||'').substring(0,40))}</span>` : ''}
         <div class="icon-btn" title="View Memory" onclick="navigateTo('pipeline')">🧠</div>
       </div>
     </div>
@@ -2089,6 +2154,125 @@ function renderFollowups(list) {
 }
 
 // ================================================================
+//  HANDOFFS
+// ================================================================
+async function loadHandoffs() {
+  try {
+    const data = await api('GET', '/api/handoffs');
+    const queue = data.queue || [];
+    const stats = data.stats || {};
+    renderHandoffStats(stats);
+    renderHandoffQueue(queue);
+    // Update badge
+    const badge = document.getElementById('handoff-badge');
+    if (queue.length > 0) {
+      badge.style.display = 'flex';
+      badge.textContent = queue.length;
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {
+    console.error('Load handoffs failed:', e);
+  }
+  // Load history
+  try {
+    const hdata = await api('GET', '/api/handoffs/history');
+    renderHandoffHistory(hdata.history || []);
+  } catch(e) {}
+}
+
+function renderHandoffStats(stats) {
+  const el = document.getElementById('handoff-stats-bar');
+  el.innerHTML = `
+    <div class="stat-mini"><span class="stat-mini-val" style="color:var(--orange)">${stats.currently_in_queue||0}</span><span class="stat-mini-lbl">In Queue</span></div>
+    <div class="stat-mini"><span class="stat-mini-val">${stats.total_handoffs||0}</span><span class="stat-mini-lbl">Total Handoffs</span></div>
+    <div class="stat-mini"><span class="stat-mini-val" style="color:var(--green)">${stats.total_resumes||0}</span><span class="stat-mini-lbl">Resolved</span></div>
+  `;
+}
+
+function renderHandoffQueue(queue) {
+  const el = document.getElementById('handoff-cards');
+  if (queue.length === 0) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🤖</div>
+      <div class="empty-title">No active handoffs</div>
+      <div class="empty-sub">The bot is handling all conversations. Handoffs will appear here when a customer needs human help.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = queue.map(h => {
+    const catColors = {
+      explicit_request: 'var(--accent)',
+      frustration: 'var(--red)',
+      escalation: 'var(--red)',
+      complex_query: 'var(--orange)',
+      legal: 'var(--red)',
+      repeated_failure: 'var(--orange)',
+      ai_self_handoff: 'var(--purple)',
+      unknown: 'var(--text3)',
+    };
+    const catColor = catColors[h.category] || 'var(--orange)';
+    const methodIcons = { keyword: '🔑', ai_intent: '🧠', ai_response: '🤖', manual: '👤' };
+    const methodIcon = methodIcons[h.detection_method] || '❓';
+    const responded = h.human_responded ? `<span style="color:var(--green);font-size:12px;">✅ Human responded ${h.human_responded_at ? timeAgo(h.human_responded_at) : ''}</span>` : `<span style="color:var(--orange);font-size:12px;">⏳ Awaiting human response</span>`;
+    return `
+      <div class="fu-card urgent" style="border-left:3px solid ${catColor};">
+        <div class="av av-md av-${hashColor(h.contact_name)}">${initials(h.contact_name)}</div>
+        <div class="fu-card-body">
+          <div class="fu-card-row1">
+            <span class="fu-card-name">${esc(h.contact_name||'Unknown')}</span>
+            <span class="fu-priority" style="background:${catColor}15;color:${catColor};border:1px solid ${catColor}30;">${methodIcon} ${h.category||'unknown'}</span>
+          </div>
+          <div class="fu-card-context" style="margin-top:4px;">${esc(h.reason||'')}</div>
+          ${h.message_excerpt ? `<div style="margin-top:6px;padding:8px 10px;background:var(--surface);border-radius:6px;font-size:12px;color:var(--text2);border:1px solid var(--border);">"${esc(h.message_excerpt.substring(0,120))}"</div>` : ''}
+          <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+            ${responded}
+            <span style="color:var(--text3);font-size:12px;">${timeAgo(h.triggered_at)}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:100px;">
+          <button class="btn btn-sm btn-primary" onclick="resumeHandoff('${h.contact_id}')">🤖 Resume Bot</button>
+          <button class="btn btn-sm btn-ghost" onclick="navigateTo('conversations');setTimeout(()=>selectConversation('${h.contact_id}'),300);">💬 Open Chat</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderHandoffHistory(history) {
+  const el = document.getElementById('handoff-history-list');
+  if (!history || history.length === 0) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px;">No handoff history yet.</div>';
+    return;
+  }
+  const recent = history.slice(0, 20);
+  el.innerHTML = recent.map(e => {
+    const icons = { handoff_triggered: '🔴', bot_resumed: '🟢', human_responded: '💬' };
+    const icon = icons[e.event] || '⚪';
+    const labels = { handoff_triggered: 'Handoff', bot_resumed: 'Resumed', human_responded: 'Human replied' };
+    const label = labels[e.event] || e.event;
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface);border-radius:6px;font-size:13px;">
+        <span>${icon}</span>
+        <span style="font-weight:500;min-width:80px;">${label}</span>
+        <span style="color:var(--text2);flex:1;">${esc(e.contact_name||e.contact_id||'')} ${e.reason ? '— ' + esc(e.reason.substring(0,80)) : ''}</span>
+        <span style="color:var(--text3);font-size:12px;white-space:nowrap;">${timeAgo(e.timestamp)}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function resumeHandoff(contactId) {
+  try {
+    await api('POST', `/api/handoffs/${contactId}/resume`, { reason: 'Resumed from handoff queue' });
+    showToast('🤖', 'Bot resumed for this contact');
+    loadHandoffs();
+  } catch(e) {
+    showToast('❌', 'Failed: ' + e.message);
+  }
+}
+
+// ================================================================
 //  BOT CONFIG
 // ================================================================
 function showConfigSection(el, section) {
@@ -2103,6 +2287,16 @@ async function loadConfig() {
     const data = await api('GET', '/api/config');
     document.getElementById('config-business-name').value = data.business_name || '';
     document.getElementById('config-welcome').value = data.welcome_message || '';
+    document.getElementById('config-handoff-msg').value = data.handoff_message || '';
+    document.getElementById('config-notify-phone').value = data.notify_phone || '';
+    document.getElementById('config-auto-resume-hours').value = data.auto_resume_hours || 0;
+    // Sync toggle states
+    const autoReplyEl = document.getElementById('toggle-autoreply');
+    if (data.bot_enabled === false) autoReplyEl.classList.remove('on');
+    else autoReplyEl.classList.add('on');
+    const handoffEl = document.getElementById('toggle-handoff');
+    if (data.smart_handoff === false) handoffEl.classList.remove('on');
+    else handoffEl.classList.add('on');
   } catch(e) {}
   try {
     const kb = await api('GET', '/api/kb');
@@ -2116,6 +2310,10 @@ async function saveConfig() {
       business_name: document.getElementById('config-business-name').value,
       welcome_message: document.getElementById('config-welcome').value,
       bot_enabled: document.getElementById('toggle-autoreply').classList.contains('on'),
+      smart_handoff: document.getElementById('toggle-handoff').classList.contains('on'),
+      handoff_message: document.getElementById('config-handoff-msg').value,
+      notify_phone: document.getElementById('config-notify-phone').value,
+      auto_resume_hours: parseInt(document.getElementById('config-auto-resume-hours').value) || 0,
     });
     showToast('✅', 'Configuration saved');
   } catch(e) {

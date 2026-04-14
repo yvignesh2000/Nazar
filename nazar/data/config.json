@@ -10,6 +10,13 @@
   "smart_handoff": true,
   "whatsapp_connected": false,
   "team": [
-    {"id": "owner", "name": "Admin", "role": "Owner", "status": "active"}
-  ]
+    {
+      "id": "owner",
+      "name": "Admin",
+      "role": "Owner",
+      "status": "active"
+    }
+  ],
+  "notify_phone": "",
+  "auto_resume_hours": 0
 }
