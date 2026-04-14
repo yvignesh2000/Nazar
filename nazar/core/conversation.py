@@ -40,6 +40,7 @@ def _build_system_prompt(
     contact: Optional[dict],
     memory_context: str,
     knowledge_base: str,
+    campaign_context: str,
     config: dict,
 ) -> str:
     """Build the system prompt for the LLM."""
@@ -56,6 +57,8 @@ def _build_system_prompt(
     prompt = prompt.replace("{customer_name}", customer_name)
     prompt = prompt.replace("{knowledge_base}", knowledge_base or "No knowledge base configured yet.")
     prompt = prompt.replace("{memory_context}", memory_context or "No previous interactions.")
+    if campaign_context:
+        prompt += "\n\n## Active Campaign Context\n" + campaign_context
 
     # Add contact context
     if contact:
@@ -129,8 +132,10 @@ async def generate_reply_for_contact(
     llm_call: Callable,
     config: Optional[dict] = None,
     include_current_message: bool = True,
+    campaign_key: Optional[str] = None,
 ) -> str:
     from contact_manager import get_contact, get_conversation_history
+    from campaign_knowledge import build_campaign_context
     from customer_memory import get_relevant_context
 
     if config is None:
@@ -143,7 +148,8 @@ async def generate_reply_for_contact(
     memory_context = get_relevant_context(contact_id, current_message)
     recent = get_conversation_history(contact_id, days=7)
     knowledge_base = _load_knowledge_base()
-    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, config)
+    campaign_context = build_campaign_context(campaign_key)
+    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, campaign_context, config)
     messages = _build_messages(
         system_prompt,
         recent,
@@ -256,13 +262,20 @@ async def generate_ai_reply(
     contact_id: str,
     message: str,
     config: Optional[dict] = None,
+    campaign_key: Optional[str] = None,
 ) -> str:
     """
     Generate an AI reply without the full inbound pipeline.
     Used for dashboard-initiated AI suggestions.
     """
     from llm_router import call_llm_safe
-    return await generate_reply_for_contact(contact_id, message, lambda messages: call_llm_safe(messages, tier="sonnet"), config=config)
+    return await generate_reply_for_contact(
+        contact_id,
+        message,
+        lambda messages: call_llm_safe(messages, tier="sonnet"),
+        config=config,
+        campaign_key=campaign_key,
+    )
 
 
 def should_handoff(message: str) -> bool:

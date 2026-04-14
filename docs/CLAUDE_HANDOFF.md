@@ -1,42 +1,36 @@
 # Nazar Claude Handoff
 
-This document is the engineering handoff for continuing Nazar on Claude.
+This is the current engineering handoff for continuing Nazar.
 
-It is meant to answer:
-- what Nazar is
-- how it is currently built
-- what infrastructure/runtime it uses
-- what has already been implemented
-- what is committed versus still local
-- what the next engineer should do next
+It is written to let Claude pick up the repo, understand what already exists, and continue building without re-discovering the product and runtime from scratch.
 
-## 1. Repository and Branch State
+## 1. Repo and Branch
 
 Repository:
 - `https://github.com/yvignesh2000/Nazar`
 
-Primary working branch:
+Main branch in use:
 - `codex/product-foundation`
 
-Latest pushed checkpoint:
-- commit `49cc865`
-- message: `Add team auth and onboarding foundation`
+Latest pushed commit before this handoff update:
+- `0e365fd`
+- `Support campaign-specific conversation filtering`
 
-Recent important commits:
-- `49cc865` Add team auth and onboarding foundation
-- `dc93b7d` Advance product shell and document current state
-- `a82c3f9` Stabilize channels and restructure product shell
-- `24dcdb4` Advance AI memory and campaign builder
-- `cee5a73` Add public privacy and data deletion pages
+This handoff is being written alongside a new commit that includes:
+- campaign-level knowledge packs
+- updated product copy rewrite
+- onboarding bypass for testing
+- current public Cloudflare share link for testers
 
-Current known local-only change not included in the pushed checkpoint:
-- [`nazar/core/contact_manager.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/contact_manager.py)
+Claude should still run:
+- `git status`
+- `git log --oneline -n 10`
 
-That file was intentionally not committed in the last checkpoint. Claude should inspect `git status` before making assumptions.
+before making assumptions.
 
 ## 2. Product Direction
 
-Nazar is being built as an AI-native sales operating system.
+Nazar is being built as an AI-native sales operating system for chat-first teams.
 
 Target information architecture:
 1. Dashboard
@@ -52,174 +46,200 @@ Admin/config surfaces:
 - Settings
 
 Core promise:
-- run outbound sales campaigns
+- launch outbound campaigns
 - capture inbound replies
-- classify and move leads through the pipeline with AI
-- help sales reps close deals faster
+- qualify and route leads with AI
+- move leads through pipeline
+- help reps close with context, risk, and next-best-action
 
-## 3. Current Runtime / Hosting State
+## 3. Current Runtime / Hosting
 
 ### Local runtime
 
-Nazar is currently being run locally on the developer machine.
+Primary runtime is still local.
 
 Current app runtime:
 - API server on `http://localhost:8002`
-- worker process running separately
+- worker running separately
 
-This is not a deployed VPS environment yet.
+Server start command:
+- `python3 -m uvicorn server:app --host 0.0.0.0 --port 8002`
+
+Worker start command:
+- `python3 worker.py`
+
+Working directory for both:
+- [`/Users/vignesh-12220/Documents/App Development/NAZAR/nazar`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar)
 
 ### Database
 
-Current storage:
-- SQLite
+Current storage backend:
+- SQLite via SQLAlchemy
 
-Database file:
+Primary DB file:
 - [`nazar/data/nazar.db`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/data/nazar.db)
 
-The codebase is already structured around SQLAlchemy models and can later move to Postgres more cleanly than the old JSON/file-only shape.
+There is already a relational foundation in:
+- [`nazar/core/db.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/db.py)
 
-### Public hosting
+The codebase is better positioned for a Postgres move later than it used to be.
 
-No stable production hosting is set up yet.
+### Public sharing
 
-Historically during testing:
-- Cloudflare tunnel / temporary public URL was used for webhook testing
-- Meta WhatsApp webhook setup was tested against temporary public URLs
+There is no stable VPS deployment yet.
 
-Current practical truth:
-- local development is the main runtime
-- there is no final VPS/domain deployment yet
+Testing has been done through:
+- local runtime
+- temporary Cloudflare tunnels
 
-### Channel testing
+This means:
+- same shared instance
+- same DB
+- same workspace
+- not isolated per tester
+
+Current public test URL at handoff time:
+- `https://create-losses-acquisitions-hepatitis.trycloudflare.com`
+
+Important:
+- this URL is temporary
+- it only works while the local server, worker, and tunnel are running
+- it is not a separate environment
+
+### Current channel state
 
 WhatsApp:
-- backend and settings diagnostics exist
-- Meta sandbox restrictions still make testing awkward without a proper dedicated business number
+- integrated
+- settings and diagnostics exist in product
+- still painful to validate because of Meta sandbox / number constraints
 
 Telegram:
-- added as a real testing transport
-- currently the easiest real end-to-end transport for product behavior testing
+- practical live test channel
+- easier than WhatsApp for end-to-end testing right now
 
-## 4. Infrastructure and Technical Stack
+## 4. Stack
 
 Backend:
 - FastAPI
 - SQLAlchemy
-- aiohttp for outbound HTTP calls
-- uvicorn for serving
+- aiohttp
+- uvicorn
 
 Frontend:
-- single-file vanilla JS dashboard in [`nazar/frontend/index.html`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/frontend/index.html)
+- single-file vanilla JS app in:
+  - [`nazar/frontend/index.html`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/frontend/index.html)
 
 Worker:
-- background Python worker in [`nazar/worker.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/worker.py)
+- [`nazar/worker.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/worker.py)
 
 AI:
-- primary reply engine uses [`nazar/agent/SOUL.md`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/agent/SOUL.md)
-- LLM routing in [`nazar/core/llm_router.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/llm_router.py)
-- classification in [`nazar/core/ai_classifier.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/ai_classifier.py)
+- persona / behavior source:
+  - [`nazar/agent/SOUL.md`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/agent/SOUL.md)
+- reply engine:
+  - [`nazar/core/conversation.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/conversation.py)
+- classifier:
+  - [`nazar/core/ai_classifier.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/ai_classifier.py)
+- router:
+  - [`nazar/core/llm_router.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/llm_router.py)
 
 Memory:
-- per-contact memory in [`nazar/core/customer_memory.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/customer_memory.py)
-- DB-backed fallback is active
-- vector/Chroma path is not the final production-grade memory architecture yet
+- [`nazar/core/customer_memory.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/customer_memory.py)
 
-Channels:
-- WhatsApp in [`nazar/server.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/server.py)
-- Telegram adapter in [`nazar/core/telegram_adapter.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/telegram_adapter.py)
-
-Policies and routing:
+Policies / routing:
 - [`nazar/core/policy_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/policy_store.py)
 
 Templates:
 - [`nazar/core/template_manager.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/template_manager.py)
 
-Analytics:
-- [`nazar/core/analytics_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/analytics_store.py)
-
-Audit trail:
-- [`nazar/core/audit_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/audit_store.py)
-
 Workspace config:
 - [`nazar/core/workspace_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/workspace_store.py)
 
-## 5. Current Product State
+Auth / invites:
+- [`nazar/core/auth_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/auth_store.py)
 
-### Working product areas
+Campaign knowledge:
+- [`nazar/core/campaign_knowledge.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/campaign_knowledge.py)
 
-#### Conversations
-- inbound messages create or update contacts and conversations
-- manual rep replies work
-- bot replies work when routing and channel transport allow them
+## 5. What the Product Already Does
+
+### Conversations
+- inbound messages create/update contacts and conversations
+- manual rep sends work
+- AI replies / AI draft flows exist
 - assignment works
 - notes work
-- AI summary / routing decision / deal controls sidebar exists
-- live updates are driven by WebSockets
+- sidebar includes:
+  - what Nazar sees
+  - why routed this way
+  - next best action
+  - deal details
+  - deal controls
 
-#### Campaigns
-- campaigns can be created and named
-- audiences can be selected by stage and group
-- reusable audiences exist
-- template or custom-copy campaigns are supported
-- per-campaign reply handling exists
-- campaign outcome and reply metrics exist
+### Campaigns
+- campaigns can be named
+- audience by stage and group
+- reusable audiences
+- template or custom copy
+- per-campaign reply handling
+- campaign metrics and drill-down
+- open replies for a specific campaign
 
-#### Contacts
-- contacts are the system of record
-- stage, deal value, source, and grouping exist
-- groups are channel-independent
+### Contacts
+- system of record for leads/customers
+- stage, group, score, source, deal value
+- group assignment is channel-independent
 
-#### Insights
+### Insights
 - objection summary
-- risk framing
+- risk level and reason
 - conversion likelihood
 - next best action
 
-#### Notifications
-- live dropdown notifications exist
+### Analytics
+- message performance
+- pipeline conversion snapshot
+- team workload
+- operating recommendations
 
-### Transitional / still rough
+### Live product behavior
+- WebSocket-based live UI refresh
+- no more polling flicker
 
-- onboarding UX is now real in foundation form, but still needs polish
-- team management currently lives inside Settings, not yet a first-class product surface
-- memory is working, but still not the final production-grade vector architecture
-- WhatsApp is integrated, but constrained by Meta sandbox/testing realities
-- Telegram is the practical real transport for current product validation
+### Team access foundation
+- real roles
+- magic link auth
+- invites
+- onboarding state
 
-## 6. New Team Access and Onboarding Foundation
+## 6. Auth / Team / Onboarding Foundation
 
-This is the biggest recent architectural change.
+This is the biggest architectural change from the older MVP.
 
-### What changed
+### Roles
 
-The old auth model:
-- one shared `NAZAR_API_KEY`
-- login creates a session for the first workspace member
+Normalized roles:
+- `owner`
+- `sales_lead`
+- `sales_rep`
 
-The new auth model:
-- roles:
-  - `Owner`
-  - `Sales Lead`
-  - `Sales Rep`
-- email invite + magic link login
-- one workspace per customer
-- owner-first onboarding
+User-facing labels:
+- Owner
+- Sales Lead
+- Sales Rep
 
-### Backend additions
+### DB additions
 
-New DB entities:
-- `workspace_invites`
-- `auth_magic_links`
-- `workspace_onboarding_state`
+Added:
+- `WorkspaceInvite`
+- `AuthMagicLink`
+- `WorkspaceOnboardingState`
 
-Main implementation files:
-- [`nazar/core/auth_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/auth_store.py)
+Main schema file:
 - [`nazar/core/db.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/db.py)
-- [`nazar/core/workspace_store.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/workspace_store.py)
-- [`nazar/core/mailer.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/mailer.py)
 
-New API surfaces:
+### Auth APIs
+
+Added:
 - `GET /api/public/bootstrap-state`
 - `POST /api/workspace/bootstrap`
 - `POST /api/auth/request-magic-link`
@@ -234,171 +254,235 @@ New API surfaces:
 - `PATCH /api/team/members/{user_id}`
 - `POST /api/team/members/{user_id}/deactivate`
 
-### Role model
+### Frontend
 
-Owner:
-- full control over workspace, channels, AI setup, team management, templates, campaigns, analytics
+Implemented in:
+- [`nazar/frontend/index.html`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/frontend/index.html)
 
-Sales Lead:
-- can operate campaigns, team operations, conversations, contacts, insights, analytics
-- should not control owner-level workspace/channel secrets
-
-Sales Rep:
-- works conversations, contacts, follow-ups, insights, and campaigns
-- cannot manage workspace/channel/auth configuration
-
-### Frontend additions
-
-In [`nazar/frontend/index.html`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/frontend/index.html):
+Includes:
 - auth overlay
-- workspace bootstrap flow
+- bootstrap workspace flow
 - magic-link handling from URL params
-- invite acceptance handling from URL params
+- invite-accept flow from URL params
 - onboarding overlay
-- team management inside Settings
+- team management UI in Settings
 - role-aware nav visibility
 
-### Mail delivery
+### Important current testing behavior
 
-Provider choice:
-- Resend
+Onboarding is currently bypassed in the frontend so testers can use the product without being blocked by setup flow.
 
-Implementation:
-- [`nazar/core/mailer.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/mailer.py)
+This bypass is in:
+- [`nazar/frontend/index.html`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/frontend/index.html)
 
 Behavior:
-- if Resend env is missing, mail falls back to dev mode
-- dev mode returns direct invite/magic-link URLs in API responses
-- this was done so development can continue without blocking on email infra
+- onboarding state still loads
+- blocking overlay does not auto-open by default
 
-## 7. Environment and Secrets
+It can be re-enabled via localStorage:
+- set `nazar_bypass_onboarding = '0'`
 
-Current runtime expects `.env` under:
-- [`nazar/.env`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/.env)
+And bypassed again by removing that key or setting any other value.
 
-Important variables already used in the codebase:
-- `DATABASE_URL`
-- `NAZAR_ALLOW_SCHEMA_CREATE`
-- `NAZAR_API_KEY`
-- `NAZAR_APP_URL`
-- `NAZAR_WORKSPACE_SLUG`
-- `NAZAR_WORKSPACE_NAME`
-- `NAZAR_OWNER_NAME`
-- `NAZAR_OWNER_EMAIL`
-- `WA_PHONE_NUMBER_ID`
-- `WA_ACCESS_TOKEN`
-- `WA_VERIFY_TOKEN`
-- `OPENROUTER_API_KEY`
-- `TELEGRAM_BOT_TOKEN` or equivalent Telegram token env used by the adapter
-- `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
+## 7. Campaign Knowledge Packs
 
-Claude should inspect:
+This is the most recent major product addition.
+
+### What it does
+
+Each campaign can now have its own:
+- notes
+- AI instruction
+- attached files
+
+This exists because campaign replies should use:
+1. global business knowledge
+2. campaign-specific knowledge
+3. contact memory
+4. conversation history
+
+### Backend
+
+Storage module:
+- [`nazar/core/campaign_knowledge.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/campaign_knowledge.py)
+
+Features:
+- stores campaign notes
+- stores campaign instruction
+- stores attached files under:
+  - [`nazar/data/campaign_knowledge`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/data/campaign_knowledge)
+- extracts text from:
+  - txt / md / csv / json
+  - docx (basic zip/xml extraction)
+  - pdf (only if `pypdf` is installed)
+
+### API
+
+Added:
+- `GET /api/campaigns/{campaign_key}/knowledge`
+- `PUT /api/campaigns/{campaign_key}/knowledge`
+- `POST /api/campaigns/{campaign_key}/knowledge/files`
+- `DELETE /api/campaigns/{campaign_key}/knowledge/files/{file_id}`
+
+### Important implementation detail
+
+File upload is currently JSON/base64, not multipart.
+
+Reason:
+- this environment did not have `python-multipart`
+- I intentionally avoided introducing a dependency requirement just to make campaign file uploads work
+
+This means frontend file upload:
+- reads files with `FileReader`
+- sends them as base64 JSON
+
+### Prompt integration
+
+Campaign context is injected into reply generation through:
+- [`nazar/core/conversation.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/conversation.py)
+
+And used by:
+- worker replies
+- worker AI-assist drafts
+- simulator campaign/inbound testing
+
+### UI
+
+Campaign sheet now includes:
+- Campaign notes
+- AI instruction
+- file upload
+- attachment list
+
+History/detail now indicates whether a campaign had a knowledge pack.
+
+Current limitation:
+- PDF uploads are stored correctly, but text extraction depends on `pypdf`
+- if `pypdf` is not installed, PDF files will still upload but may not contribute extracted text to prompts
+
+## 8. WhatsApp and Telegram
+
+### WhatsApp
+
+Implemented in:
 - [`nazar/server.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/server.py)
+
+Current truth:
+- config and diagnostics are exposed in the product
+- auth/token errors are surfaced properly now
+- full live testing is still constrained by Meta sandbox / number ownership realities
+
+### Telegram
+
+Telegram was added as the practical test transport.
+
+Relevant files:
 - [`nazar/core/telegram_adapter.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/telegram_adapter.py)
-- [`nazar/core/mailer.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/mailer.py)
+- [`nazar/worker.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/worker.py)
 
-## 8. What Was Verified
+Current value:
+- real send / receive testing
+- real inbox behavior
+- real campaign reply loop
 
-Verified in isolated API tests on a temporary SQLite DB:
-- owner bootstrap creates owner session and onboarding state
-- magic-link request works
-- magic-link verification creates valid session
-- invite create works
-- invite accept works
-- role promotion works
-- deactivation revokes access
-- Sales Rep is blocked from owner-only config endpoints
+## 9. Memory State
 
-Static checks passed:
-- Python compile checks for the modified backend files
-- frontend JS syntax checks by extracting the inline script from `index.html`
+There is real per-contact memory, but the architecture is still transitional.
 
-## 9. Current Known Gaps
+Current status:
+- DB-backed fallback is active
+- not yet final production-grade vector architecture
 
-These are the main things still needing work after the auth/onboarding foundation:
+Practical implication:
+- product behavior is good enough for MVP use
+- memory is a real feature
+- but retrieval architecture likely needs a later cleanup / Postgres+vector plan
 
-1. Onboarding UX polish
-- current onboarding is functional but still lightweight
-- steps still guide the user into the right screens rather than embedding all actions elegantly
+## 10. Product Copy Rewrite
 
-2. Team surface
-- team management is in Settings
-- likely needs to become a stronger first-class operational surface later
+The product text was heavily rewritten to stop sounding like an internal workflow engine.
 
-3. Role-aware product tightening
-- role gating is in place, but product copy and UX should be tightened further for each persona
+Main changes:
+- operator-first copy
+- removed a lot of system/internal vocabulary
+- better sales framing across:
+  - Campaigns
+  - Conversations
+  - Insights
+  - Analytics
+  - Needs Attention
+  - AI Setup
+  - Settings
+  - auth/onboarding
 
-4. WhatsApp finalization
-- Meta sandbox still limits smooth end-to-end testing
-- proper dedicated business number and final deploy path still needed
+Main file:
+- [`nazar/frontend/index.html`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/frontend/index.html)
 
-5. Memory architecture
-- DB fallback is active
-- not yet production-grade vector retrieval architecture
+## 11. Current Gaps / What Still Needs Work
 
-6. Local-only deployment
-- final VPS/domain/systemd/Nginx deployment is not done yet
+### Product / UX
+- onboarding still needs a polished production path
+- team management should move out of Settings into a stronger surface later
+- some screens still need visual tightening, especially where metrics/cards are sparse
 
-## 10. How Claude Should Continue
+### Commercial
+- campaign operations still need richer premium features:
+  - follow-up sequences
+  - better campaign knowledge preview
+  - stronger attribution / analytics
+  - maybe A/B later
 
-Recommended immediate order:
+### Channel setup
+- WhatsApp still needs a clean production-grade path with a proper dedicated number
 
-1. Polish owner onboarding
-- make each step more self-contained
-- improve transition between bootstrap, channel setup, business knowledge, team invite, first campaign
+### Memory
+- still not final-grade architecture
 
-2. Tighten role-aware UX
-- ensure Sales Rep never sees owner-only settings
-- ensure Sales Lead has the right operational view
+## 12. Recommended Next Steps for Claude
 
-3. Improve team management
-- cleaner invite/member layout
-- stronger statuses and invite lifecycle clarity
+If continuing product work, the best order is:
 
-4. Continue sellability work
-- campaign operations
-- team operations
-- insights quality
+1. tighten campaign knowledge UX
+- show better preview of attached knowledge
+- show when replies used campaign knowledge
+- make campaign detail surface this better
 
-## 11. Suggested Claude Prompt
+2. premium campaign ops
+- follow-up sequences / drips
+- better audience segmentation
+- better campaign performance views
 
-Use something like this:
+3. team operating layer
+- inbox aging / SLA
+- clearer ownership load
+- better manager visibility
 
-> Continue on branch `codex/product-foundation` from commit `49cc865`.
->
-> Nazar is an AI-native sales operating system. The product shell, campaigns, conversations, insights, Telegram transport, and a new auth/onboarding foundation are already in place.
->
-> Read:
-> - `docs/PRODUCT_STATE.md`
-> - `docs/CLAUDE_HANDOFF.md`
->
-> Current auth/onboarding foundation:
-> - roles are `Owner`, `Sales Lead`, `Sales Rep`
-> - login is invite-by-email + magic link
-> - owner-first onboarding is implemented in a first working form
-> - team management currently lives in Settings
->
-> Current priorities:
-> 1. polish owner onboarding
-> 2. tighten role-aware UX and permissions in the product shell
-> 3. improve the team management product surface
-> 4. continue toward sellable team operations
->
-> Important:
-> - preserve the current single-workspace-per-customer assumption
-> - preserve bearer session behavior already used across the app
-> - do not reintroduce the shared API-key login as the main product auth path
-> - keep the product operator-first, compact, and commercially credible
+4. onboarding polish
+- now that the foundation exists, make it trustworthy and non-blocking
 
-## 12. Final Practical Notes
+5. WhatsApp production path
+- only after the team decides how they want to handle real number ownership
 
-- The app has been run locally on `localhost:8002`
-- The worker runs separately
-- Telegram is currently the easiest real transport for testing
-- WhatsApp is strategically important but operationally harder right now
-- Before continuing, Claude should run:
-  - `git status`
-  - verify whether [`nazar/core/contact_manager.py`](/Users/vignesh-12220/Documents/App Development/NAZAR/nazar/core/contact_manager.py) still has local-only changes
-  - verify the current local runtime state before assuming the app is clean
+## 13. Good Starting Prompt for Claude
 
+Use this prompt:
+
+```text
+Continue Nazar on branch codex/product-foundation.
+
+Context:
+- Nazar is an AI-native sales operating system for chat-first sales teams.
+- The current app is a single-file frontend in nazar/frontend/index.html with a FastAPI backend and worker.
+- Main product surfaces are Dashboard, Campaigns, Contacts, Pipelines, Conversations, Insights, Analytics.
+- Team auth/onboarding foundation already exists: owner/sales_lead/sales_rep, invites, magic links, onboarding state.
+- Onboarding is currently bypassed in the frontend for testing, but the backend state still exists.
+- Telegram is the practical live test channel right now. WhatsApp is integrated but constrained by Meta sandbox realities.
+- Campaign-specific knowledge packs were just added. They support notes, AI instruction, and uploaded files, and campaign replies now use this context in the prompt.
+
+What to do next:
+1. Tighten the campaign knowledge experience in the UI and campaign detail view.
+2. Keep the product operator-first; avoid exposing backend/internal concepts in the UI.
+3. Preserve current architecture unless there is a strong product reason to refactor it.
+4. Prefer improving sellability, clarity, and reliability over adding random new surfaces.
+5. Explain changes in product language, not only engineering language.
+```

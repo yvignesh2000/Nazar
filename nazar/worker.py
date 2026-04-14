@@ -20,6 +20,7 @@ sys.path.insert(0, str(APP_DIR))
 sys.path.insert(0, str(APP_DIR / "core"))
 
 from core.ai_jobs import generate_followup_draft, generate_reply_suggestion, refresh_contact_summary
+from core.campaign_knowledge import campaign_knowledge_summary
 from core.ai_classifier import classify_and_apply
 from core.contact_manager import (
     get_contact,
@@ -77,12 +78,14 @@ async def _llm_call(messages, phone: str = ""):
 
 async def _send_ai_reply(contact: dict, conversation: dict, inbound_message: str) -> dict:
     config = get_workspace_config()
+    campaign_key = conversation.get("source_ref") if conversation.get("source_type") == "campaign" else None
     response_text = await generate_reply_for_contact(
         contact["contact_id"],
         inbound_message,
         lambda messages: _llm_call(messages, phone=contact.get("phone", "")),
         config=config,
         include_current_message=False,
+        campaign_key=campaign_key,
     )
     provider_response = await send_contact_message(contact, response_text)
     wa_message_id = _extract_provider_message_id(provider_response)
@@ -102,14 +105,16 @@ async def _send_ai_reply(contact: dict, conversation: dict, inbound_message: str
     }
 
 
-async def _generate_bot_assist_reply(contact: dict, inbound_message: str) -> str:
+async def _generate_bot_assist_reply(contact: dict, conversation: dict, inbound_message: str) -> str:
     config = get_workspace_config()
+    campaign_key = conversation.get("source_ref") if conversation.get("source_type") == "campaign" else None
     return await generate_reply_for_contact(
         contact["contact_id"],
         inbound_message,
         lambda messages: _llm_call(messages, phone=contact.get("phone", "")),
         config=config,
         include_current_message=False,
+        campaign_key=campaign_key,
     )
 
 
@@ -184,7 +189,7 @@ async def _process_saved_inbound_text(payload: dict) -> dict:
     if reply_mode == "bot_assist":
         updated = mark_conversation_handoff_required(conversation_id, True)
         updated = _apply_policy_to_conversation(conversation_id, updated, policy, routing)
-        suggested_reply = await _generate_bot_assist_reply(contact, inbound_message)
+        suggested_reply = await _generate_bot_assist_reply(contact, conversation, inbound_message)
         updated = set_conversation_ai_assist(conversation_id, suggested_reply, status="available")
         return {
             "contact_id": contact_id,
@@ -261,7 +266,7 @@ async def _process_inbound_voice(payload: dict) -> dict:
     if reply_mode == "bot_assist":
         updated = mark_conversation_handoff_required(conversation["conversation_id"], True)
         updated = _apply_policy_to_conversation(conversation["conversation_id"], updated, policy, routing)
-        suggested_reply = await _generate_bot_assist_reply(contact, transcript)
+        suggested_reply = await _generate_bot_assist_reply(contact, conversation, transcript)
         updated = set_conversation_ai_assist(conversation["conversation_id"], suggested_reply, status="available")
         return {
             "contact_id": contact["contact_id"],
@@ -372,6 +377,7 @@ async def _execute_broadcast(job: dict) -> dict:
         filter_stage=filter_stage,
         filter_tag=filter_tag,
         campaign_key=campaign_key,
+        knowledge_summary=campaign_knowledge_summary(campaign_key),
     )
     results["campaign_key"] = campaign_key
     results["reply_policy"] = policy["use_case_key"]

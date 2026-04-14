@@ -1757,7 +1757,7 @@ body {
     </div>
     <div class="nav-item" data-screen="followups" onclick="navigateTo('followups')">
       <span class="nav-icon">🔔</span>
-      <span>Follow-ups</span>
+      <span>Needs Attention</span>
       <span class="nav-badge green" id="followup-badge" style="display:none">0</span>
     </div>
   </div>
@@ -1794,7 +1794,7 @@ body {
     <span class="topbar-sub" id="page-sub"></span>
     <div class="topbar-search" onclick="openCmdPalette()">
       <span style="color:var(--text3)">🔍</span>
-      <input type="text" placeholder="Search or command..." readonly>
+      <input type="text" placeholder="Search contacts, campaigns, and conversations" readonly>
       <span class="topbar-kbd">⌘K</span>
     </div>
     <div class="notif-wrap">
@@ -1807,8 +1807,8 @@ body {
         <div class="notif-menu-body" id="notif-results">
           <div class="cmd-result">
             <span class="cmd-result-icon">🔔</span>
-            <span class="cmd-result-text">No notifications yet</span>
-            <span class="cmd-result-sub">Live alerts will appear here.</span>
+            <span class="cmd-result-text">No alerts yet</span>
+            <span class="cmd-result-sub">Reply backlog, assignments, and campaign activity will show up here.</span>
           </div>
         </div>
       </div>
@@ -1869,24 +1869,24 @@ body {
 
         <div class="dashboard-operating">
           <div class="ops-card fade-up d2" onclick="openConversationFilter('needs_reply')">
-            <div class="ops-label">Needs Reply</div>
+            <div class="ops-label">Waiting on your team</div>
             <div class="ops-value" id="ops-needs-reply">0</div>
-            <div class="ops-meta">Conversations waiting for a human or AI-assisted response.</div>
+            <div class="ops-meta">Conversations that still need a human reply or review.</div>
           </div>
           <div class="ops-card fade-up d3" onclick="openConversationFilter('ai_assist')">
-            <div class="ops-label">AI Drafts Ready</div>
+            <div class="ops-label">Replies ready for review</div>
             <div class="ops-value" id="ops-ai-assist">0</div>
-            <div class="ops-meta">Drafts already prepared for the team to review and send.</div>
+            <div class="ops-meta">AI has prepared replies your team can review and send.</div>
           </div>
           <div class="ops-card fade-up d4" onclick="openConversationFilter('campaigns')">
             <div class="ops-label">Campaign Replies</div>
             <div class="ops-value" id="ops-campaign-replies">0</div>
-            <div class="ops-meta">Replies generated from active outbound campaign runs.</div>
+            <div class="ops-meta">Replies coming back from outbound campaigns.</div>
           </div>
           <div class="ops-card fade-up d5" onclick="navigateTo('analytics')">
-            <div class="ops-label">Bot / Human Sends</div>
+            <div class="ops-label">AI vs rep sends</div>
             <div class="ops-value" id="ops-bot-human">0 / 0</div>
-            <div class="ops-meta">A quick read on automation mix versus human involvement.</div>
+            <div class="ops-meta">See how much the team is sending versus how much Nazar is handling.</div>
           </div>
         </div>
 
@@ -1898,7 +1898,7 @@ body {
             <div id="activity-feed">
               <div class="empty-state" style="padding:40px 20px">
                 <div style="font-size:24px;margin-bottom:8px;">🔇</div>
-                <div style="font-size:13px;color:var(--text3)">No activity yet</div>
+                <div style="font-size:13px;color:var(--text3)">No recent sales activity</div>
               </div>
             </div>
           </div>
@@ -1909,7 +1909,7 @@ body {
             <div class="pipeline-mini" id="pipeline-mini">
               <div class="empty-state" style="padding:40px 20px">
                 <div style="font-size:24px;margin-bottom:8px;">📋</div>
-                <div style="font-size:13px;color:var(--text3)">No deals yet</div>
+                <div style="font-size:13px;color:var(--text3)">No active deals yet</div>
               </div>
             </div>
           </div>
@@ -1929,20 +1929,20 @@ body {
         </div>
         <div class="conv-filters">
           <div class="conv-filter active" onclick="filterByType(this,'all')">All</div>
-          <div class="conv-filter" onclick="filterByType(this,'needs_reply')">Needs Reply</div>
+          <div class="conv-filter" onclick="filterByType(this,'needs_reply')">Needs reply</div>
           <div class="conv-filter" onclick="filterByType(this,'unassigned')">Unassigned</div>
-          <div class="conv-filter" onclick="filterByType(this,'human_required')">👤 Human</div>
+          <div class="conv-filter" onclick="filterByType(this,'human_required')">Human-owned</div>
           <div class="conv-filter" onclick="filterByType(this,'assigned_to_me')">Mine</div>
-          <div class="conv-filter" onclick="filterByType(this,'campaigns')">Campaigns</div>
+          <div class="conv-filter" onclick="filterByType(this,'campaigns')">Campaign replies</div>
           <div class="conv-filter" onclick="filterByType(this,'sales_queue')">Sales</div>
           <div class="conv-filter" onclick="filterByType(this,'support_queue')">Support</div>
-          <div class="conv-filter" onclick="filterByType(this,'ai_assist')">AI Assist</div>
+          <div class="conv-filter" onclick="filterByType(this,'ai_assist')">Drafts ready</div>
         </div>
         <div class="conv-items" id="conv-list-items">
           <div class="empty-state">
             <div class="empty-icon">💬</div>
             <div class="empty-title">No conversations yet</div>
-            <div class="empty-sub">When customers message you on WhatsApp, conversations will appear here.</div>
+            <div class="empty-sub">Customer replies and campaign responses will appear here.</div>
           </div>
         </div>
       </div>
@@ -1980,12 +1980,12 @@ body {
       <div class="section-head">
         <div>
           <div class="section-title">Contacts</div>
-          <div class="section-sub">Your lead and customer record. This is the system of record that campaigns, conversations, insights, and pipeline changes operate on.</div>
+          <div class="section-sub">Everyone your team is selling to. Use contacts to group leads, track stage, and launch the right campaigns.</div>
         </div>
         <button class="btn btn-primary" onclick="openAddContactModal()">+ Add Contact</button>
       </div>
       <div class="toolbar-row">
-        <input class="form-input" id="contacts-search" placeholder="Search contacts, company, or phone..." oninput="renderContactsTable()">
+        <input class="form-input" id="contacts-search" placeholder="Search by name, company, phone, or group" oninput="renderContactsTable()">
         <select class="form-input" id="contacts-stage-filter" onchange="renderContactsTable()">
           <option value="">All stages</option>
         </select>
@@ -2007,29 +2007,29 @@ body {
           <div class="campaigns-header-copy">
             <div class="eyebrow">Outbound</div>
             <div class="title">Campaigns</div>
-            <div class="sub">Track what has already gone out, which audiences responded, and which campaigns actually moved deals forward.</div>
+            <div class="sub">Launch outbound campaigns and track what got replies, created opportunities, and moved deals forward.</div>
           </div>
         </div>
 
         <div class="bc-stats-row">
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="bc-total-sent">0</div><div class="bc-stat-label">Total Sent</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="bc-delivery-rate">0%</div><div class="bc-stat-label">Delivery Rate</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="bc-total-broadcasts">0</div><div class="bc-stat-label">Campaigns</div></div>
-          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="bc-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="bc-total-sent">0</div><div class="bc-stat-label">Messages sent</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="bc-delivery-rate">0%</div><div class="bc-stat-label">Delivered</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="bc-total-broadcasts">0</div><div class="bc-stat-label">Campaigns launched</div></div>
+          <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="bc-campaign-replies">0</div><div class="bc-stat-label">Replies received</div></div>
         </div>
 
         <div class="campaign-history-wrap">
           <div class="campaign-history-head">
             <div>
               <div class="title">Recent Campaigns</div>
-              <div class="sub">Each card should tell you enough to judge whether that campaign was worth repeating, changing, or stopping.</div>
+              <div class="sub">See what was sent, who replied, and whether the campaign created movement in the pipeline.</div>
             </div>
           </div>
           <div class="campaigns-grid" id="broadcast-list">
             <div class="empty-state">
               <div class="empty-icon">📡</div>
               <div class="empty-title">No campaigns yet</div>
-              <div class="empty-sub">Launch your first campaign once the audience and message look right.</div>
+              <div class="empty-sub">Launch a campaign once you know the audience and the message you want to send.</div>
             </div>
           </div>
         </div>
@@ -2042,7 +2042,7 @@ body {
       <div class="modal-head">
         <div>
           <div class="modal-title" id="campaign-builder-title">New Campaign</div>
-          <div class="modal-sub">Name the campaign, choose the audience, confirm reply handling, and launch. Keep this lightweight.</div>
+          <div class="modal-sub">Name the campaign, choose who should receive it, decide how replies should be handled, and launch.</div>
         </div>
         <button class="btn btn-ghost" onclick="closeCampaignModal()">Close</button>
       </div>
@@ -2051,14 +2051,14 @@ body {
         <div class="campaign-section">
           <div class="campaign-section-label">1. Campaign Name</div>
           <div class="campaign-section-title">What should the team call this campaign?</div>
-          <div class="campaign-section-sub">Use a simple business name so the team can recognize it later in history, analytics, and replies.</div>
-          <input class="form-input" id="campaign-name" placeholder="April proposal follow-up" oninput="ensureCampaignKey()">
-          <div class="campaign-helper">This is the human-readable name. Nazar still keeps an internal campaign key in the background.</div>
+          <div class="campaign-section-sub">Use a clear name so the team can recognize it later in campaign history, conversations, and analytics.</div>
+          <input class="form-input" id="campaign-name" placeholder="April proposal follow-up" oninput="ensureCampaignKey()" onblur="loadCampaignKnowledge()">
+          <div class="campaign-helper">This is the name the team will see when reviewing results and replies.</div>
         </div>
 
         <div class="campaign-section">
           <div class="campaign-section-label">2. Audience</div>
-          <div class="campaign-section-title">Who should receive this?</div>
+          <div class="campaign-section-title">Who is this campaign for?</div>
           <div class="campaign-section-sub">Target a stage, a contact group, or both.</div>
           <div class="campaign-row" style="margin-bottom:10px;">
             <div>
@@ -2081,23 +2081,23 @@ body {
           </div>
           <div class="campaign-row" style="margin-top:10px;">
             <div>
-              <div class="form-label">Campaign key</div>
-              <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation">
+              <div class="form-label">Internal campaign key</div>
+              <input class="form-input" id="broadcast-campaign-key" placeholder="april_reactivation" onchange="loadCampaignKnowledge()">
             </div>
             <div>
-              <div class="form-label">Audience preview</div>
+              <div class="form-label">Who will receive this</div>
               <div class="campaign-preview" style="min-height:auto;">
                 <div class="campaign-preview-body" id="campaign-audience-preview">Checking current audience size…</div>
               </div>
             </div>
           </div>
-          <div class="campaign-helper">The campaign key identifies this exact campaign later when replies come in. Use a key like <code>proposal_push_april</code> or <code>lost_leads_winback</code>.</div>
+          <div class="campaign-helper">Nazar uses the internal key to track replies and performance for this exact campaign.</div>
         </div>
 
         <div class="campaign-section">
           <div class="campaign-section-label">3. Campaign Content</div>
-          <div class="campaign-section-title">Use a template or write custom copy</div>
-          <div class="campaign-section-sub">Templates are best for repeatable funnel motions. Custom copy is better when you want to experiment with a one-off campaign.</div>
+          <div class="campaign-section-title">What will you send?</div>
+          <div class="campaign-section-sub">Use a template for repeatable campaigns, or write a custom message for a one-off push.</div>
           <div class="campaign-mode-switch">
             <button class="campaign-mode-btn active" id="campaign-mode-template" onclick="setCampaignContentMode('template')">Use Template</button>
             <button class="campaign-mode-btn" id="campaign-mode-custom" onclick="setCampaignContentMode('custom')">Write Custom Copy</button>
@@ -2117,16 +2117,42 @@ body {
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">4. Reply Handling</div>
-          <div class="campaign-section-title">When people reply to this campaign</div>
-          <div class="campaign-section-sub">Decide whether Nazar handles replies on its own or whether your team should step in.</div>
+          <div class="campaign-section-label">4. Campaign Knowledge</div>
+          <div class="campaign-section-title">What should Nazar know for this campaign?</div>
+          <div class="campaign-section-sub">Add campaign-specific notes and documents so replies use the right offer, FAQ, and objection handling.</div>
+          <div class="form-group">
+            <div class="form-label">Campaign notes</div>
+            <textarea class="form-input form-textarea" id="campaign-knowledge-notes" style="min-height:110px;" placeholder="Paste campaign details, offer terms, FAQ, or objection handling here."></textarea>
+          </div>
+          <div class="form-group">
+            <div class="form-label">AI instruction for this campaign</div>
+            <textarea class="form-input form-textarea" id="campaign-knowledge-instruction" style="min-height:84px;" placeholder="Optional: tell Nazar how to use this campaign context in replies."></textarea>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Attach files</div>
+            <div class="campaign-row">
+              <input class="form-input" type="file" id="campaign-knowledge-files" multiple accept=".pdf,.docx,.txt,.md,.csv,.json">
+              <button class="btn btn-ghost" onclick="uploadCampaignKnowledgeFiles()">Upload files</button>
+            </div>
+            <div class="campaign-helper">Supported formats: PDF, DOCX, TXT, Markdown, CSV, and JSON.</div>
+          </div>
+          <div class="campaign-preview" style="min-height:auto;">
+            <div class="campaign-preview-meta">Attached campaign knowledge</div>
+            <div class="campaign-preview-body" id="campaign-knowledge-files-list">No campaign notes or files attached yet.</div>
+          </div>
+        </div>
+
+        <div class="campaign-section">
+          <div class="campaign-section-label">5. Reply Handling</div>
+          <div class="campaign-section-title">How should replies be handled?</div>
+          <div class="campaign-section-sub">Choose whether Nazar handles replies automatically or whether your team should step in.</div>
           <div class="campaign-row">
             <div>
-              <div class="form-label">Handling</div>
+              <div class="form-label">Reply handling</div>
               <select class="form-input" id="campaign-reply-mode" onchange="updateCampaignReplyHandlingUI()"></select>
             </div>
             <div id="campaign-human-queue-wrap">
-              <div class="form-label">If a human is needed, send it to</div>
+              <div class="form-label">If a person needs to step in, send replies to</div>
               <select class="form-input" id="campaign-human-queue">
                 <option value="campaigns">Campaigns queue</option>
                 <option value="sales">Sales queue</option>
@@ -2139,12 +2165,9 @@ body {
         </div>
 
         <div class="campaign-section">
-          <div class="campaign-section-label">5. Launch</div>
+          <div class="campaign-section-label">6. Launch</div>
           <div class="campaign-section-title">Final check</div>
-          <div class="campaign-section-sub">Use the audience preview and reply handling above. Then launch from the footer below.</div>
-          <div class="campaign-warning">
-            <strong>Testing note:</strong> sandbox tools belong in AI Setup. This campaign sheet is for real operator work.
-          </div>
+          <div class="campaign-section-sub">Check the audience, message, and reply handling. Then launch the campaign.</div>
         </div>
       </div>
       <div class="campaign-sticky-footer">
@@ -2192,7 +2215,7 @@ body {
       <div class="section-head">
         <div>
           <div class="section-title">Insights</div>
-          <div class="section-sub">This is where Nazar should tell the team who is close, who is drifting, what is blocking the deal, and what to do next.</div>
+          <div class="section-sub">See which leads are heating up, what is blocking deals, and what your team should do next.</div>
         </div>
       </div>
       <div id="insights-summary" class="list-stack" style="margin-bottom:16px;"></div>
@@ -2208,12 +2231,12 @@ body {
       <div class="section-head">
         <div>
           <div class="section-title">Analytics</div>
-          <div class="section-sub">Track campaign performance, inbox load, funnel conversion pressure, and AI-generated operating signals.</div>
+          <div class="section-sub">See what is working across campaigns, conversations, and the pipeline.</div>
         </div>
       </div>
       <div class="bc-stats-row" style="margin-bottom:16px;">
-        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="analytics-total-conversations">0</div><div class="bc-stat-label">Conversations</div></div>
-        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="analytics-needs-reply">0</div><div class="bc-stat-label">Need Reply</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--accent)" id="analytics-total-conversations">0</div><div class="bc-stat-label">Active conversations</div></div>
+        <div class="bc-stat"><div class="bc-stat-val" style="color:var(--orange)" id="analytics-needs-reply">0</div><div class="bc-stat-label">Waiting on a reply</div></div>
         <div class="bc-stat"><div class="bc-stat-val" style="color:var(--purple)" id="analytics-campaign-replies">0</div><div class="bc-stat-label">Campaign Replies</div></div>
         <div class="bc-stat"><div class="bc-stat-val" style="color:var(--green)" id="analytics-bot-human">0 / 0</div><div class="bc-stat-label">Bot / Human Sends</div></div>
       </div>
@@ -2227,7 +2250,7 @@ body {
           <div class="metric-bars" id="analytics-pipeline-bars"></div>
         </div>
         <div class="analytics-card">
-          <div class="analytics-card-title">Queue Load</div>
+          <div class="analytics-card-title">Team Workload</div>
           <div class="list-stack" id="analytics-queue-list"></div>
         </div>
         <div class="analytics-card">
@@ -2245,15 +2268,15 @@ body {
     <div class="followups-layout">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <div style="font-size:18px;font-weight:700;">Follow-ups</div>
-          <div style="font-size:13px;color:var(--text2);margin-top:4px;">Contacts that need attention</div>
+          <div style="font-size:18px;font-weight:700;">Needs attention</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px;">Leads and conversations that need action from your team</div>
         </div>
       </div>
       <div class="fu-cards" id="followup-cards">
         <div class="empty-state">
           <div class="empty-icon">✅</div>
-          <div class="empty-title">All caught up!</div>
-          <div class="empty-sub">No follow-ups needed right now. Great job staying on top of your pipeline.</div>
+          <div class="empty-title">Nothing is waiting on your team</div>
+          <div class="empty-sub">New replies, stale deals, and overdue conversations will show up here.</div>
         </div>
       </div>
     </div>
@@ -2285,8 +2308,8 @@ body {
             <input class="form-input" type="text" placeholder="Your business name" id="config-business-name">
           </div>
           <div class="form-group">
-            <div class="form-label">Welcome Message</div>
-            <textarea class="form-input form-textarea" placeholder="First message sent to new contacts" id="config-welcome"></textarea>
+            <div class="form-label">Opening Reply</div>
+            <textarea class="form-input form-textarea" placeholder="First reply sent to a new lead" id="config-welcome"></textarea>
           </div>
           <div class="form-group">
             <div class="form-label">Bot Tone</div>
@@ -2311,7 +2334,7 @@ body {
             <div class="toggle on" id="toggle-handoff" onclick="this.classList.toggle('on')"></div>
           </div>
           <div style="margin-top:20px;">
-            <button class="btn btn-primary" onclick="saveConfig()">Save Brand Settings</button>
+            <button class="btn btn-primary" onclick="saveConfig()">Save AI Settings</button>
           </div>
         </div>
 
@@ -2352,12 +2375,12 @@ body {
             <div class="toggle on" onclick="this.classList.toggle('on')"></div>
           </div>
           <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
-            <div class="config-section-title" style="font-size:18px;">Default Reply Handling</div>
+            <div class="config-section-title" style="font-size:18px;">Default Reply Behavior</div>
             <div class="config-section-sub">This is what happens for a normal new conversation when no special campaign or sales-stage rule applies.</div>
             <div id="reply-flow-default"></div>
           </div>
           <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
-            <div class="config-section-title" style="font-size:18px;">Sales Stage Handling</div>
+            <div class="config-section-title" style="font-size:18px;">Reply Behavior by Stage</div>
             <div class="config-section-sub">Override the default handling for leads in a specific pipeline stage, like Negotiation or Proposal.</div>
             <div style="margin-top:16px;">
               <div id="reply-flow-stages"></div>
@@ -2369,7 +2392,7 @@ body {
             <div id="reply-flow-safety"></div>
           </div>
           <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
-            <div class="config-section-title" style="font-size:18px;">Campaign Reply Handling</div>
+            <div class="config-section-title" style="font-size:18px;">Campaign Reply Behavior</div>
             <div class="config-section-sub">Choose campaign-specific reply handling when creating each campaign. That setting lives on the Campaigns screen, not here.</div>
           </div>
           <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
@@ -2430,7 +2453,7 @@ body {
     <div class="settings-layout">
       <div class="settings-section" id="settings-wa-section">
         <div class="settings-title">WhatsApp Connection</div>
-        <div class="settings-sub">This is the live connection layer for Nazar. Sending as a rep, bot replies, and inbound webhook handling all depend on this being configured correctly.</div>
+        <div class="settings-sub">This is the live WhatsApp connection. Rep sends, bot replies, and inbound messages all depend on this being configured correctly.</div>
         <div class="connection-status" id="wa-connection">
           <div class="conn-dot disconnected" id="wa-dot"></div>
           <span class="conn-label" id="wa-status">Not Connected</span>
@@ -2468,7 +2491,7 @@ body {
           <div id="wa-diagnostics" class="list-stack"></div>
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="saveWhatsAppSettings()">Save WhatsApp Settings</button>
+          <button class="btn btn-primary" onclick="saveWhatsAppSettings()">Save WhatsApp Connection</button>
           <button class="btn btn-ghost" onclick="sendWhatsAppTest('template')">Send hello_world Test</button>
           <button class="btn btn-ghost" onclick="sendWhatsAppTest('text')">Send Text Test</button>
           <button class="btn btn-ghost" onclick="loadSettings()">Refresh Diagnostics</button>
@@ -2479,7 +2502,7 @@ body {
         <div class="settings-title">Team</div>
         <div class="settings-sub">Invite reps, adjust roles, and keep workspace access clean.</div>
         <div class="form-group">
-          <div class="form-label">Invite teammate</div>
+          <div class="form-label">Invite a teammate</div>
           <div class="campaign-row">
             <input class="form-input" type="text" placeholder="Name" id="invite-name">
             <input class="form-input" type="email" placeholder="Email" id="invite-email">
@@ -2489,7 +2512,7 @@ body {
               <option value="sales_rep">Sales Rep</option>
               <option value="sales_lead">Sales Lead</option>
             </select>
-            <button class="btn btn-primary" onclick="inviteTeamMember()">Send Invite</button>
+            <button class="btn btn-primary" onclick="inviteTeamMember()">Send invite</button>
           </div>
           <div class="mini-meta" id="invite-dev-link"></div>
         </div>
@@ -2498,14 +2521,14 @@ body {
           <div id="settings-team-members" class="list-stack"></div>
         </div>
         <div class="form-group">
-          <div class="form-label">Pending invites</div>
+          <div class="form-label">Invites waiting to be accepted</div>
           <div id="settings-team-invites" class="list-stack"></div>
         </div>
       </div>
 
       <div class="settings-section" id="settings-api-key-section">
-        <div class="settings-title">API Key</div>
-        <div class="settings-sub">Use this key to authenticate dashboard API requests.</div>
+        <div class="settings-title">Developer Access Key</div>
+        <div class="settings-sub">Used only for development and internal testing.</div>
         <div class="form-group">
           <div class="form-label">Nazar API Key</div>
           <input class="form-input" type="text" value="" id="settings-api-key" readonly style="font-family:monospace;font-size:12px;">
@@ -2518,7 +2541,7 @@ body {
 <div class="onboarding-overlay" id="auth-overlay">
   <div class="onboarding-box">
     <div class="ob-title" id="auth-title">Sign in to Nazar</div>
-    <div class="ob-sub" id="auth-sub">Use your work email to receive a magic link.</div>
+    <div class="ob-sub" id="auth-sub">Enter your work email and we’ll send you a secure sign-in link.</div>
     <div id="auth-login-step">
       <div class="form-group">
         <div class="form-label">Work email</div>
@@ -2584,13 +2607,13 @@ body {
 <div class="cmd-overlay" id="cmd-palette" onclick="if(event.target===this)closeCmdPalette()">
   <div class="cmd-box">
     <div class="cmd-input-wrap">
-      <span class="search-icon">🔍</span>
-      <input class="cmd-input" type="text" placeholder="Search contacts, actions..." id="cmd-input" oninput="searchCmd(this.value)">
+        <span class="search-icon">🔍</span>
+      <input class="cmd-input" type="text" placeholder="Search contacts or jump to a screen" id="cmd-input" oninput="searchCmd(this.value)">
     </div>
     <div class="cmd-results" id="cmd-results">
       <div class="cmd-result" onclick="navigateTo('overview');closeCmdPalette()">
         <span class="cmd-result-icon">📊</span>
-        <span class="cmd-result-text">Go to Overview</span>
+        <span class="cmd-result-text">Go to Dashboard</span>
         <span class="cmd-result-sub">Dashboard</span>
       </div>
       <div class="cmd-result" onclick="navigateTo('conversations');closeCmdPalette()">
@@ -2600,12 +2623,12 @@ body {
       </div>
       <div class="cmd-result" onclick="navigateTo('pipeline');closeCmdPalette()">
         <span class="cmd-result-icon">🎯</span>
-        <span class="cmd-result-text">Go to Pipeline</span>
+        <span class="cmd-result-text">Go to Pipelines</span>
         <span class="cmd-result-sub">Deals</span>
       </div>
       <div class="cmd-result" onclick="openAddContactModal();closeCmdPalette()">
         <span class="cmd-result-icon">➕</span>
-        <span class="cmd-result-text">Add New Contact</span>
+        <span class="cmd-result-text">Add contact</span>
         <span class="cmd-result-sub">Action</span>
       </div>
     </div>
@@ -2692,6 +2715,7 @@ let campaignAudiences = [];
 let campaignHistoryItems = [];
 let contactGroups = [];
 let campaignContentMode = 'template';
+let currentCampaignKnowledge = { notes: '', instruction: '', files: [], updated_at: null };
 let notificationItems = [];
 let teamInvites = [];
 let onboardingState = null;
@@ -2718,7 +2742,7 @@ function navigateTo(screen) {
 
   const titles = {
     overview:'Dashboard', contacts:'Contacts', conversations:'Conversations', pipeline:'Pipelines',
-    broadcasts:'Campaigns', insights:'Insights', analytics:'Analytics', followups:'Follow-ups', botconfig:'AI Setup',
+    broadcasts:'Campaigns', insights:'Insights', analytics:'Analytics', followups:'Needs Attention', botconfig:'AI Setup',
     settings:'Settings'
   };
   document.getElementById('page-title').textContent = titles[screen] || screen;
@@ -2914,13 +2938,17 @@ function showAuthOverlay(mode = 'login') {
   document.getElementById('auth-bootstrap-step').style.display = mode === 'bootstrap' ? '' : 'none';
   document.getElementById('auth-title').textContent = mode === 'bootstrap' ? 'Create your Nazar workspace' : 'Sign in to Nazar';
   document.getElementById('auth-sub').textContent = mode === 'bootstrap'
-    ? 'Set up the owner workspace first. Team invites come after the workspace is ready.'
-    : 'Use your work email to receive a magic link.';
+    ? 'Create your team workspace first. You can invite the rest of the team after setup.'
+    : 'Enter your work email and we’ll send you a secure sign-in link.';
   document.getElementById('auth-dev-link').textContent = '';
 }
 
 function hideAuthOverlay() {
   document.getElementById('auth-overlay').classList.remove('open');
+}
+
+function isOnboardingBypassed() {
+  return localStorage.getItem('nazar_bypass_onboarding') !== '0';
 }
 
 // ================================================================
@@ -3113,7 +3141,7 @@ async function loadOverview() {
       feed.innerHTML = `
         <div class="empty-state" style="padding:40px 20px">
           <div style="font-size:24px;margin-bottom:8px;">🔇</div>
-          <div style="font-size:13px;color:var(--text3)">No activity yet</div>
+          <div style="font-size:13px;color:var(--text3)">No recent sales activity</div>
         </div>
       `;
     }
@@ -3139,7 +3167,7 @@ async function loadOverview() {
       pmini.innerHTML = `
         <div class="empty-state" style="padding:40px 20px">
           <div style="font-size:24px;margin-bottom:8px;">📋</div>
-          <div style="font-size:13px;color:var(--text3)">No deals yet</div>
+          <div style="font-size:13px;color:var(--text3)">No active deals yet</div>
         </div>
       `;
     }
@@ -3183,7 +3211,7 @@ function buildNotifications(data) {
     notifications.push({
       icon: '📣',
       title: `${operations.campaign_reply_conversations} campaign repl${operations.campaign_reply_conversations === 1 ? 'y' : 'ies'} active`,
-      sub: 'Recent campaign responses are coming into the inbox.',
+      sub: 'Recent campaign replies are coming into the inbox.',
       action: () => openConversationFilter('campaigns'),
     });
   }
@@ -3444,7 +3472,7 @@ function renderContactsTable() {
     return stageMatch && groupMatch && searchMatch;
   });
   if (!list.length) {
-    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No contacts match this view</div><div class="empty-sub">Try another stage or search term, or add your first contact.</div></div>`;
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No contacts match these filters</div><div class="empty-sub">Try another stage or group, or add a contact to get started.</div></div>`;
     return;
   }
   wrap.innerHTML = `
@@ -3464,13 +3492,13 @@ function renderContactsTable() {
           <tr onclick="navigateTo('conversations');setTimeout(()=>selectConversationByContact('${contact.contact_id}'),120)" style="cursor:pointer;">
             <td>
               <div style="font-weight:600;">${esc(contact.name || contact.phone || 'Unknown')}</div>
-              <div class="mini-meta">${esc(contact.company || contact.phone || 'No company')}</div>
+              <div class="mini-meta">${esc(contact.company || contact.phone || 'No company yet')}</div>
             </td>
             <td><span class="pill">${esc(contact.pipeline_stage || 'New')}</span></td>
             <td>${esc(primaryContactGroup(contact) || '—')}</td>
             <td class="${scoreTone(contact.lead_score)}">${contact.lead_score || 0}</td>
             <td>${esc(capitalize(contact.source || 'direct'))}</td>
-            <td>${esc(contact.last_replied_at ? timeAgo(contact.last_replied_at) : 'No reply yet')}</td>
+            <td>${esc(contact.last_replied_at ? timeAgo(contact.last_replied_at) : 'No recent reply')}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -3561,7 +3589,7 @@ function renderInsightsSummary() {
   if (!el) return;
   const rows = [...(insightsData.insights || []), ...(insightsData.at_risk || [])];
   if (!rows.length) {
-    el.innerHTML = `<div class="list-row"><div class="list-row-title">No broad AI insights yet</div><div class="list-row-sub">As contacts move through campaigns and conversations, Nazar will surface funnel risks and operating advice here.</div></div>`;
+    el.innerHTML = `<div class="list-row"><div class="list-row-title">No deal insights yet</div><div class="list-row-sub">Once campaigns and conversations generate more signal, Nazar will highlight risks, objections, and next actions here.</div></div>`;
     return;
   }
   el.innerHTML = rows.slice(0, 3).map(item => `
@@ -3577,7 +3605,7 @@ function renderInsightCards() {
   if (!el) return;
   const cards = [...(insightsData.lead_cards || [])].slice(0, 8);
   if (!cards.length) {
-    el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🧠</div><div class="empty-title">No insights yet</div><div class="empty-sub">Run campaigns and conversations first. Insights get sharper as Nazar sees more behavior.</div></div>`;
+    el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🧠</div><div class="empty-title">No deal insights yet</div><div class="empty-sub">Run campaigns and conversations first. Nazar will surface risks, objections, and next actions as more signal comes in.</div></div>`;
     return;
   }
   el.innerHTML = cards.map(card => {
@@ -3589,7 +3617,7 @@ function renderInsightCards() {
         <div class="insight-card-top">
           <div>
             <div class="insight-card-title">${esc(card.name || 'Unknown')}</div>
-            <div class="insight-card-sub">${esc(card.stage || 'New')} · ${esc(card.company || 'No company')}</div>
+            <div class="insight-card-sub">${esc(card.stage || 'New')} · ${esc(card.company || 'No company yet')}</div>
           </div>
           <span class="pill ${scoreTone(score)}">${card.conversion_likelihood || score}% likely</span>
         </div>
@@ -3603,12 +3631,12 @@ function renderInsightCards() {
             <div class="insight-metric-value">${esc(card.intent_label || 'Unknown')}</div>
           </div>
           <div class="insight-metric">
-            <div class="insight-metric-label">Risk</div>
+            <div class="insight-metric-label">Deal risk</div>
             <div class="insight-metric-value ${scoreTone(risk === 'High' ? 20 : risk === 'Moderate' ? 50 : 80)}">${risk}</div>
           </div>
         </div>
-        <div class="insight-note"><strong>Objection summary:</strong> ${esc(card.objection_summary || 'No major objection visible yet.')}</div>
-        <div class="insight-note" style="margin-top:8px;"><strong>Risk:</strong> ${esc(card.risk_reason || 'No specific risk reason available.')}</div>
+        <div class="insight-note"><strong>Main objection:</strong> ${esc(card.objection_summary || 'No strong objection detected yet.')}</div>
+        <div class="insight-note" style="margin-top:8px;"><strong>Risk reason:</strong> ${esc(card.risk_reason || 'No specific risk reason available yet.')}</div>
         <div class="insight-action">→ ${esc(card.next_best_action || 'Keep the conversation moving toward the next stage.')}</div>
       </div>
     `;
@@ -3653,7 +3681,7 @@ function renderAnalyticsCards(metrics, pipeline, broadcasts) {
   const queues = Object.entries(metrics.queue_counts || {});
   queueList.innerHTML = queues.length
     ? queues.map(([queue, count]) => `<div class="list-row"><div class="list-row-title">${esc(capitalize(queue))}</div><div class="list-row-sub">${count} conversations currently routed here.</div></div>`).join('')
-    : `<div class="list-row"><div class="list-row-title">No active queues</div><div class="list-row-sub">Queue analytics will appear once conversations are being assigned and routed.</div></div>`;
+    : `<div class="list-row"><div class="list-row-title">No team workload yet</div><div class="list-row-sub">Workload will appear once conversations are being assigned and worked by the team.</div></div>`;
 
   const recommendations = document.getElementById('analytics-recommendations');
   const recs = [];
@@ -3663,7 +3691,7 @@ function renderAnalyticsCards(metrics, pipeline, broadcasts) {
   if ((metrics.ai_assist_available || 0) > 0) recs.push(`${metrics.ai_assist_available} conversations have AI drafts ready. This is where human-assisted closing should accelerate.`);
   recommendations.innerHTML = recs.length
     ? recs.map(text => `<div class="list-row"><div class="list-row-title">AI recommendation</div><div class="list-row-sub">${esc(text)}</div></div>`).join('')
-    : `<div class="list-row"><div class="list-row-title">No recommendations yet</div><div class="list-row-sub">As campaign and conversation volume grows, Nazar will surface better operating recommendations here.</div></div>`;
+    : `<div class="list-row"><div class="list-row-title">No operating recommendations yet</div><div class="list-row-sub">As more campaigns and conversations run through Nazar, it will show where your team is losing momentum.</div></div>`;
 }
 
 function renderMetricBars(containerId, rows) {
@@ -3685,7 +3713,7 @@ function renderConversationList(list) {
     el.innerHTML = `<div class="empty-state">
       <div class="empty-icon">💬</div>
       <div class="empty-title">No conversations yet</div>
-      <div class="empty-sub">When customers message you on WhatsApp, conversations will appear here.</div>
+      <div class="empty-sub">Customer replies and campaign responses will appear here.</div>
     </div>`;
     return;
   }
@@ -3700,13 +3728,13 @@ function renderConversationList(list) {
         <div class="conv-item-preview">${esc(c.last_message||'No messages')}</div>
         <div class="conv-item-tags">
           <span class="tag tag-${c.stage==='Won'?'won':c.lead_score>60?'hot':c.lead_score>30?'warm':'cold'}">${c.stage}</span>
-          ${c.status==='needs_reply'?'<span class="tag tag-hot">Needs Reply</span>':''}
+          ${c.status==='needs_reply'?'<span class="tag tag-hot">Needs reply</span>':''}
           ${c.status==='snoozed'?'<span class="tag tag-cold">Snoozed</span>':''}
           ${c.status==='closed'?'<span class="tag tag-cold">Closed</span>':''}
-          ${c.bot_mode?'':'<span class="tag tag-warm">👤 Human</span>'}
-          ${c.source_type==='campaign'?'<span class="tag tag-warm">📣 Campaign</span>':''}
-          ${c.human_queue?`<span class="tag tag-cold">Queue · ${esc(c.human_queue)}</span>`:''}
-          ${c.ai_assist_status==='available'?'<span class="tag tag-hot">✨ AI Draft</span>':''}
+          ${c.bot_mode?'':'<span class="tag tag-warm">👤 Human-owned</span>'}
+          ${c.source_type==='campaign'?'<span class="tag tag-warm">📣 Campaign reply</span>':''}
+          ${c.human_queue?`<span class="tag tag-cold">Team · ${esc(c.human_queue)}</span>`:''}
+          ${c.ai_assist_status==='available'?'<span class="tag tag-hot">✨ Draft ready</span>':''}
           ${c.assigned_user_name?`<span class="tag tag-cold">🧑 ${esc(c.assigned_user_name)}</span>`:''}
         </div>
       </div>
@@ -3751,19 +3779,19 @@ function renderConversationDetail(data) {
       </div>
       <div class="conv-detail-actions">
         <button class="btn btn-sm ${botMode?'btn-ghost':'btn-primary'}" onclick="toggleBot('${conversation.conversation_id}',${!botMode})">
-          ${botMode?'🤖 Bot Active':'👤 Human Mode'}
+          ${botMode?'🤖 AI active':'👤 Switch to human'}
         </button>
-        <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign To Me</button>
+        <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign to me</button>
         <button class="btn btn-sm ${assistReady ? 'btn-primary' : 'btn-ghost'}" onclick="requestConversationAiAssist('${conversation.conversation_id}')">
-          ${assistReady ? '♻️ Refresh Draft' : '✨ Get AI Draft'}
+          ${assistReady ? '♻️ Refresh draft' : '✨ Draft a reply'}
         </button>
-        ${assistReady ? `<button class="btn btn-sm btn-ghost" onclick="sendAiAssistDraft('${conversation.conversation_id}')">Send Draft</button>` : ''}
+        ${assistReady ? `<button class="btn btn-sm btn-ghost" onclick="sendAiAssistDraft('${conversation.conversation_id}')">Send draft</button>` : ''}
         <div class="icon-btn" title="View Memory" onclick="navigateTo('pipeline')">🧠</div>
       </div>
     </div>
     <div style="padding:0 20px 12px;color:var(--text2);font-size:12px;">
-      ${conversation.assigned_user_name ? `Assigned to ${esc(conversation.assigned_user_name)}` : 'Unassigned'} · ${conversation.status || 'open'}
-      ${conversation.human_queue ? ` · Queue ${esc(conversation.human_queue)}` : ''}
+      ${conversation.assigned_user_name ? `Owner: ${esc(conversation.assigned_user_name)}` : 'No owner yet'} · ${humanizeConversationStatus(conversation.status || 'open')}
+      ${conversation.human_queue ? ` · Team: ${esc(conversation.human_queue)}` : ''}
       ${conversation.source_type === 'campaign' ? ` · Campaign ${esc(conversation.source_ref || 'broadcast_reply')}` : ''}
     </div>
     <div class="chat-area" id="chat-messages">
@@ -3771,7 +3799,7 @@ function renderConversationDetail(data) {
       ${msgs.map(m => `
         <div class="bubble ${m.direction==='inbound'?'user':'bot'}">
           <div class="bubble-inner">${esc(m.content)}</div>
-          ${m.sent_by==='bot'&&m.direction==='outbound'?'<div class="mem-badge">🧠 AI Memory Used</div>':''}
+          ${m.sent_by==='bot'&&m.direction==='outbound'?'<div class="mem-badge">🧠 AI-generated reply</div>':''}
           <div class="bubble-time">${formatTime(m.timestamp)} ${m.sent_by?'· '+m.sent_by:''}${m.delivery_status?' · '+m.delivery_status:''}</div>
         </div>
       `).join('')}
@@ -3802,7 +3830,7 @@ function formatClassificationExplanation(note, conversation) {
     bot_assist: 'Team reviews an AI draft',
     manual_only: 'Team only, no AI reply',
   }[owner] || owner;
-  return `Latest classification: ${intent}. Handling mode: ${ownerText}.${reasons ? ` Reason: ${reasons}.` : ''}`;
+  return `Latest classification: ${intent}. Nazar chose: ${ownerText}.${reasons ? ` Why: ${reasons}.` : ''}`;
 }
 
 function parseClassificationNote(note) {
@@ -3888,12 +3916,12 @@ function nextConversationAction(contact, conversation, classification, assistRea
   rightPanel.innerHTML = `
     <div class="intel-panel">
     <div class="intel-card">
-      <div class="intel-title">AI Summary</div>
+      <div class="intel-title">What Nazar sees</div>
       <div class="intel-summary">
         ${classification ? `
           <strong>${humanizeIntent(classification.intent)}</strong> · ${classification.owner ? formatReplyMode(classification.owner) : 'Handling not decided'}.
           ${classification.reasons ? ` ${esc(classification.reasons)}.` : ''}
-        ` : 'Nazar will summarize what it has learned from the conversation after the next classified inbound message.'}
+        ` : 'Nazar will summarize what it has learned after the next classified inbound message.'}
       </div>
       <div class="intel-chips">
         ${classification?.stage ? `<span class="chip chip-accent">Stage · ${esc(classification.stage)}</span>` : ''}
@@ -3901,32 +3929,32 @@ function nextConversationAction(contact, conversation, classification, assistRea
         ${mem.last_interaction ? `<span class="chip chip-orange">Last touch · ${esc(timeAgo(mem.last_interaction))}</span>` : ''}
       </div>
       <div class="intel-meta">
-        ${memorySignals.length ? `Signals seen: ${esc(memorySignals.join(', '))}.` : 'No strong buying or objection signals extracted yet.'}
+        ${memorySignals.length ? `Signals seen: ${esc(memorySignals.join(', '))}.` : 'No strong buying or objection signals detected yet.'}
       </div>
     </div>
     <div class="intel-card">
-      <div class="intel-title">Routing Decision</div>
+      <div class="intel-title">Why this conversation was routed this way</div>
       <div class="intel-summary">${esc(routingExplanation || 'Once a fresh inbound message is classified, Nazar will explain the latest routing decision here.')}</div>
       <div class="intel-chips">
         <span class="chip chip-accent">${esc(formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first'))}</span>
-        ${conversation.human_queue ? `<span class="chip chip-orange">Queue · ${esc(conversation.human_queue)}</span>` : ''}
+        ${conversation.human_queue ? `<span class="chip chip-orange">Team · ${esc(conversation.human_queue)}</span>` : ''}
         ${conversation.source_type === 'campaign' ? `<span class="chip chip-green">Campaign · ${esc(conversation.source_ref || 'broadcast_reply')}</span>` : ''}
       </div>
     </div>
     <div class="intel-card">
-      <div class="intel-title">What You Should Do Next</div>
+      <div class="intel-title">Next best action</div>
       <div class="intel-summary">${esc(nextConversationAction(c, conversation, classification, assistReady))}</div>
     </div>
     <div class="crm-section">
-      <div class="crm-title">Contact Details</div>
+      <div class="crm-title">Deal details</div>
       <div class="crm-field"><span class="crm-key">Stage</span><span class="crm-val">${c.pipeline_stage}</span></div>
       <div class="crm-field"><span class="crm-key">Group</span><span class="crm-val">${esc(primaryContactGroup(c) || '—')}</span></div>
       <div class="crm-field"><span class="crm-key">Deal Value</span><span class="crm-val">${formatCurrency(c.deal_value||0)}</span></div>
-      <div class="crm-field"><span class="crm-key">Lead Score</span><span class="crm-val">${c.lead_score||0}/100</span></div>
+      <div class="crm-field"><span class="crm-key">Sales Score</span><span class="crm-val">${c.lead_score||0}/100</span></div>
       <div class="crm-field"><span class="crm-key">Company</span><span class="crm-val">${esc(c.company||'—')}</span></div>
       <div class="crm-field"><span class="crm-key">Source</span><span class="crm-val">${esc(c.source||'—')}</span></div>
-      <div class="crm-field"><span class="crm-key">Messages</span><span class="crm-val">${c.total_messages||0}</span></div>
-      <div class="crm-field"><span class="crm-key">Assigned</span><span class="crm-val">${esc(conversation.assigned_user_name||'Unassigned')}</span></div>
+      <div class="crm-field"><span class="crm-key">Messages Exchanged</span><span class="crm-val">${c.total_messages||0}</span></div>
+      <div class="crm-field"><span class="crm-key">Owner</span><span class="crm-val">${esc(conversation.assigned_user_name||'Unassigned')}</span></div>
     </div>
     ${c.tags&&c.tags.length?`
     <div class="crm-section">
@@ -3936,15 +3964,15 @@ function nextConversationAction(contact, conversation, classification, assistRea
       </div>
     </div>`:''}
     <div class="crm-section">
-      <div class="crm-title">Deal Controls</div>
+      <div class="crm-title">Take action</div>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:4px;">Use this section to decide who owns the lead, whether the inbox still needs attention, and what deal stage it belongs in.</div>
+        <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-bottom:4px;">Use this section to decide who owns the lead, whether it still needs a reply, and where it sits in the pipeline.</div>
         <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Contact group</div>
         <select class="form-input" onchange="updateContactGroup('${c.contact_id}', this.value)" style="font-size:12px;">
           <option value="">No group</option>
           ${campaignGroupChoices(primaryContactGroup(c)).map(group => `<option value="${escAttr(group)}" ${primaryContactGroup(c)===group?'selected':''}>${esc(group)}</option>`).join('')}
         </select>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Conversation owner</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Owner</div>
         <select class="form-input" onchange="assignConversation('${conversation.conversation_id}', this.value)" style="font-size:12px;">
           <option value="">Unassigned</option>
           ${teamMembers.map(member => `<option value="${member.id}" ${conversation.assigned_user_id===member.id?'selected':''}>${esc(member.name)} · ${esc(member.role||'member')}</option>`).join('')}
@@ -3953,18 +3981,18 @@ function nextConversationAction(contact, conversation, classification, assistRea
           <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '', true)">Assign to me</button>
           <button class="btn btn-sm btn-ghost" onclick="assignConversation('${conversation.conversation_id}', '')">Unassign</button>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px;">Inbox state</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px;">Reply status</div>
         <select class="form-input" onchange="updateConversationStatus('${conversation.conversation_id}', this.value)" style="font-size:12px;">
           ${['open','needs_reply','snoozed','closed'].map(status => `<option value="${status}" ${conversation.status===status?'selected':''}>${humanizeConversationStatus(status)}</option>`).join('')}
         </select>
-        <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px;">Deal stage</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;margin-bottom:4px;">Move deal</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
           <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Qualified')">Move to Qualified</button>
           <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;" onclick="moveContactStage('${c.contact_id}','Proposal')">Move to Proposal</button>
-          <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;grid-column:1 / span 2;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark as Won</button>
+          <button class="btn btn-sm btn-ghost" style="justify-content:flex-start;grid-column:1 / span 2;" onclick="moveContactStage('${c.contact_id}','Won')">🏆 Mark deal as Won</button>
         </div>
         <details style="margin-top:8px;">
-          <summary style="cursor:pointer;color:var(--text2);font-size:12px;">Advanced routing</summary>
+          <summary style="cursor:pointer;color:var(--text2);font-size:12px;">Advanced reply override</summary>
           <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
             <div style="font-size:11px;color:var(--text3);line-height:1.5;">Change this only if you need to override Nazar’s normal handling for this one conversation.</div>
             <select class="form-input" onchange="updateConversationUseCase('${conversation.conversation_id}', this.value)" style="font-size:12px;">
@@ -3973,23 +4001,23 @@ function nextConversationAction(contact, conversation, classification, assistRea
           </div>
         </details>
         <div style="font-size:11px;color:var(--text3);padding-top:4px;">
-          Current handling: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
-          ${conversation.human_queue ? ` · Queue: ${esc(conversation.human_queue)}` : ''}
+          Current reply flow: ${formatReplyMode(replyPolicies.find(policy => policy.use_case_key === conversation.active_reply_policy_key)?.reply_mode || 'bot_first')}
+          ${conversation.human_queue ? ` · Team: ${esc(conversation.human_queue)}` : ''}
         </div>
       </div>
     </div>
     <div class="crm-section">
-      <div class="crm-title">AI Assist</div>
+      <div class="crm-title">AI reply draft</div>
       ${assistReady ? `
         <div style="padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);font-size:12px;line-height:1.6;white-space:pre-wrap;">${esc(conversation.ai_assist_draft || '')}</div>
         <div style="color:var(--text3);font-size:11px;margin-top:8px;">Draft ready ${conversation.ai_assist_updated_at ? `· ${timeAgo(conversation.ai_assist_updated_at)}` : ''}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
-          <button class="btn btn-sm btn-primary" onclick="sendAiAssistDraft('${conversation.conversation_id}')">Send AI Draft</button>
+          <button class="btn btn-sm btn-primary" onclick="sendAiAssistDraft('${conversation.conversation_id}')">Send draft</button>
           <button class="btn btn-sm btn-ghost" onclick="requestConversationAiAssist('${conversation.conversation_id}')">Regenerate</button>
         </div>
       ` : `
-        <div style="color:var(--text3);font-size:12px;">No AI draft is ready for this conversation yet.</div>
-        <button class="btn btn-sm btn-ghost" style="margin-top:10px;width:100%;" onclick="requestConversationAiAssist('${conversation.conversation_id}')">Generate Draft</button>
+        <div style="color:var(--text3);font-size:12px;">No draft is ready yet. Generate one if you want Nazar to suggest a reply.</div>
+        <button class="btn btn-sm btn-ghost" style="margin-top:10px;width:100%;" onclick="requestConversationAiAssist('${conversation.conversation_id}')">Generate draft</button>
       `}
     </div>
     <div class="crm-section">
@@ -4001,10 +4029,11 @@ function nextConversationAction(contact, conversation, classification, assistRea
             <div style="color:var(--text2);margin-top:6px;">${esc(note.author_name || 'Team')} ${note.mentions?.length ? `· mentions ${note.mentions.map(esc).join(', ')}` : ''}</div>
             <div style="color:var(--text3);margin-top:4px;">${timeAgo(note.created_at)}</div>
           </div>
-        `).join('') : '<div style="color:var(--text3);font-size:12px;">No notes yet.</div>'}
+        `).join('') : '<div style="color:var(--text3);font-size:12px;">No team notes yet.</div>'}
       </div>
-      <textarea class="form-input" id="contact-note-input" placeholder="Add internal note... Use @name for mentions." style="min-height:84px;resize:vertical;"></textarea>
-      <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="addInternalNote('${c.contact_id}')">Add Note</button>
+      <textarea class="form-input" id="contact-note-input" placeholder="Add a private note for your team" style="min-height:84px;resize:vertical;"></textarea>
+      <div style="color:var(--text3);font-size:11px;margin-top:6px;">Use @name to mention a teammate.</div>
+      <button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="addInternalNote('${c.contact_id}')">Add note</button>
     </div>
     </div>
   `;
@@ -4103,6 +4132,7 @@ function initializeCampaignBuilder() {
   if (queueInput && !queueInput.value) queueInput.value = 'sales';
   updateCampaignReplyHandlingUI();
   ensureCampaignKey();
+  renderCampaignKnowledgePanel();
   root.dataset.builderReady = 'true';
   refreshCampaignAudiencePreview();
 }
@@ -4119,6 +4149,116 @@ function ensureCampaignKey() {
     } else if (!current) {
       keyInput.value = slugifyKey(`campaign_${new Date().toLocaleDateString('en-CA').replace(/-/g, '_')}`);
     }
+  }
+}
+
+function activeCampaignKey() {
+  ensureCampaignKey();
+  return (document.getElementById('broadcast-campaign-key')?.value || '').trim();
+}
+
+function renderCampaignKnowledgePanel() {
+  const list = document.getElementById('campaign-knowledge-files-list');
+  if (!list) return;
+  const notes = (currentCampaignKnowledge.notes || '').trim();
+  const instruction = (currentCampaignKnowledge.instruction || '').trim();
+  const files = currentCampaignKnowledge.files || [];
+  if (!notes && !instruction && !files.length) {
+    list.innerHTML = 'No campaign notes or files attached yet.';
+    return;
+  }
+  const parts = [];
+  if (notes) parts.push(`<div>Notes added</div>`);
+  if (instruction) parts.push(`<div>AI instruction added</div>`);
+  for (const file of files) {
+    parts.push(
+      `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--border);">
+        <span>${esc(file.name || 'Attachment')} ${file.text_chars ? `· ${file.text_chars} chars extracted` : ''}</span>
+        <button class="btn btn-sm btn-ghost" onclick="deleteCampaignKnowledgeFile('${escAttr(file.id || '')}')">Remove</button>
+      </div>`
+    );
+  }
+  list.innerHTML = parts.join('');
+}
+
+async function loadCampaignKnowledge() {
+  const campaignKey = activeCampaignKey();
+  if (!campaignKey) return;
+  try {
+    currentCampaignKnowledge = await api('GET', `/api/campaigns/${encodeURIComponent(campaignKey)}/knowledge`);
+  } catch (e) {
+    currentCampaignKnowledge = { campaign_key: campaignKey, notes: '', instruction: '', files: [] };
+  }
+  const notesInput = document.getElementById('campaign-knowledge-notes');
+  const instructionInput = document.getElementById('campaign-knowledge-instruction');
+  if (notesInput) notesInput.value = currentCampaignKnowledge.notes || '';
+  if (instructionInput) instructionInput.value = currentCampaignKnowledge.instruction || '';
+  renderCampaignKnowledgePanel();
+}
+
+async function saveCampaignKnowledge() {
+  const campaignKey = activeCampaignKey();
+  if (!campaignKey) throw new Error('Campaign key is required before saving campaign knowledge');
+  currentCampaignKnowledge = await api('PUT', `/api/campaigns/${encodeURIComponent(campaignKey)}/knowledge`, {
+    notes: document.getElementById('campaign-knowledge-notes')?.value || '',
+    instruction: document.getElementById('campaign-knowledge-instruction')?.value || '',
+  });
+  renderCampaignKnowledgePanel();
+  return currentCampaignKnowledge;
+}
+
+async function uploadCampaignKnowledgeFiles() {
+  const campaignKey = activeCampaignKey();
+  if (!campaignKey) {
+    showToast('⚠️', 'Set the campaign name first');
+    return;
+  }
+  const input = document.getElementById('campaign-knowledge-files');
+  const files = Array.from(input?.files || []);
+  if (!files.length) {
+    showToast('⚠️', 'Choose one or more files first');
+    return;
+  }
+  try {
+    await saveCampaignKnowledge();
+    const encodedFiles = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const raw = String(reader.result || '');
+        resolve({
+          name: file.name,
+          mime_type: file.type || '',
+          content_base64: raw.includes(',') ? raw.split(',', 2)[1] : raw,
+        });
+      };
+      reader.onerror = () => reject(new Error(`Unable to read ${file.name}`));
+      reader.readAsDataURL(file);
+    })));
+    const resp = await fetch(`${API_BASE}/api/campaigns/${encodeURIComponent(campaignKey)}/knowledge/files`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ files: encodedFiles }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || 'Campaign file upload failed');
+    currentCampaignKnowledge = data.knowledge || currentCampaignKnowledge;
+    if (input) input.value = '';
+    renderCampaignKnowledgePanel();
+    showToast('📎', `${files.length} file${files.length === 1 ? '' : 's'} attached`);
+  } catch (e) {
+    showToast('❌', e.message || 'Campaign file upload failed');
+  }
+}
+
+async function deleteCampaignKnowledgeFile(fileId) {
+  const campaignKey = activeCampaignKey();
+  if (!campaignKey || !fileId) return;
+  try {
+    await api('DELETE', `/api/campaigns/${encodeURIComponent(campaignKey)}/knowledge/files/${encodeURIComponent(fileId)}`);
+    await loadCampaignKnowledge();
+    showToast('🗑️', 'Attachment removed');
+  } catch (e) {
+    showToast('❌', e.message || 'Unable to remove attachment');
   }
 }
 
@@ -4274,11 +4414,11 @@ function updateCampaignReplyHandlingUI() {
   if (mode === 'bot_first') {
     hint.textContent = 'Nazar will reply on its own. No team queue is needed unless you later override this conversation.';
   } else if (mode === 'bot_assist') {
-    hint.textContent = 'Nazar will draft the reply, and the selected team queue will review and send it.';
+    hint.textContent = 'Nazar will draft the reply. The selected team will review it and send it.';
   } else if (mode === 'human_first') {
-    hint.textContent = 'Replies from this campaign will go straight to the selected team queue for a human rep.';
+    hint.textContent = 'Replies from this campaign will go straight to the selected team.';
   } else {
-    hint.textContent = 'Nazar will not generate a reply here. The selected team queue owns every response.';
+    hint.textContent = 'Nazar will not generate replies here. The selected team owns every response.';
   }
 }
 
@@ -4384,7 +4524,7 @@ async function saveReplyPolicy(useCaseKey) {
       fallback_queue,
       force_human_keywords,
     });
-    showToast('🧭', 'Reply flow saved');
+    showToast('🧭', 'Reply behavior saved');
     await loadReplyPolicies();
     await loadRoutingRules();
     if (selectedConvId) await selectConversation(selectedConvId);
@@ -4408,7 +4548,7 @@ async function saveDefaultReplyFlow() {
       policy_use_case_key: 'default_inbound',
       active: true,
     });
-    showToast('🧭', 'Default handling saved');
+    showToast('🧭', 'Default reply behavior saved');
     await loadReplyPolicies();
     await loadRoutingRules();
   } catch(e) {
@@ -4458,7 +4598,7 @@ async function saveStageReplyFlow(stage) {
       policy_use_case_key: policyUseCaseKey,
       active: true,
     });
-    showToast('🧭', `${stage} stage handling saved`);
+    showToast('🧭', `${stage} stage reply behavior saved`);
     await loadReplyPolicies();
     await loadRoutingRules();
   } catch(e) {
@@ -4719,8 +4859,8 @@ function renderFollowups(list) {
   if (list.length === 0) {
     el.innerHTML = `<div class="empty-state">
       <div class="empty-icon">✅</div>
-      <div class="empty-title">All caught up!</div>
-      <div class="empty-sub">No follow-ups needed right now.</div>
+      <div class="empty-title">Nothing is waiting on your team</div>
+      <div class="empty-sub">New replies, stale deals, and overdue conversations will show up here.</div>
     </div>`;
     return;
   }
@@ -4994,6 +5134,10 @@ function onboardingStepIndex(state) {
 }
 
 function maybeShowOnboarding() {
+  if (isOnboardingBypassed()) {
+    document.getElementById('onboarding-overlay').classList.remove('open');
+    return;
+  }
   if (!onboardingState || onboardingState.completed_at) {
     document.getElementById('onboarding-overlay').classList.remove('open');
     return;
@@ -5013,14 +5157,14 @@ function maybeShowOnboarding() {
   const stepKey = onboardingState.current_step || 'workspace_basics';
 
   if (stepKey === 'channel_setup') {
-    title.textContent = 'Connect a channel';
-    sub.textContent = 'Pick the live channel you want to activate first. You can continue without fully finishing it, but Nazar should know your active path.';
+    title.textContent = 'Connect your first channel';
+    sub.textContent = 'Choose the live channel you want to activate first. You can continue without fully finishing it, but Nazar should know your active path.';
     body.innerHTML = `<div class="cmd-result-sub">Open Settings to connect WhatsApp or confirm Telegram. Nazar will keep this step visible until a channel is marked ready.</div>`;
     skipBtn.style.display = '';
     nextBtn.textContent = 'I’ve reviewed this';
   } else if (stepKey === 'knowledge_setup') {
-    title.textContent = 'Load business knowledge';
-    sub.textContent = 'Make sure the welcome message, handoff message, and business knowledge are ready before your team goes live.';
+    title.textContent = 'Teach Nazar about your business';
+    sub.textContent = 'Make sure the opening reply, handoff message, and business knowledge are ready before your team goes live.';
     body.innerHTML = `<div class="cmd-result-sub">Open AI Setup and complete your business voice, handoff message, and knowledge base.</div>`;
     skipBtn.style.display = '';
     nextBtn.textContent = 'Knowledge looks ready';
@@ -5031,7 +5175,7 @@ function maybeShowOnboarding() {
     skipBtn.style.display = '';
     nextBtn.textContent = 'Team step done';
   } else if (stepKey === 'first_campaign') {
-    title.textContent = 'Prepare the first campaign';
+    title.textContent = 'Launch your first campaign';
     sub.textContent = 'Make sure there are contacts in the workspace, then launch the first campaign so Nazar starts producing live commercial signal.';
     body.innerHTML = `<div class="cmd-result-sub">Go to Campaigns when you’re ready. This step is about getting the workspace to first real use, not just setup.</div>`;
     skipBtn.style.display = 'none';
@@ -5176,6 +5320,7 @@ function openCampaignModal() {
   document.getElementById('campaign-modal')?.classList.add('open');
   initializeCampaignBuilder();
   ensureCampaignKey();
+  loadCampaignKnowledge();
 }
 
 function closeCampaignModal() {
@@ -5235,6 +5380,8 @@ function getCampaignComposerPayload() {
     campaign_key: campaignKey,
     reply_mode: replyMode,
     human_queue: humanQueue,
+    campaign_notes: document.getElementById('campaign-knowledge-notes')?.value || '',
+    campaign_instruction: document.getElementById('campaign-knowledge-instruction')?.value || '',
   };
   if (campaignContentMode === 'template') {
     if (!template) throw new Error('Pick a template first');
@@ -5250,6 +5397,7 @@ function getCampaignComposerPayload() {
 
 async function sendBroadcast() {
   try {
+    await saveCampaignKnowledge();
     const payload = getCampaignComposerPayload();
     const result = await api('POST', '/api/campaigns', payload);
     onboardingState = (await api('PATCH', '/api/onboarding', { first_campaign_ready: true })).state;
@@ -5342,6 +5490,7 @@ function renderBroadcastHistory(broadcasts, jobs) {
             <span class="tag tag-cold">${esc(item.filter_stage || 'All active')}</span>
             ${item.filter_tag ? `<span class="tag tag-cold">${esc(item.filter_tag)}</span>` : ''}
             <span class="tag tag-cold">${esc(item.template ? `Template · ${item.template}` : 'Custom copy')}</span>
+            ${(item.knowledge?.file_count || item.knowledge?.has_notes || item.knowledge?.has_instruction) ? '<span class="tag tag-cold">Knowledge pack</span>' : ''}
           </div>
         </div>
         <span class="tag tag-cold">${esc(item.status || 'completed')}</span>
@@ -5426,6 +5575,7 @@ function openCampaignDetailByIndex(index) {
     <div class="list-item"><strong>Status</strong><br>${esc(item.status || 'completed')}</div>
     <div class="list-item"><strong>Audience filters</strong><br>${esc(item.filter_stage || 'All active contacts')}${item.filter_tag ? ` · group ${esc(item.filter_tag)}` : ''}</div>
     <div class="list-item"><strong>Content</strong><br>${esc(item.template ? `Template: ${item.template}` : 'Custom copy')}</div>
+    <div class="list-item"><strong>Knowledge pack</strong><br>${item.knowledge?.file_count || item.knowledge?.has_notes || item.knowledge?.has_instruction ? `${item.knowledge?.file_count || 0} file(s)${item.knowledge?.has_notes ? ' · notes added' : ''}${item.knowledge?.has_instruction ? ' · AI instruction' : ''}` : 'No campaign-specific knowledge added'}</div>
     <div class="list-item"><strong>Launched</strong><br>${esc(timeAgo(item.created_at))}</div>
     <div class="list-item"><strong>Reply rate</strong><br>${rateOf(metrics.reply_conversations || 0, item.target_count || 0)}</div>
     <div class="list-item"><strong>Conversion rate</strong><br>${rateOf(metrics.won || 0, item.target_count || 0)}</div>
@@ -5468,8 +5618,8 @@ async function searchCmd(query) {
     results.innerHTML = `
       <div class="cmd-result" onclick="navigateTo('overview');closeCmdPalette()"><span class="cmd-result-icon">📊</span><span class="cmd-result-text">Go to Overview</span><span class="cmd-result-sub">Dashboard</span></div>
       <div class="cmd-result" onclick="navigateTo('conversations');closeCmdPalette()"><span class="cmd-result-icon">💬</span><span class="cmd-result-text">Go to Conversations</span><span class="cmd-result-sub">Messages</span></div>
-      <div class="cmd-result" onclick="navigateTo('pipeline');closeCmdPalette()"><span class="cmd-result-icon">🎯</span><span class="cmd-result-text">Go to Pipeline</span><span class="cmd-result-sub">Deals</span></div>
-      <div class="cmd-result" onclick="openAddContactModal();closeCmdPalette()"><span class="cmd-result-icon">➕</span><span class="cmd-result-text">Add New Contact</span><span class="cmd-result-sub">Action</span></div>
+      <div class="cmd-result" onclick="navigateTo('pipeline');closeCmdPalette()"><span class="cmd-result-icon">🎯</span><span class="cmd-result-text">Go to Pipelines</span><span class="cmd-result-sub">Deals</span></div>
+      <div class="cmd-result" onclick="openAddContactModal();closeCmdPalette()"><span class="cmd-result-icon">➕</span><span class="cmd-result-text">Add contact</span><span class="cmd-result-sub">Action</span></div>
     `;
     return;
   }
@@ -5501,7 +5651,7 @@ async function searchCmd(query) {
     {name:'Conversations',screen:'conversations',icon:'💬'},
     {name:'Insights',screen:'insights',icon:'🧠'},
     {name:'Analytics',screen:'analytics',icon:'📈'},
-    {name:'Follow-ups',screen:'followups',icon:'🔔'},
+    {name:'Needs Attention',screen:'followups',icon:'🔔'},
     {name:'AI Setup',screen:'botconfig',icon:'🤖'},
     {name:'Settings',screen:'settings',icon:'⚙️'},
   ].filter(n => n.name.toLowerCase().includes(q));

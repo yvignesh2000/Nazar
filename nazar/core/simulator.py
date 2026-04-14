@@ -246,7 +246,7 @@ def _simulated_ai_draft(contact: dict, inbound_message: str) -> str:
     )
 
 
-async def _generate_ai_text(contact: dict, inbound_message: str, *, fallback_builder) -> str:
+async def _generate_ai_text(contact: dict, inbound_message: str, *, fallback_builder, campaign_key: Optional[str] = None) -> str:
     config = get_workspace_config()
     try:
         return await generate_reply_for_contact(
@@ -255,6 +255,7 @@ async def _generate_ai_text(contact: dict, inbound_message: str, *, fallback_bui
             lambda messages: call_llm_safe(messages, tier="sonnet", phone=contact.get("phone", "")),
             config=config,
             include_current_message=False,
+            campaign_key=campaign_key,
         )
     except Exception as exc:
         logger.warning("Simulator AI generation failed, using fallback copy: %s", exc)
@@ -321,7 +322,12 @@ async def simulate_inbound_event_async(
 
     if reply_mode == "bot_assist":
         conversation = mark_conversation_handoff_required(conversation["conversation_id"], True)
-        draft = await _generate_ai_text(contact, inbound_text, fallback_builder=_simulated_ai_draft)
+        draft = await _generate_ai_text(
+            contact,
+            inbound_text,
+            fallback_builder=_simulated_ai_draft,
+            campaign_key=conversation.get("source_ref") if conversation.get("source_type") == "campaign" else None,
+        )
         conversation = set_conversation_ai_assist(conversation["conversation_id"], draft, status="available")
         result.update({
             "action": "ai_assist_ready",
@@ -355,6 +361,7 @@ async def simulate_inbound_event_async(
         contact,
         inbound_text,
         fallback_builder=lambda c, m: _simulated_bot_reply(c, m, policy),
+        campaign_key=conversation.get("source_ref") if conversation.get("source_type") == "campaign" else None,
     )
     outbound = save_message(
         conversation["conversation_id"],

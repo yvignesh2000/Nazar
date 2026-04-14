@@ -17,9 +17,11 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import asyncio
+import base64
 import json
 import logging
 import sys
+import tempfile
 from collections import deque
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -30,7 +32,7 @@ try:
     import certifi
 except Exception:
     certifi = None
-from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
@@ -82,6 +84,13 @@ from customer_memory import (
     search as memory_search, delete_customer_vectors,
 )
 from conversation import generate_ai_reply, get_or_create_contact_for_phone
+from campaign_knowledge import (
+    add_campaign_file,
+    campaign_knowledge_summary,
+    delete_campaign_file,
+    get_campaign_knowledge,
+    save_campaign_knowledge,
+)
 from llm_router import call_llm_safe, get_health_status as llm_health
 from transcription import transcribe_audio, TranscriptionError
 from outbound import (
@@ -1627,6 +1636,8 @@ async def api_broadcast(request: Request):
     explicit_policy_key = (body.get("reply_use_case_key") or "").strip() or None
     direct_reply_mode = (body.get("reply_mode") or "").strip() or None
     direct_human_queue = (body.get("human_queue") or "").strip() or None
+    campaign_notes = (body.get("campaign_notes") or "").strip()
+    campaign_instruction = (body.get("campaign_instruction") or "").strip()
     custom_campaign_policy = _campaign_reply_policy(campaign_key, direct_reply_mode, direct_human_queue)
     if custom_campaign_policy:
         reply_policy = custom_campaign_policy
@@ -1642,6 +1653,13 @@ async def api_broadcast(request: Request):
     if not message and not template_name:
         raise HTTPException(400, "message or template required")
 
+    if campaign_notes or campaign_instruction:
+        save_campaign_knowledge(
+            campaign_key,
+            notes=campaign_notes,
+            instruction=campaign_instruction,
+        )
+
     job = enqueue_job(
         "broadcast_send",
         {
@@ -1654,6 +1672,7 @@ async def api_broadcast(request: Request):
             "contact_ids": contact_ids,
             "campaign_key": campaign_key,
             "reply_use_case_key": reply_policy["use_case_key"],
+            "campaign_knowledge": campaign_knowledge_summary(campaign_key),
         },
         requested_by_user_id=_actor_user_id(request),
     )
@@ -1672,6 +1691,7 @@ async def api_broadcast(request: Request):
             "campaign_key": campaign_key,
             "reply_use_case_key": reply_policy["use_case_key"],
             "resolved_scope_type": routing["scope_type"],
+            "campaign_knowledge": campaign_knowledge_summary(campaign_key),
         },
         actor_user_id=_actor_user_id(request),
     )
@@ -1883,6 +1903,87 @@ async def api_get_kb(request: Request):
         content = kb_path.read_text(encoding="utf-8")
         return {"content": content, "length": len(content)}
     return {"content": "", "length": 0}
+
+
+@app.get("/api/campaigns/{campaign_key}/knowledge")
+async def api_get_campaign_knowledge(campaign_key: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    return get_campaign_knowledge(campaign_key)
+
+
+@app.put("/api/campaigns/{campaign_key}/knowledge")
+async def api_put_campaign_knowledge(campaign_key: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    knowledge = save_campaign_knowledge(
+        campaign_key,
+        notes=body.get("notes"),
+        instruction=body.get("instruction"),
+    )
+    record_audit_event(
+        "campaign_knowledge",
+        campaign_key,
+        "updated",
+        campaign_knowledge_summary(campaign_key),
+        actor_user_id=_actor_user_id(request),
+    )
+    return knowledge
+
+
+@app.post("/api/campaigns/{campaign_key}/knowledge/files")
+async def api_upload_campaign_knowledge_files(campaign_key: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    body = await request.json()
+    files = body.get("files") or []
+    if not files:
+        raise HTTPException(400, "files are required")
+    uploaded = []
+    for upload in files:
+        filename = (upload.get("name") or "").strip() or "campaign_file"
+        mime_type = (upload.get("mime_type") or "").strip()
+        content_base64 = (upload.get("content_base64") or "").strip()
+        if not content_base64:
+            continue
+        suffix = Path(filename).suffix
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            try:
+                tmp.write(base64.b64decode(content_base64))
+            except Exception:
+                raise HTTPException(400, f"Invalid file payload for {filename}")
+            temp_path = Path(tmp.name)
+        try:
+            uploaded.append(
+                add_campaign_file(
+                    campaign_key,
+                    filename=filename,
+                    source_path=temp_path,
+                    mime_type=mime_type,
+                )
+            )
+        finally:
+            temp_path.unlink(missing_ok=True)
+    record_audit_event(
+        "campaign_knowledge",
+        campaign_key,
+        "files_uploaded",
+        {"count": len(uploaded), "file_names": [item["name"] for item in uploaded]},
+        actor_user_id=_actor_user_id(request),
+    )
+    return {"files": uploaded, "knowledge": get_campaign_knowledge(campaign_key)}
+
+
+@app.delete("/api/campaigns/{campaign_key}/knowledge/files/{file_id}")
+async def api_delete_campaign_knowledge_file(campaign_key: str, file_id: str, request: Request):
+    _require_roles(request, "admin", "owner")
+    result = delete_campaign_file(campaign_key, file_id)
+    record_audit_event(
+        "campaign_knowledge",
+        campaign_key,
+        "file_deleted",
+        {"file_id": file_id},
+        actor_user_id=_actor_user_id(request),
+    )
+    return result
 
 
 # ====================================================================
@@ -2148,6 +2249,7 @@ async def api_broadcast_history(request: Request):
     for item in history:
         item_copy = dict(item)
         item_copy["metrics"] = _campaign_metrics_for_key(item.get("campaign_key"))
+        item_copy["knowledge"] = campaign_knowledge_summary(item.get("campaign_key") or "")
         enriched.append(item_copy)
     return {"broadcasts": enriched, "stats": stats, "jobs": list_jobs(kind="broadcast_send", limit=50)}
 
