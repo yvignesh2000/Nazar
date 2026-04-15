@@ -7,7 +7,7 @@ Intelligence Platform.
 
 All contact data is encrypted at rest using per-contact keys
 derived from the contact's phone number (same HKDF pattern
-as InnerVoice user_manager).
+as Nazar user_manager).
 
 Storage layout:
   data/contacts/{contact_id}/

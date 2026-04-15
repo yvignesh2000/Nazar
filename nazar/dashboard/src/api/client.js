@@ -14,7 +14,11 @@ class ApiError extends Error {
   }
 }
 
-async function request(method, path, body = null, params = null) {
+function getToken() {
+  return localStorage.getItem('nazar_token');
+}
+
+async function request(method, path, body = null, params = null, customHeaders = {}) {
   const url = new URL(`${BASE}${path}`, window.location.origin);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
@@ -22,12 +26,16 @@ async function request(method, path, body = null, params = null) {
     });
   }
 
+  const token = getToken();
+  const headers = {
+    ...(token ? { 'Authorization': `Bearer ${token}` } : { 'X-Nazar-Key': API_KEY }),
+    ...(body ? { 'Content-Type': 'application/json' } : {}),
+    ...customHeaders,
+  };
+
   const opts = {
     method,
-    headers: {
-      'X-API-Key': API_KEY,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
+    headers,
     ...(body ? { body: JSON.stringify(body) } : {}),
   };
 
@@ -66,14 +74,14 @@ export const contacts = {
   create: (data) => post('/contacts', data),
   update: (id, data) => patch(`/contacts/${id}`, data),
   delete: (id) => del(`/contacts/${id}`),
-  import: (csv) => post('/contacts/import', { csv_content: csv }),
+  import: (csv) => post('/contacts/import', { csv }),
 };
 
 export const conversations = {
   list: () => get('/conversations'),
   get: (id, days = 7) => get(`/conversations/${id}`, { days }),
   send: (id, message) => post(`/conversations/${id}/send`, { message }),
-  handover: (id, botOn) => post(`/conversations/${id}/handover`, { bot_on: botOn }),
+  handover: (id, botOn) => post(`/conversations/${id}/handover`, { bot_mode: botOn }),
 };
 
 export const handoffs = {
@@ -85,16 +93,32 @@ export const handoffs = {
 
 export const pipeline = {
   get: () => get('/pipeline'),
-  moveStage: (id, stage) => post(`/pipeline/${id}/move`, { stage }),
+  moveStage: (id, stage) => patch(`/pipeline/${id}/move`, { stage }),
 };
 
 export const followups = {
   list: () => get('/followups'),
 };
 
-export const broadcasts = {
-  send: (data) => post('/broadcast', data),
-  history: () => get('/broadcasts'),
+export const campaigns = {
+  list: () => get('/campaigns'),
+  get: (id) => get(`/campaigns/${id}`),
+  create: (data) => post('/campaigns', data),
+  retarget: (id, type = 'failed') => post(`/campaigns/${id}/retarget`, { type }),
+};
+
+export const replyModes = {
+  get: (contactId) => get(`/reply-modes/${contactId}`),
+  set: (contactId, mode) => put(`/reply-modes/${contactId}`, { mode }),
+  clear: (contactId) => del(`/reply-modes/${contactId}`),
+};
+
+export const drafts = {
+  list: () => get('/drafts'),
+  get: (contactId) => get(`/drafts/${contactId}`),
+  approve: (contactId, editedText) => post(`/drafts/${contactId}/approve`, { edited_text: editedText || '' }),
+  reject: (contactId) => post(`/drafts/${contactId}/reject`),
+  regenerate: (contactId) => post(`/drafts/${contactId}/regenerate`),
 };
 
 export const templates = {
@@ -108,12 +132,12 @@ export const templates = {
 
 export const config = {
   get: () => get('/config'),
-  update: (data) => post('/config', data),
+  update: (data) => put('/config', data),
 };
 
 export const kb = {
   get: () => get('/kb'),
-  update: (content) => post('/kb', { content }),
+  update: (content) => post('/kb/upload', { content }),
 };
 
 export const team = {
@@ -121,7 +145,7 @@ export const team = {
 };
 
 export const digest = {
-  today: () => get('/digest/today'),
+  today: () => get('/digest'),
   generate: () => post('/digest/generate'),
   history: () => get('/digest/history'),
 };
@@ -133,6 +157,73 @@ export const memory = {
 export const health = {
   check: () => get('/health'),
   llm: () => get('/llm/health'),
+};
+
+export const setup = {
+  status: () => get('/setup/status'),
+  saveKeys: (keys) => post('/setup/keys', { keys }),
+  testLlm: () => post('/setup/test-llm'),
+};
+
+export const simulate = {
+  message: (contactId, message) => post('/simulate/message', { contact_id: contactId, message }),
+};
+
+// ====================================================================
+//  NEW API MODULES — Auth, Analytics, Billing, Users, Onboarding
+// ====================================================================
+
+export const auth = {
+  login: (email, password, workspaceId = 'default') =>
+    request('POST', '/auth/login', { email, password, workspace_id: workspaceId }, null, { 'X-Nazar-Key': API_KEY }),
+  logout: () => post('/auth/logout'),
+  me: (tokenOverride) =>
+    request('GET', '/auth/me', null, null, tokenOverride ? { 'Authorization': `Bearer ${tokenOverride}` } : {}),
+};
+
+export const analytics = {
+  snapshot: () => get('/analytics'),
+  conversations: (days = 7) => get('/analytics/conversations', { days }),
+  pipeline: () => get('/analytics/pipeline'),
+  campaigns: (days = 30) => get('/analytics/campaigns', { days }),
+  ai: (days = 7) => get('/analytics/ai', { days }),
+  leads: () => get('/analytics/leads'),
+  trend: (days = 14) => get('/analytics/trend', { days }),
+};
+
+export const billing = {
+  plans: () => get('/billing/plans'),
+  subscription: () => get('/billing/subscription'),
+  usage: () => get('/billing/usage'),
+  upgrade: (planId) => post('/billing/upgrade', { plan_id: planId }),
+  cancel: (atPeriodEnd = true) => post('/billing/cancel', { at_period_end: atPeriodEnd }),
+};
+
+export const users = {
+  list: () => get('/users'),
+  create: (data) => post('/users', data),
+  update: (id, data) => patch(`/users/${id}`, data),
+  delete: (id) => del(`/users/${id}`),
+  changePassword: (id, oldPassword, newPassword) =>
+    post(`/users/${id}/change-password`, { old_password: oldPassword, new_password: newPassword }),
+};
+
+export const invites = {
+  list: () => get('/invites'),
+  create: (email, role = 'agent') => post('/invites', { email, role }),
+  accept: (token, name, password) => post(`/invites/${token}/accept`, { name, password }),
+};
+
+export const workspace = {
+  get: () => get('/workspace'),
+  update: (data) => patch('/workspace', data),
+};
+
+export const onboarding = {
+  get: () => get('/onboarding'),
+  markDone: (stepId) => post(`/onboarding/step/${stepId}/done`),
+  skip: (stepId) => post(`/onboarding/step/${stepId}/skip`),
+  readiness: () => get('/onboarding/readiness'),
 };
 
 export { ApiError };

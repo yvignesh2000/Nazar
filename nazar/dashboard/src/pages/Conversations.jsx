@@ -55,18 +55,16 @@ export default function Conversations() {
                 <div className="conv-top">
                   <span className="conv-name">{c.name || 'Unknown'}</span>
                   <span className="conv-time">
-                    {c.last_message_time ? formatDistanceToNow(new Date(c.last_message_time), { addSuffix: true }) : ''}
+                    {c.last_time ? formatDistanceToNow(new Date(c.last_time), { addSuffix: true }) : ''}
                   </span>
                 </div>
                 <div className="conv-bottom">
                   <span className="conv-preview truncate">{c.last_message || 'No messages yet'}</span>
                   <div className="conv-badges">
-                    {c.bot_active === false && (
+                    {c.bot_mode === false && (
                       <Badge variant="orange" size="sm"><User size={10} /> Human</Badge>
                     )}
-                    {c.unread_count > 0 && (
-                      <span className="conv-unread">{c.unread_count}</span>
-                    )}
+                    <Badge variant="default" size="sm">{c.stage}</Badge>
                   </div>
                 </div>
               </div>

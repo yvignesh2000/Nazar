@@ -69,7 +69,7 @@ export default function Handoffs() {
         <StatCard
           icon={AlertTriangle}
           label="In Queue"
-          value={statsData?.in_queue || 0}
+          value={statsData?.currently_in_queue || 0}
           variant="orange"
         />
         <StatCard
@@ -107,7 +107,7 @@ export default function Handoffs() {
         ) : (
           <div className="handoff-grid">
             {queue.map(h => {
-              const method = METHOD_ICONS[h.method] || METHOD_ICONS.manual;
+              const method = METHOD_ICONS[h.detection_method] || METHOD_ICONS.manual;
               const MethodIcon = method.icon;
               return (
                 <div key={h.contact_id} className="handoff-card">

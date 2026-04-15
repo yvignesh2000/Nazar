@@ -11,8 +11,8 @@ import Spinner from '../components/ui/Spinner';
 import './Contacts.css';
 
 const STAGE_VARIANTS = {
-  new: 'default', qualified: 'primary', proposal: 'warning',
-  negotiation: 'orange', won: 'success', lost: 'danger',
+  New: 'default', Qualified: 'primary', Proposal: 'warning',
+  Negotiation: 'orange', Won: 'success', Lost: 'danger',
 };
 
 export default function Contacts() {

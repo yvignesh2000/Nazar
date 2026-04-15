@@ -3,7 +3,7 @@ Nazar — Outbound Messaging Module
 
 Handles sending messages from the dashboard:
 1. Single message send (human agent → customer via WhatsApp)
-2. Broadcast send (to segments with personalization)
+2. Campaign send (to segments with personalization via templates)
 3. Template-based sends (pre-approved WhatsApp templates)
 4. Rate limiting & delivery tracking
 
@@ -16,6 +16,7 @@ rate limiting, logging.
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Callable, List
@@ -26,18 +27,15 @@ IST = timezone(timedelta(hours=5, minutes=30))
 DATA_DIR = Path(__file__).parent.parent / "data"
 
 
-# ---------------------------------------------------------------------------
-# Broadcast history storage
-# ---------------------------------------------------------------------------
 
-def _broadcasts_path() -> Path:
-    """Path to the broadcasts log file."""
-    return DATA_DIR / "broadcasts.json"
+def _campaigns_path() -> Path:
+    """Path to the campaigns log file."""
+    return DATA_DIR / "campaigns.json"
 
 
-def _load_broadcasts() -> list:
-    """Load broadcast history."""
-    path = _broadcasts_path()
+def _load_campaigns() -> list:
+    """Load campaign history."""
+    path = _campaigns_path()
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -46,75 +44,128 @@ def _load_broadcasts() -> list:
     return []
 
 
-def _save_broadcasts(broadcasts: list):
-    """Save broadcast history."""
-    path = _broadcasts_path()
-    path.write_text(json.dumps(broadcasts, ensure_ascii=False, indent=2), encoding="utf-8")
+def _save_campaigns(campaigns: list):
+    """Save campaign history."""
+    path = _campaigns_path()
+    path.write_text(json.dumps(campaigns, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def log_broadcast(
-    message: str,
+
+def create_campaign(
+    name: str,
+    template_id: str,
     template_name: str,
     target_count: int,
-    sent: int,
-    failed: int,
+    sent: int = 0,
+    failed: int = 0,
+    delivered: int = 0,
+    read: int = 0,
+    replied: int = 0,
     filter_stage: Optional[str] = None,
     filter_tag: Optional[str] = None,
+    contact_ids: Optional[list] = None,
+    scheduled_at: Optional[str] = None,
+    reply_mode: str = "auto_ai",
+    campaign_kb: str = "",
 ) -> dict:
     """
-    Log a broadcast send for history and analytics.
+    Create a campaign record with full analytics tracking.
 
-    Returns the broadcast record.
+    Args:
+        reply_mode: How replies to this campaign are handled.
+            "auto_ai"    - AI replies automatically
+            "human_only" - Only human agents reply
+            "ai_draft"   - AI drafts reply, human approves
+        campaign_kb: Campaign-specific knowledge base text.
+
+    Returns the campaign record.
     """
     now = datetime.now(IST).isoformat()
     record = {
-        "id": f"bc_{int(datetime.now(IST).timestamp())}",
-        "message": message[:500] if message else "",
-        "template": template_name or "",
+        "id": f"cmp_{uuid.uuid4().hex[:8]}",
+        "name": name,
+        "template_id": template_id,
+        "template_name": template_name,
         "target_count": target_count,
         "sent": sent,
         "failed": failed,
-        "filter_stage": filter_stage,
-        "filter_tag": filter_tag,
-        "delivery_rate": round(sent / max(target_count, 1) * 100, 1),
+        "delivered": delivered,
+        "read": read,
+        "replied": replied,
+        "not_on_whatsapp": 0,
+        "filter_stage": filter_stage or "",
+        "filter_tag": filter_tag or "",
+        "contact_ids": contact_ids or [],
+        "reply_mode": reply_mode,
+        "campaign_kb": bool(campaign_kb),
+        "status": "completed" if not scheduled_at else "scheduled",
+        "scheduled_at": scheduled_at or "",
         "created_at": now,
-        "status": "completed",
+        "completed_at": now if not scheduled_at else "",
     }
 
-    broadcasts = _load_broadcasts()
-    broadcasts.insert(0, record)  # newest first
-    # Keep last 100 broadcasts
-    broadcasts = broadcasts[:100]
-    _save_broadcasts(broadcasts)
+    campaigns = _load_campaigns()
+    campaigns.insert(0, record)
+    campaigns = campaigns[:200]
+    _save_campaigns(campaigns)
 
     logger.info(
-        f"Broadcast logged: {sent}/{target_count} sent, "
-        f"{failed} failed, template={template_name or 'custom'}"
+        f"Campaign created: {name} — {sent}/{target_count} sent, "
+        f"template={template_name}"
     )
     return record
 
 
-def get_broadcast_history(limit: int = 50) -> list:
-    """Get broadcast history, newest first."""
-    broadcasts = _load_broadcasts()
-    return broadcasts[:limit]
+def get_campaign(campaign_id: str) -> Optional[dict]:
+    """Get a campaign by ID."""
+    campaigns = _load_campaigns()
+    for c in campaigns:
+        if c["id"] == campaign_id:
+            return c
+    return None
 
 
-def get_broadcast_stats() -> dict:
-    """Get aggregate broadcast statistics."""
-    broadcasts = _load_broadcasts()
-    total_sent = sum(b.get("sent", 0) for b in broadcasts)
-    total_failed = sum(b.get("failed", 0) for b in broadcasts)
-    total_targeted = sum(b.get("target_count", 0) for b in broadcasts)
+def update_campaign(campaign_id: str, **fields) -> Optional[dict]:
+    """Update a campaign record."""
+    campaigns = _load_campaigns()
+    for i, c in enumerate(campaigns):
+        if c["id"] == campaign_id:
+            c.update(fields)
+            campaigns[i] = c
+            _save_campaigns(campaigns)
+            return c
+    return None
+
+
+def get_campaign_history(limit: int = 50) -> list:
+    """Get campaign history, newest first."""
+    campaigns = _load_campaigns()
+    return campaigns[:limit]
+
+
+def get_campaign_stats() -> dict:
+    """Get aggregate campaign statistics."""
+    campaigns = _load_campaigns()
+    total_sent = sum(c.get("sent", 0) for c in campaigns)
+    total_delivered = sum(c.get("delivered", 0) for c in campaigns)
+    total_read = sum(c.get("read", 0) for c in campaigns)
+    total_replied = sum(c.get("replied", 0) for c in campaigns)
+    total_failed = sum(c.get("failed", 0) for c in campaigns)
+    total_targeted = sum(c.get("target_count", 0) for c in campaigns)
 
     return {
-        "total_broadcasts": len(broadcasts),
-        "total_messages_sent": total_sent,
+        "total_campaigns": len(campaigns),
+        "total_recipients": total_targeted,
+        "total_sent": total_sent,
+        "total_delivered": total_delivered,
+        "total_read": total_read,
+        "total_replied": total_replied,
         "total_failed": total_failed,
-        "avg_delivery_rate": round(
-            total_sent / max(total_targeted, 1) * 100, 1
-        ),
+        "delivery_rate": round(total_delivered / max(total_sent, 1) * 100, 1),
+        "read_rate": round(total_read / max(total_delivered, 1) * 100, 1),
+        "reply_rate": round(total_replied / max(total_delivered, 1) * 100, 1),
     }
+
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +178,7 @@ def personalize_message(
     memory_summary: Optional[dict] = None,
 ) -> str:
     """
-    Personalize a broadcast message template with contact data.
+    Personalize a campaign message template with contact data.
 
     Supported variables:
       {name}     — contact name
@@ -156,10 +207,10 @@ def personalize_message(
 
 
 # ---------------------------------------------------------------------------
-# Broadcast execution
+# Campaign execution
 # ---------------------------------------------------------------------------
 
-async def execute_broadcast(
+async def execute_campaign_send(
     contacts: List[dict],
     message: str,
     send_fn: Callable,
@@ -170,7 +221,7 @@ async def execute_broadcast(
     rate_limit_ms: int = 100,
 ) -> dict:
     """
-    Execute a broadcast to a list of contacts.
+    Execute a campaign send to a list of contacts.
 
     Args:
         contacts: List of contact profile dicts to send to.
@@ -227,17 +278,6 @@ async def execute_broadcast(
         # Rate limiting
         if rate_limit_ms > 0:
             await asyncio.sleep(rate_limit_ms / 1000)
-
-    # Log the broadcast
-    log_broadcast(
-        message=message,
-        template_name=template_name,
-        target_count=len(contacts),
-        sent=results["sent"],
-        failed=results["failed"],
-        filter_stage=filter_stage,
-        filter_tag=filter_tag,
-    )
 
     return results
 

@@ -12,6 +12,14 @@ export function useApi(apiFn, deps = [], opts = {}) {
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
+  const apiFnRef = useRef(apiFn);
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs up to date without triggering re-renders
+  apiFnRef.current = apiFn;
+  onSuccessRef.current = onSuccess;
+  onErrorRef.current = onError;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -23,22 +31,22 @@ export function useApi(apiFn, deps = [], opts = {}) {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiFn();
+      const result = await apiFnRef.current();
       if (mountedRef.current) {
         setData(result);
-        onSuccess?.(result);
+        onSuccessRef.current?.(result);
       }
       return result;
     } catch (err) {
       if (mountedRef.current) {
         setError(err);
-        onError?.(err);
+        onErrorRef.current?.(err);
       }
       throw err;
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [apiFn, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (enabled) execute();

@@ -11,6 +11,11 @@
   overflow: hidden;
 }
 
+.settings-section--highlight {
+  border-color: var(--color-primary-200);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, hsl(215 70% 98%) 100%);
+}
+
 .settings-section-title {
   display: flex;
   align-items: center;
@@ -19,6 +24,29 @@
   font-weight: 600;
   padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--color-gray-100);
+}
+
+.settings-section-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-500);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.settings-section-desc code {
+  background: var(--color-gray-100);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
+
+.settings-section-desc a {
+  color: var(--color-primary-600);
+  text-decoration: none;
+}
+
+.settings-section-desc a:hover {
+  text-decoration: underline;
 }
 
 .settings-fields {
@@ -65,6 +93,10 @@
   margin-top: 2px;
 }
 
+.settings-field-help a {
+  color: var(--color-primary-500);
+}
+
 /* Toggle */
 .settings-toggle {
   display: flex;
@@ -97,6 +129,8 @@
   position: relative;
   flex-shrink: 0;
   transition: background var(--transition-fast);
+  cursor: pointer;
+  border: none;
 }
 
 .toggle--on {
@@ -117,6 +151,116 @@
 
 .toggle--on .toggle-thumb {
   transform: translateX(20px);
+}
+
+/* Setup status */
+.setup-status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.setup-status-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.status-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.status-icon--ok { color: var(--color-success-500); }
+.status-icon--bad { color: var(--color-danger-500); }
+.status-icon--warn { color: var(--color-orange-500); }
+.status-icon--muted { color: var(--color-gray-300); }
+
+.setup-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-800);
+  display: block;
+}
+
+.setup-detail {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+}
+
+/* Provider grid */
+.provider-grid {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.provider-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-gray-200);
+  font-size: var(--font-size-xs);
+  background: var(--bg-primary);
+}
+
+.provider-chip--ok {
+  border-color: var(--color-success-200);
+  background: var(--color-success-50);
+}
+
+.provider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.provider-name {
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+/* Button row */
+.settings-btn-row {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Test result */
+.test-result {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  align-items: flex-start;
+}
+
+.test-result strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.test-result p {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.test-result--ok {
+  background: var(--color-success-50);
+  border: 1px solid var(--color-success-200);
+  color: var(--color-success-700);
+}
+
+.test-result--fail {
+  background: hsl(0 60% 97%);
+  border: 1px solid hsl(0 60% 85%);
+  color: var(--color-danger-600);
 }
 
 @media (max-width: 900px) {

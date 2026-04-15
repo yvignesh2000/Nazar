@@ -1212,9 +1212,9 @@ body {
       <span class="nav-icon">🎯</span>
       <span>Pipeline</span>
     </div>
-    <div class="nav-item" data-screen="broadcasts" onclick="navigateTo('broadcasts')">
-      <span class="nav-icon">📡</span>
-      <span>Broadcasts</span>
+    <div class="nav-item" data-screen="broadcasts" onclick="navigateTo('broadcasts')" style="display:none">
+      <span>📡</span>
+      <span>Broadcasts (Deprecated — use Campaigns)</span>
     </div>
     <div class="nav-item" data-screen="followups" onclick="navigateTo('followups')">
       <span class="nav-icon">🔔</span>
@@ -1745,7 +1745,7 @@ function navigateTo(screen) {
 
   const titles = {
     overview:'Overview', conversations:'Conversations', pipeline:'Pipeline',
-    broadcasts:'Broadcasts', followups:'Follow-ups', handoffs:'Handoffs',
+    followups:'Follow-ups', handoffs:'Handoffs',
     botconfig:'Bot Config', settings:'Settings'
   };
   document.getElementById('page-title').textContent = titles[screen] || screen;
@@ -2448,7 +2448,7 @@ async function searchCmd(query) {
     {name:'Overview',screen:'overview',icon:'📊'},
     {name:'Conversations',screen:'conversations',icon:'💬'},
     {name:'Pipeline',screen:'pipeline',icon:'🎯'},
-    {name:'Broadcasts',screen:'broadcasts',icon:'📡'},
+    // Broadcasts removed — use Campaigns in React dashboard
     {name:'Follow-ups',screen:'followups',icon:'🔔'},
     {name:'Bot Config',screen:'botconfig',icon:'🤖'},
     {name:'Settings',screen:'settings',icon:'⚙️'},

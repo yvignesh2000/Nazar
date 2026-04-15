@@ -1,12 +1,12 @@
 """
-InnerVoice — Per-User Encryption Layer
+Nazar — Per-Contact Encryption Layer
 
-Every user's data is encrypted with a unique key derived from:
+Every contact's data is encrypted with a unique key derived from:
   HKDF(master_secret + phone_number + salt)
 
 This means:
-- Each user's data is independently encrypted
-- Compromising one user doesn't compromise others
+- Each contact's data is independently encrypted
+- Compromising one contact doesn't compromise others
 - Without the master secret, disk data is useless
 """
 

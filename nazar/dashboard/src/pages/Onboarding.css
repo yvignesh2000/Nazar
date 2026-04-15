@@ -1,0 +1,218 @@
+.onboarding-page {
+  max-width: 800px;
+}
+
+.onboarding-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: var(--color-gray-400);
+  gap: var(--space-3);
+}
+
+.onboarding-pulse {
+  color: var(--color-primary-500);
+  animation: ob-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ob-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Header */
+.onboarding-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+}
+
+.onboarding-title svg {
+  color: var(--color-primary-600);
+}
+
+.onboarding-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-500);
+  margin-top: var(--space-1);
+}
+
+/* Progress */
+.onboarding-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-progress-bar {
+  flex: 1;
+  height: 10px;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.onboarding-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-success-500));
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+
+.onboarding-progress-text {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-600);
+  white-space: nowrap;
+}
+
+/* Steps */
+.onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-6);
+}
+
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.onboarding-step:hover {
+  box-shadow: var(--shadow-xs);
+}
+
+.onboarding-step--done {
+  background: var(--color-success-50);
+  border-color: var(--color-success-200);
+}
+
+.onboarding-step--done .onboarding-step-icon {
+  color: var(--color-success-500);
+}
+
+.onboarding-step--skipped {
+  opacity: 0.6;
+}
+
+.onboarding-step--skipped .onboarding-step-icon {
+  color: var(--color-gray-400);
+}
+
+.onboarding-step--next {
+  border-color: var(--color-primary-300);
+  box-shadow: 0 0 0 2px var(--color-primary-50);
+}
+
+.onboarding-step-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--color-gray-100);
+  color: var(--color-gray-500);
+}
+
+.onboarding-step--done .onboarding-step-icon {
+  background: var(--color-success-100);
+}
+
+.onboarding-step--next .onboarding-step-icon {
+  background: var(--color-primary-100);
+  color: var(--color-primary-600);
+}
+
+.onboarding-step-num {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.onboarding-step-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onboarding-step-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-800);
+}
+
+.onboarding-step-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  margin-top: 2px;
+}
+
+.onboarding-step-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* Readiness */
+.onboarding-readiness {
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.onboarding-readiness-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+
+.onboarding-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.onboarding-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.onboarding-check--pass {
+  color: var(--color-success-700);
+  background: var(--color-success-50);
+}
+
+.onboarding-check--fail {
+  color: var(--color-warning-600);
+  background: var(--color-warning-50);
+}

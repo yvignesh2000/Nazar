@@ -1,5 +1,5 @@
 """
-InnerVoice — Audio Transcription
+Nazar — Audio Transcription
 
 Transcribes WhatsApp voice notes using Groq's Whisper API.
 Groq free tier: 7,200 minutes/day — more than enough for any realistic load.
@@ -14,13 +14,13 @@ from typing import Optional
 
 import aiohttp
 
-logger = logging.getLogger("innervoice")
+logger = logging.getLogger("nazar")
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_TRANSCRIPTION_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 WHISPER_MODEL = "whisper-large-v3-turbo"
 
-# Map InnerVoice language codes to Whisper language codes
+# Map Nazar language codes to Whisper language codes
 LANGUAGE_MAP = {
     "hi": "hi",   # Hindi
     "ta": "ta",   # Tamil

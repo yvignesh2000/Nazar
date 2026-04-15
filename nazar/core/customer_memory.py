@@ -4,7 +4,7 @@ Nazar — Per-Customer Vector Memory System
 Semantic search across all customer conversations, signals, and insights.
 Uses ChromaDB for local vector storage with cosine similarity.
 
-Adapted from InnerVoice's vector_memory.py but tailored for sales intelligence:
+Tailored for sales intelligence:
 - Every inbound/outbound message embedded and searchable
 - Extracted signals: buying signals, objections, preferences, price sensitivity
 - Memory notes: AI-curated insights about the customer
@@ -507,6 +507,140 @@ def extract_signals_from_message(content: str, direction: str) -> list:
             })
 
     return signals
+
+
+# ---------------------------------------------------------------------------
+# Memory decay & archival
+# ---------------------------------------------------------------------------
+
+def prune_stale_memories(contact_id: str, max_age_days: int = 180) -> int:
+    """
+    Archive and remove vector entries older than ``max_age_days``.
+
+    Old entries are summarised into a single "historical_summary" vector so the
+    AI retains a condensed view of very old interactions without token bloat.
+
+    Args:
+        contact_id:   Contact whose memory to prune.
+        max_age_days: Entries older than this are pruned.  Default: 180 days.
+
+    Returns:
+        Number of entries pruned.
+    """
+    collection = get_collection(contact_id)
+    if collection is None:
+        return 0
+
+    try:
+        cutoff = (datetime.now(IST) - timedelta(days=max_age_days)).isoformat()
+        all_items = collection.get(include=["documents", "metadatas"])
+        if not all_items or not all_items.get("ids"):
+            return 0
+
+        old_ids = []
+        old_texts = []
+        for doc_id, doc, meta in zip(
+            all_items["ids"],
+            all_items["documents"],
+            all_items["metadatas"],
+        ):
+            ts = meta.get("timestamp", "")
+            if ts and ts < cutoff and not doc_id.startswith("hist_summary_"):
+                old_ids.append(doc_id)
+                old_texts.append(doc)
+
+        if not old_ids:
+            return 0
+
+        # Condense old memories into a short summary stored as a new vector
+        summary_text = (
+            f"Historical context (>{max_age_days}d old, {len(old_texts)} entries): "
+            + " | ".join(t[:100] for t in old_texts[:20])
+        )
+        summary_id = f"hist_summary_{contact_id}_{datetime.now(IST).strftime('%Y%m')}"
+        collection.upsert(
+            ids=[summary_id],
+            documents=[summary_text],
+            metadatas=[{
+                "type": "historical_summary",
+                "timestamp": datetime.now(IST).isoformat(),
+                "pruned_count": len(old_ids),
+            }],
+        )
+
+        # Delete stale entries
+        collection.delete(ids=old_ids)
+        logger.info(
+            f"Pruned {len(old_ids)} stale memories for contact {contact_id}"
+        )
+        return len(old_ids)
+
+    except Exception as e:
+        logger.error(f"Memory pruning failed for contact {contact_id}: {e}")
+        return 0
+
+
+def get_relevant_context_with_recency(
+    contact_id: str,
+    current_message: str,
+    n_results: int = 8,
+    recency_weight_days: int = 365,
+) -> str:
+    """
+    Recency-weighted retrieval: recent memories score higher than old ones.
+
+    Retrieves 2x the requested results then re-ranks by combining semantic
+    distance with an age penalty, returning the top ``n_results``.
+    """
+    raw_hits = search(contact_id, current_message, n_results=n_results * 2)
+    if not raw_hits:
+        return ""
+
+    now = datetime.now(IST)
+    scored = []  # list of (score, hit) tuples
+
+    for hit in raw_hits:
+        distance = hit.get("distance") or 1.0
+        ts = hit.get("timestamp", "")
+        if ts:
+            try:
+                dt = datetime.fromisoformat(ts)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=IST)
+                age_days = max((now - dt).days, 0)
+            except Exception:
+                age_days = 0
+        else:
+            age_days = 0
+
+        # Recency multiplier: 1.0 for new, decays to 0.5 over recency_weight_days
+        recency = max(0.5, 1.0 - (age_days / recency_weight_days))
+        # Lower score = better (distance 0 = perfect, recency penalises old entries)
+        score = distance / recency
+        scored.append((score, hit))
+
+    scored.sort(key=lambda x: x[0])
+    top_hits = [h for _, h in scored[:n_results]]
+
+    # Reuse existing formatter
+    context_parts = ["## Relevant customer history:\n"]
+    for hit in top_hits:
+        if hit.get("distance") is not None and hit["distance"] > 1.5:
+            continue
+        date = hit.get("date", "")
+        hit_type = hit.get("type", "message")
+        content = hit.get("content", "")[:300]
+
+        if hit_type == "message":
+            direction = hit.get("direction", "inbound")
+            label = "Customer" if direction == "inbound" else "Sales rep"
+            context_parts.append(f"- **{date}** {label}: {content}")
+        else:
+            context_parts.append(f"- **{date}** [{hit_type}] {content}")
+
+    if len(context_parts) == 1:
+        return ""
+    return "\n".join(context_parts)
 
 
 # ---------------------------------------------------------------------------

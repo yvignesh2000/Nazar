@@ -1,0 +1,213 @@
+.trend-select {
+  padding: 6px 12px;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-700);
+  background: var(--bg-primary);
+  outline: none;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.analytics-panel { overflow: hidden; }
+.analytics-panel--wide { grid-column: 1 / -1; }
+
+/* Trend chart */
+.trend-chart-wrap { padding: var(--space-4) var(--space-5) var(--space-2); }
+
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 180px;
+  padding-bottom: var(--space-4);
+}
+
+.trend-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trend-bars {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 150px;
+  width: 100%;
+}
+
+.trend-bar {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  transition: height 0.3s ease;
+}
+
+.trend-bar--sent { background: var(--color-primary-500); }
+.trend-bar--received { background: var(--color-success-500); }
+
+.trend-label {
+  font-size: 0.6rem;
+  color: var(--color-gray-400);
+  white-space: nowrap;
+}
+
+.trend-legend {
+  display: flex;
+  gap: var(--space-4);
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+.trend-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+}
+
+.trend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.trend-dot--sent { background: var(--color-primary-500); }
+.trend-dot--received { background: var(--color-success-500); }
+
+/* Pipeline rows */
+.pipe-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+}
+
+.pipe-info {
+  min-width: 100px;
+}
+
+.pipe-stage {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  display: block;
+}
+
+.pipe-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+.pipe-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.pipe-bar-fill {
+  height: 100%;
+  background: var(--color-primary-500);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.pipe-value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-700);
+  min-width: 80px;
+  text-align: right;
+}
+
+/* AI stats */
+.ai-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-5);
+}
+
+.ai-stat {
+  text-align: center;
+  padding: var(--space-3);
+  background: var(--color-gray-50);
+  border-radius: var(--radius-md);
+}
+
+.ai-stat-value {
+  display: block;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-gray-900);
+}
+
+.ai-stat-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-500);
+  margin-top: 2px;
+}
+
+/* Lead quality */
+.lead-bucket {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+}
+
+.lead-range {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.lead-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.lead-bar-fill {
+  height: 100%;
+  background: var(--color-success-500);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.lead-count {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-700);
+  min-width: 30px;
+  text-align: right;
+}
+
+.lead-summary {
+  display: flex;
+  gap: var(--space-6);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-500);
+  border-top: 1px solid var(--color-gray-100);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .analytics-grid { grid-template-columns: 1fr; }
+  .analytics-panel--wide { grid-column: 1; }
+}

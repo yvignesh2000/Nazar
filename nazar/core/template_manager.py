@@ -7,6 +7,7 @@ Manages WhatsApp message templates:
 3. Approval status tracking (pending → approved → rejected)
 4. Auto-suggestion based on customer context
 5. Variable interpolation for template sends
+6. Rich template components: header, body, footer, buttons
 
 WhatsApp Business API requires pre-approved templates for
 initiating conversations outside the 24-hour window. This module
@@ -30,18 +31,31 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 # Template categories allowed by Meta
 TEMPLATE_CATEGORIES = ["marketing", "utility", "authentication"]
 
+# Header types allowed by Meta
+HEADER_TYPES = ["none", "text", "image", "video", "document"]
+
+# Button types allowed by Meta
+BUTTON_TYPES = ["quick_reply", "url", "phone"]
+
 # Pre-built template library with high approval rates
 DEFAULT_TEMPLATES = [
     {
         "id": "tpl_welcome",
         "name": "welcome_new_lead",
         "category": "utility",
+        "header": {"type": "none"},
         "body": "Hi {{1}}! Thanks for your interest in our services. I'm here to help you find the right solution. What are you looking for?",
+        "footer": "",
+        "buttons": [],
         "variables": ["name"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Welcome message for new leads",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -50,12 +64,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_followup",
         "name": "gentle_followup",
         "category": "utility",
+        "header": {"type": "none"},
         "body": "Hi {{1}}, just checking in! We discussed {{2}} recently. Do you have any questions or would you like to proceed?",
+        "footer": "",
+        "buttons": [{"type": "quick_reply", "text": "Yes, let's proceed"}, {"type": "quick_reply", "text": "Not now"}],
         "variables": ["name", "topic"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Gentle follow-up for warm leads",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -64,12 +85,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_demo_invite",
         "name": "demo_invitation",
         "category": "utility",
+        "header": {"type": "text", "text": "Demo Invitation 🎯"},
         "body": "Hi {{1}}! Based on our conversation, I think a quick demo would help. Would you like to schedule a 15-minute walkthrough? I'm available this week.",
+        "footer": "Reply STOP to opt out",
+        "buttons": [{"type": "quick_reply", "text": "Schedule Demo"}, {"type": "quick_reply", "text": "Maybe Later"}],
         "variables": ["name"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Demo invitation for interested leads",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -78,12 +106,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_proposal",
         "name": "proposal_sent",
         "category": "utility",
+        "header": {"type": "text", "text": "Your Proposal is Ready! 📋"},
         "body": "Hi {{1}}, I've prepared a proposal for {{2}} based on your requirements. Would you like me to walk you through it or shall I send it over?",
+        "footer": "",
+        "buttons": [{"type": "quick_reply", "text": "Walk me through"}, {"type": "quick_reply", "text": "Send it over"}],
         "variables": ["name", "company"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Notify about proposal readiness",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -92,12 +127,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_seasonal",
         "name": "seasonal_greeting",
         "category": "marketing",
+        "header": {"type": "text", "text": "🎉 Season's Greetings!"},
         "body": "Hi {{1}}! Wishing you a wonderful season ahead. We have some exciting updates we'd love to share. Can I tell you more?",
+        "footer": "Reply STOP to unsubscribe",
+        "buttons": [{"type": "quick_reply", "text": "Tell me more!"}, {"type": "quick_reply", "text": "Not interested"}],
         "variables": ["name"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Seasonal/festive re-engagement",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -106,12 +148,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_feedback",
         "name": "feedback_request",
         "category": "utility",
+        "header": {"type": "none"},
         "body": "Hi {{1}}! It's been a while since we connected. How's everything going? We'd love to hear your feedback and see if there's anything we can help with.",
+        "footer": "",
+        "buttons": [],
         "variables": ["name"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Feedback request for won customers",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -120,12 +169,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_hindi_welcome",
         "name": "welcome_hindi",
         "category": "utility",
+        "header": {"type": "none"},
         "body": "नमस्ते {{1}}! हमारी सर्विसेज में आपकी रुचि के लिए धन्यवाद। मैं आपकी सही समाधान खोजने में मदद करने के लिए यहाँ हूँ। आपको क्या चाहिए?",
+        "footer": "",
+        "buttons": [],
         "variables": ["name"],
         "language": "hi",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Hindi welcome message",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -134,12 +190,19 @@ DEFAULT_TEMPLATES = [
         "id": "tpl_reengagement",
         "name": "win_back",
         "category": "marketing",
+        "header": {"type": "text", "text": "We miss you! 💙"},
         "body": "Hi {{1}}, we haven't heard from you in a while! We've made some improvements since we last spoke. Would you be open to a quick catch-up?",
+        "footer": "Reply STOP to unsubscribe",
+        "buttons": [{"type": "quick_reply", "text": "Sure, let's chat"}, {"type": "url", "text": "Visit Website", "url": "https://example.com"}],
         "variables": ["name"],
         "language": "en",
         "approval_status": "approved",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": "Win-back for dormant contacts",
         "created_at": "2026-01-15T10:00:00+05:30",
         "updated_at": "2026-01-15T10:00:00+05:30",
@@ -229,6 +292,9 @@ def create_template(
     variables: Optional[list] = None,
     language: str = "en",
     description: str = "",
+    header: Optional[dict] = None,
+    footer: str = "",
+    buttons: Optional[list] = None,
 ) -> dict:
     """
     Create a new template.
@@ -240,6 +306,9 @@ def create_template(
         variables: List of variable names for documentation.
         language: ISO language code.
         description: Human-readable description.
+        header: Header component dict, e.g. {"type": "text", "text": "Hello"}.
+        footer: Footer text (max 60 chars).
+        buttons: List of button dicts, e.g. [{"type": "quick_reply", "text": "Yes"}].
 
     Returns:
         The created template dict.
@@ -259,17 +328,32 @@ def create_template(
         if t["name"] == name:
             raise ValueError(f"Template with name '{name}' already exists")
 
+    # Validate header
+    if header and header.get("type") not in HEADER_TYPES:
+        raise ValueError(f"Invalid header type. Must be one of: {HEADER_TYPES}")
+
+    # Validate buttons (max 3 as per Meta)
+    if buttons and len(buttons) > 3:
+        raise ValueError("Maximum 3 buttons allowed per template")
+
     now = datetime.now(IST).isoformat()
     template = {
         "id": f"tpl_{uuid.uuid4().hex[:8]}",
         "name": name,
         "category": category,
+        "header": header or {"type": "none"},
         "body": body,
+        "footer": footer or "",
+        "buttons": buttons or [],
         "variables": variables or [],
         "language": language,
         "approval_status": "pending",
         "usage_count": 0,
         "reply_rate": 0.0,
+        "delivered_count": 0,
+        "read_count": 0,
+        "replied_count": 0,
+        "failed_count": 0,
         "description": description,
         "created_at": now,
         "updated_at": now,

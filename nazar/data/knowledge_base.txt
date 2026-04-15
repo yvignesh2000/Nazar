@@ -78,7 +78,7 @@ A: All customer data is encrypted at rest with per-contact encryption keys. Even
 
 ## Contact & Support
 
+- Website: https://nazar.ai
+- Email: support@nazar.ai
 - WhatsApp: +91 98765 43210
-- Email: support@nazar.app
-- Website: https://nazar.app
-- Office hours: Mon-Sat, 9 AM - 7 PM IST
+- Hours: Mon-Sat, 9 AM - 8 PM IST

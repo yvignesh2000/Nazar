@@ -40,19 +40,19 @@ export default function Overview() {
         <StatCard
           icon={DollarSign}
           label="Pipeline Value"
-          value={`$${(stats.pipeline_value || 0).toLocaleString()}`}
+          value={`₹${(stats.pipeline_value || 0).toLocaleString('en-IN')}`}
           variant="warning"
         />
         <StatCard
           icon={TrendingUp}
           label="Revenue"
-          value={`$${(stats.total_revenue || 0).toLocaleString()}`}
+          value={`₹${(stats.total_revenue || 0).toLocaleString('en-IN')}`}
           variant="success"
         />
         <StatCard
           icon={HandMetal}
           label="In Handoff Queue"
-          value={handoffData?.in_queue || 0}
+          value={handoffData?.currently_in_queue || 0}
           variant="orange"
         />
         <StatCard
@@ -97,8 +97,8 @@ export default function Overview() {
                   <span className="contact-name">{c.name || 'Unknown'}</span>
                   <span className="contact-phone">{c.phone}</span>
                 </div>
-                <Badge variant={c.pipeline_stage === 'won' ? 'success' : c.pipeline_stage === 'lost' ? 'danger' : 'default'}>
-                  {c.pipeline_stage}
+                <Badge variant={c.stage === 'Won' ? 'success' : c.stage === 'Lost' ? 'danger' : 'default'}>
+                  {c.stage}
                 </Badge>
               </div>
             ))}

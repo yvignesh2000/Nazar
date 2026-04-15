@@ -41,8 +41,15 @@ def _build_system_prompt(
     memory_context: str,
     knowledge_base: str,
     config: dict,
+    campaign_kb: str = "",
 ) -> str:
-    """Build the system prompt for the LLM."""
+    """Build the system prompt for the LLM.
+    
+    Args:
+        campaign_kb: Optional campaign-specific knowledge base content.
+                     If provided, it is appended to the main knowledge base
+                     under a "CAMPAIGN CONTEXT" section so the AI prioritizes it.
+    """
     soul = _load_soul()
 
     business_name = config.get("business_name", "our company")
@@ -50,11 +57,16 @@ def _build_system_prompt(
     pipeline_stage = contact.get("pipeline_stage", "New") if contact else "New"
     tags = ", ".join(contact.get("tags", [])) if contact else ""
 
+    # Combine knowledge bases — campaign KB takes priority
+    combined_kb = knowledge_base or "No knowledge base configured yet."
+    if campaign_kb:
+        combined_kb += f"\n\n---\n\n## CAMPAIGN-SPECIFIC CONTEXT\nThe customer is replying to a campaign message. Use the following campaign-specific information to answer their questions. This takes priority over general knowledge base.\n\n{campaign_kb}"
+
     # Replace template variables
     prompt = soul
     prompt = prompt.replace("{business_name}", business_name)
     prompt = prompt.replace("{customer_name}", customer_name)
-    prompt = prompt.replace("{knowledge_base}", knowledge_base or "No knowledge base configured yet.")
+    prompt = prompt.replace("{knowledge_base}", combined_kb)
     prompt = prompt.replace("{memory_context}", memory_context or "No previous interactions.")
 
     # Add contact context
@@ -98,6 +110,7 @@ async def handle_inbound(
     message: str,
     llm_call: Callable,
     config: Optional[dict] = None,
+    campaign_kb: str = "",
 ) -> str:
     """
     Handle an inbound customer message end-to-end.
@@ -107,6 +120,7 @@ async def handle_inbound(
         message: The message text
         llm_call: async callable that takes messages list, returns response string
         config: Bot configuration dict (business_name, etc.)
+        campaign_kb: Optional campaign-specific knowledge base content
 
     Returns:
         AI-generated response string
@@ -145,8 +159,10 @@ async def handle_inbound(
     # 5. Load knowledge base
     knowledge_base = _load_knowledge_base()
 
-    # 6. Build prompt and call LLM
-    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, config)
+    # 6. Build prompt and call LLM (with campaign KB if available)
+    system_prompt = _build_system_prompt(
+        contact, memory_context, knowledge_base, config, campaign_kb=campaign_kb
+    )
     messages = _build_messages(system_prompt, recent, message)
 
     response = await llm_call(messages)
@@ -224,10 +240,14 @@ async def generate_ai_reply(
     contact_id: str,
     message: str,
     config: Optional[dict] = None,
+    campaign_kb: str = "",
 ) -> str:
     """
     Generate an AI reply without the full inbound pipeline.
-    Used for dashboard-initiated AI suggestions.
+    Used for dashboard-initiated AI suggestions and AI draft generation.
+    
+    Args:
+        campaign_kb: Optional campaign-specific knowledge base content.
     """
     from contact_manager import get_contact, get_conversation_history
     from customer_memory import get_relevant_context
@@ -243,7 +263,9 @@ async def generate_ai_reply(
     recent = get_conversation_history(contact_id, days=7)
     knowledge_base = _load_knowledge_base()
 
-    system_prompt = _build_system_prompt(contact, memory_context, knowledge_base, config)
+    system_prompt = _build_system_prompt(
+        contact, memory_context, knowledge_base, config, campaign_kb=campaign_kb
+    )
     messages = _build_messages(system_prompt, recent, message)
 
     from llm_router import call_llm_safe

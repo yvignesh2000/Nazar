@@ -5,10 +5,24 @@ nazar/.master_secret
 nazar/.salt
 .master_secret
 .salt
+nazar/data/.token_secret
 
 # Encrypted customer data (sensitive — never commit)
 nazar/data/contacts/
 nazar/data/chromadb/
+
+# Runtime data (generated at runtime — never commit)
+nazar/data/auth/
+nazar/data/audit/
+nazar/data/analytics/
+nazar/data/billing/
+nazar/data/handoffs/
+nazar/data/onboarding/
+nazar/data/usage/
+nazar/data/campaigns.json
+nazar/data/campaign_contacts.json
+nazar/data/ai_drafts.json
+nazar/data/reply_modes.json
 
 # Python
 __pycache__/
@@ -22,6 +36,7 @@ build/
 .venv/
 venv/
 env/
+.pytest_cache/
 
 # OS
 .DS_Store
@@ -35,8 +50,18 @@ Thumbs.db
 .vscode/
 *.sublime-*
 
+# Node
+node_modules/
+dashboard/dist/
+
 # Logs
 *.log
 
 # Lock files from contact manager
 *.lock
+
+# Large media files (screenshots etc.)
+*.jpeg
+*.jpg
+!nazar/dashboard/src/**/*.jpeg
+!nazar/dashboard/src/**/*.jpg

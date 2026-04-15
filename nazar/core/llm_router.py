@@ -40,8 +40,16 @@ PROVIDERS = {
         "name": "OpenRouter",
         "base_url": "https://openrouter.ai/api/v1/chat/completions",
         "models": {
-            "sonnet": ["anthropic/claude-sonnet-4-5", "google/gemma-3-27b-it:free"],
-            "haiku": ["google/gemma-3-27b-it:free"],
+            "sonnet": [
+                "anthropic/claude-sonnet-4-5",
+                "openai/gpt-4o-mini",
+                "meta-llama/llama-3.3-70b-instruct:free",
+            ],
+            "haiku": [
+                "openai/gpt-4o-mini",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "microsoft/phi-4-reasoning-plus:free",
+            ],
         },
         "headers": lambda key: {
             "Authorization": f"Bearer {key}",
@@ -73,7 +81,8 @@ _provider_health = {
 }
 
 # Cool-down: retry a failed provider after this many seconds
-RETRY_AFTER_SECONDS = 120
+# Keep short — transient 400s from free models are common
+RETRY_AFTER_SECONDS = 30
 
 
 def _get_api_key(provider: str) -> Optional[str]:
@@ -160,7 +169,9 @@ async def _call_anthropic(messages: list, model: str, api_key: str,
 
 async def _call_openrouter(messages: list, model: str, api_key: str,
                             max_tokens: int = 1024, timeout: int = 30) -> tuple:
-    """Call OpenRouter API. Returns (text, usage_dict)."""
+    """Call OpenRouter API. Returns (text, usage_dict).
+    Retries once on transient 400/502/503 errors (common with free models).
+    """
     config = PROVIDERS["openrouter"]
 
     payload = {
@@ -169,22 +180,41 @@ async def _call_openrouter(messages: list, model: str, api_key: str,
         "max_tokens": max_tokens,
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            config["base_url"],
-            headers=config["headers"](api_key),
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=timeout),
-        ) as resp:
-            if resp.status != 200:
-                error = await resp.text()
-                raise Exception(f"OpenRouter API error {resp.status}: {error[:200]}")
-            data = await resp.json()
-            usage = data.get("usage", {})
-            return (data["choices"][0]["message"]["content"], {
-                "input_tokens": usage.get("prompt_tokens", 0),
-                "output_tokens": usage.get("completion_tokens", 0),
-            })
+    last_error = None
+    for attempt in range(2):  # retry once on transient errors
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                config["base_url"],
+                headers=config["headers"](api_key),
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=timeout),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # Check for upstream error wrapped in 200
+                    if data.get("error"):
+                        last_error = f"OpenRouter returned error in body: {str(data['error'])[:200]}"
+                        if attempt == 0:
+                            await asyncio.sleep(1)
+                            continue
+                        raise Exception(last_error)
+                    usage = data.get("usage", {})
+                    return (data["choices"][0]["message"]["content"], {
+                        "input_tokens": usage.get("prompt_tokens", 0),
+                        "output_tokens": usage.get("completion_tokens", 0),
+                    })
+                elif resp.status in (400, 429, 500, 502, 503) and attempt == 0:
+                    # Transient error — retry once after a brief pause
+                    error = await resp.text()
+                    last_error = f"OpenRouter API error {resp.status}: {error[:200]}"
+                    print(f"⚠️ OpenRouter transient error (attempt {attempt+1}): {resp.status}, retrying...")
+                    await asyncio.sleep(1.5)
+                    continue
+                else:
+                    error = await resp.text()
+                    raise Exception(f"OpenRouter API error {resp.status}: {error[:200]}")
+
+    raise Exception(last_error or "OpenRouter: unknown error after retries")
 
 
 async def _call_google(messages: list, model: str, api_key: str,

@@ -39,11 +39,9 @@ export default function Followups() {
               </div>
               <div className="followup-detail">
                 <span>{f.days_since_contact} days since last contact</span>
-                {f.pipeline_stage && <Badge variant="default">{f.pipeline_stage}</Badge>}
+                {f.stage && <Badge variant="default">{f.stage}</Badge>}
+                {f.deal_value > 0 && <Badge variant="success" size="sm">₹{f.deal_value.toLocaleString('en-IN')}</Badge>}
               </div>
-              {f.suggested_message && (
-                <div className="followup-suggestion">"{f.suggested_message}"</div>
-              )}
               <div className="followup-actions">
                 <Button size="sm" variant="secondary" icon={MessageSquare} onClick={() => navigate(`/conversations/${f.contact_id}`)}>
                   Open Chat
