@@ -1,45 +1,8 @@
 """
 Nazar — Outbound Webhook Dispatcher
 
-Sends real-time event notifications to external systems (Zapier, CRM, Slack,
-custom HTTP endpoints). Allows operators to integrate Nazar into their existing
-tooling without polling.
-
-Supported events
-----------------
-message.inbound         Customer sent a message
-message.outbound        Bot / agent sent a reply
-contact.created         New contact created
-contact.stage_changed   Contact moved in the pipeline
-contact.opted_out       Contact opted out (STOP)
-handoff.triggered       AI -> human handoff initiated
-handoff.resolved        Handoff resolved (bot resumed)
-campaign.completed      Campaign finished sending
-draft.pending           AI draft awaiting human approval
-draft.approved          AI draft approved and sent
-
-Webhook record schema::
-
-    {
-        "id":       str,
-        "url":      str,     HTTPS endpoint to POST to
-        "events":   list,    ["*"] = all events; else specific event names
-        "secret":   str,     HMAC signing secret (empty = no signature)
-        "name":     str,     human label
-        "active":   bool,
-        "created_at": ISO str
-    }
-
-Delivery
---------
-- Fire-and-forget asyncio tasks — never blocks the main flow
-- 10-second per-request timeout
-- HMAC-SHA256 signature header: ``X-Nazar-Signature: sha256=<hex>``
-- Non-2xx responses are logged as warnings (no retry in V1)
-
-Storage
--------
-data/webhooks.json
+Sends real-time event notifications to external systems.
+Storage: SQLite via core/database.py (webhooks table)
 """
 
 import asyncio
@@ -48,78 +11,37 @@ import hmac
 import json
 import logging
 import uuid
-import fcntl
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 
+from database import get_db
+
 logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
-DATA_DIR = Path(__file__).parent.parent / "data"
 
 SUPPORTED_EVENTS = [
-    "message.inbound",
-    "message.outbound",
-    "contact.created",
-    "contact.stage_changed",
-    "contact.opted_out",
-    "handoff.triggered",
-    "handoff.resolved",
+    "message.inbound", "message.outbound",
+    "contact.created", "contact.stage_changed", "contact.opted_out",
+    "handoff.triggered", "handoff.resolved",
     "campaign.completed",
-    "draft.pending",
-    "draft.approved",
+    "draft.pending", "draft.approved",
 ]
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Storage helpers
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _path():
-    # type: () -> Path
-    return DATA_DIR / "webhooks.json"
-
-
-def _load():
-    # type: () -> dict
-    p = _path()
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
-
-
-def _save(data):
-    # type: (dict) -> None
-    p = _path()
-    p.parent.mkdir(parents=True, exist_ok=True)
-    lock = p.with_suffix(".lock")
-    with open(lock, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Webhook management
 # ──────────────────────────────────────────────────────────────────────────────
 
-def register_webhook(
-    url,            # type: str
-    events=None,    # type: Optional[List[str]]
-    secret="",      # type: str
-    name="",        # type: str
-):
-    # type: (...) -> dict
+def register_webhook(url: str, events: List[str] = None, secret: str = "", name: str = "") -> dict:
     """Register a new outbound webhook endpoint."""
     if not url.startswith(("http://", "https://")):
         raise ValueError("Webhook URL must start with http:// or https://")
 
     wh_id = "wh_%s" % uuid.uuid4().hex[:10]
+    now = datetime.now(IST).isoformat()
     record = {
         "id": wh_id,
         "url": url,
@@ -127,81 +49,100 @@ def register_webhook(
         "secret": secret,
         "name": name or url,
         "active": True,
-        "created_at": datetime.now(IST).isoformat(),
+        "created_at": now,
         "last_triggered_at": None,
         "total_deliveries": 0,
         "failed_deliveries": 0,
     }
-    data = _load()
-    data[wh_id] = record
-    _save(data)
+
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO webhooks
+               (id, url, events, secret, name, active, created_at,
+                total_deliveries, failed_deliveries)
+               VALUES (?, ?, ?, ?, ?, 1, ?, 0, 0)""",
+            (wh_id, url, json.dumps(events or ["*"]), secret, name or url, now),
+        )
+
     logger.info("Webhook registered: %r for events %s", url, events)
     return record
 
 
-def list_webhooks(active_only=False):
-    # type: (bool) -> List[dict]
+def list_webhooks(active_only: bool = False) -> List[dict]:
     """List all registered webhooks."""
-    hooks = list(_load().values())
-    if active_only:
-        hooks = [h for h in hooks if h.get("active")]
-    return hooks
+    with get_db() as conn:
+        if active_only:
+            rows = conn.execute(
+                "SELECT * FROM webhooks WHERE active = 1"
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM webhooks").fetchall()
+    return [_row_to_webhook(r) for r in rows]
 
 
-def get_webhook(webhook_id):
-    # type: (str) -> Optional[dict]
-    return _load().get(webhook_id)
+def get_webhook(webhook_id: str) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM webhooks WHERE id = ?", (webhook_id,)
+        ).fetchone()
+    return _row_to_webhook(row) if row else None
 
 
-def update_webhook(webhook_id, **kwargs):
-    # type: (str, **Any) -> dict
-    data = _load()
-    if webhook_id not in data:
-        raise ValueError("Webhook %r not found" % webhook_id)
-    allowed = {"url", "events", "secret", "name", "active"}
-    for k, v in kwargs.items():
-        if k in allowed:
-            data[webhook_id][k] = v
-    _save(data)
-    return data[webhook_id]
+def update_webhook(webhook_id: str, **kwargs) -> dict:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM webhooks WHERE id = ?", (webhook_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError("Webhook %r not found" % webhook_id)
+
+        allowed = {"url", "events", "secret", "name", "active"}
+        sets = []
+        vals = []
+        for k, v in kwargs.items():
+            if k in allowed:
+                if k == "events":
+                    v = json.dumps(v)
+                elif k == "active":
+                    v = 1 if v else 0
+                sets.append(f"{k} = ?")
+                vals.append(v)
+
+        if sets:
+            vals.append(webhook_id)
+            conn.execute(
+                f"UPDATE webhooks SET {', '.join(sets)} WHERE id = ?",
+                vals,
+            )
+
+    return get_webhook(webhook_id)
 
 
-def delete_webhook(webhook_id):
-    # type: (str) -> bool
-    data = _load()
-    if webhook_id in data:
-        del data[webhook_id]
-        _save(data)
-        return True
-    return False
+def delete_webhook(webhook_id: str) -> bool:
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM webhooks WHERE id = ?", (webhook_id,)
+        )
+    return cursor.rowcount > 0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Dispatch
 # ──────────────────────────────────────────────────────────────────────────────
 
-async def dispatch(event_type, payload):
-    # type: (str, Dict[str, Any]) -> int
-    """
-    Fire an event to all subscribed active webhook endpoints.
-
-    Returns:
-        Number of webhooks targeted (delivery is async; errors are logged).
-    """
+async def dispatch(event_type: str, payload: Dict[str, Any]) -> int:
+    """Fire an event to all subscribed active webhook endpoints."""
     hooks = [
         h for h in list_webhooks(active_only=True)
         if "*" in h.get("events", []) or event_type in h.get("events", [])
     ]
-
     for hook in hooks:
         asyncio.create_task(_send(hook, event_type, payload))
-
     return len(hooks)
 
 
-async def dispatch_test(webhook_id):
-    # type: (str) -> dict
-    """Send a test event to verify a webhook endpoint is reachable."""
+async def dispatch_test(webhook_id: str) -> dict:
+    """Send a test event to verify a webhook endpoint."""
     hook = get_webhook(webhook_id)
     if not hook:
         raise ValueError("Webhook %r not found" % webhook_id)
@@ -225,23 +166,20 @@ async def dispatch_test(webhook_id):
 # ──────────────────────────────────────────────────────────────────────────────
 
 async def _send(
-    hook,               # type: dict
-    event_type,         # type: str
-    payload,            # type: dict
-    record_stats=True,  # type: bool
-):
-    # type: (...) -> Tuple[bool, int, str]
-    """POST event to a single webhook. Returns (ok, status_code, error_msg)."""
+    hook: dict,
+    event_type: str,
+    payload: dict,
+    record_stats: bool = True,
+) -> Tuple[bool, int, str]:
+    """POST event to a single webhook."""
     body = {
         "event": event_type,
         "timestamp": datetime.now(IST).isoformat(),
         "data": payload,
     }
     body_str = json.dumps(body, ensure_ascii=False)
+    headers = {"Content-Type": "application/json"}
 
-    headers = {"Content-Type": "application/json"}  # type: Dict[str, str]
-
-    # HMAC signature
     secret = hook.get("secret", "")
     if secret:
         sig = hmac.new(secret.encode(), body_str.encode(), hashlib.sha256).hexdigest()
@@ -255,20 +193,14 @@ async def _send(
         timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                hook["url"],
-                data=body_str,
-                headers=headers,
-                timeout=timeout,
+                hook["url"], data=body_str, headers=headers, timeout=timeout,
             ) as resp:
                 status_code = resp.status
                 ok = 200 <= status_code < 300
                 if not ok:
                     body_text = await resp.text()
                     error_msg = "HTTP %d: %s" % (status_code, body_text[:200])
-                    logger.warning(
-                        "Webhook %s -> %s returned %d",
-                        hook["id"], hook["url"], status_code,
-                    )
+                    logger.warning("Webhook %s -> %s returned %d", hook["id"], hook["url"], status_code)
     except asyncio.TimeoutError:
         error_msg = "Request timed out after 10s"
         logger.warning("Webhook %s timed out for event %r", hook["id"], event_type)
@@ -276,17 +208,38 @@ async def _send(
         error_msg = str(e)[:200]
         logger.error("Webhook %s dispatch error: %s", hook["id"], e)
 
-    # Update delivery stats
     if record_stats:
         try:
-            data = _load()
-            if hook["id"] in data:
-                data[hook["id"]]["last_triggered_at"] = datetime.now(IST).isoformat()
-                data[hook["id"]]["total_deliveries"] = data[hook["id"]].get("total_deliveries", 0) + 1
-                if not ok:
-                    data[hook["id"]]["failed_deliveries"] = data[hook["id"]].get("failed_deliveries", 0) + 1
-                _save(data)
+            with get_db() as conn:
+                conn.execute(
+                    """UPDATE webhooks SET
+                       last_triggered_at = ?,
+                       total_deliveries = total_deliveries + 1,
+                       failed_deliveries = failed_deliveries + CASE WHEN ? THEN 0 ELSE 1 END
+                       WHERE id = ?""",
+                    (datetime.now(IST).isoformat(), 1 if ok else 0, hook["id"]),
+                )
         except Exception:
             pass
 
     return ok, status_code, error_msg
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Internal helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _row_to_webhook(row) -> dict:
+    d = dict(row)
+    return {
+        "id": d["id"],
+        "url": d["url"],
+        "events": json.loads(d.get("events", '["*"]') or '["*"]'),
+        "secret": d.get("secret", ""),
+        "name": d.get("name", ""),
+        "active": bool(d.get("active", 1)),
+        "created_at": d.get("created_at", ""),
+        "last_triggered_at": d.get("last_triggered_at"),
+        "total_deliveries": d.get("total_deliveries", 0),
+        "failed_deliveries": d.get("failed_deliveries", 0),
+    }

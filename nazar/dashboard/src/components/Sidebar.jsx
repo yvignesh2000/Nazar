@@ -1,42 +1,42 @@
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, MessageSquare, Users, GitBranch,
-  HandMetal, CalendarClock, FileText,
-  Settings, Zap, BookOpen, Wifi, WifiOff, Brain,
-  BarChart3, CreditCard, UsersRound, Rocket,
-  Shield, FileCheck, LogOut, Megaphone,
+  LayoutDashboard, Inbox, Users, Megaphone,
+  BarChart3, Settings, Zap, BookOpen, Wifi, WifiOff, Brain,
+  CreditCard, UsersRound, FileText,
+  LogOut, ChevronDown, ChevronRight,
 } from 'lucide-react';
+import { useState } from 'react';
 import { useApi } from '../hooks/useApi';
 import { handoffs as handoffApi, setup as setupApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from './NotificationProvider';
 import './Sidebar.css';
 
-const NAV_ITEMS = [
-  { path: '/',             icon: LayoutDashboard, label: 'Overview' },
-  { path: '/conversations', icon: MessageSquare,   label: 'Conversations' },
-  { path: '/contacts',     icon: Users,            label: 'Contacts' },
-  { path: '/pipeline',     icon: GitBranch,        label: 'Pipeline' },
-  { path: '/handoffs',     icon: HandMetal,        label: 'Handoffs',    badge: true },
-  { path: '/followups',    icon: CalendarClock,    label: 'Follow-ups' },
-  { path: '/campaigns',    icon: Megaphone,        label: 'Campaigns' },
-  { path: '/templates',    icon: FileText,         label: 'Templates' },
-  { path: '/analytics',    icon: BarChart3,        label: 'Analytics' },
+const PRIMARY_ITEMS = [
+  { path: '/',              icon: LayoutDashboard, label: 'Home' },
+  { path: '/inbox',         icon: Inbox,           label: 'Inbox',      badgeType: 'unread' },
+  { path: '/contacts',      icon: Users,           label: 'Contacts' },
+  { path: '/campaigns',     icon: Megaphone,       label: 'Campaigns' },
+  { path: '/reports',       icon: BarChart3,        label: 'Reports' },
 ];
 
-const BOTTOM_ITEMS = [
-  { path: '/onboarding',   icon: Rocket,     label: 'Setup Wizard' },
-  { path: '/knowledge',    icon: BookOpen,    label: 'Knowledge Base' },
-  { path: '/team',         icon: UsersRound,  label: 'Team' },
-  { path: '/billing',      icon: CreditCard,  label: 'Billing' },
-  { path: '/settings',     icon: Settings,    label: 'Settings' },
+const SETTINGS_ITEMS = [
+  { path: '/bot-setup',     icon: Brain,       label: 'Bot Setup' },
+  { path: '/knowledge',     icon: BookOpen,    label: 'Knowledge Base' },
+  { path: '/templates',     icon: FileText,    label: 'Templates' },
+  { path: '/team',          icon: UsersRound,  label: 'Team' },
+  { path: '/billing',       icon: CreditCard,  label: 'Billing' },
+  { path: '/settings',      icon: Settings,    label: 'Settings' },
 ];
 
 export default function Sidebar() {
   const { data } = useApi(() => handoffApi.stats(), [], { initialData: {} });
   const { data: statusData } = useApi(() => setupApi.status(), [], { initialData: {} });
   const { user, logout } = useAuth();
-  const handoffCount = data?.currently_in_queue || 0;
+  const { unreadCount } = useNotifications();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const escalatedCount = data?.currently_in_queue || 0;
   const llmOk = statusData?.any_llm_configured || false;
   const waOk = statusData?.whatsapp?.configured || false;
 
@@ -51,8 +51,7 @@ export default function Sidebar() {
 
       <nav className="sidebar-nav">
         <div className="nav-section">
-          <span className="nav-section-title">Main</span>
-          {NAV_ITEMS.map(item => (
+          {PRIMARY_ITEMS.map(item => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -61,25 +60,39 @@ export default function Sidebar() {
             >
               <item.icon size={18} />
               <span>{item.label}</span>
-              {item.badge && handoffCount > 0 && (
-                <span className="nav-badge">{handoffCount}</span>
+              {item.badgeType === 'unread' && (unreadCount > 0 || escalatedCount > 0) && (
+                <span className="nav-badge nav-badge--primary">
+                  {(unreadCount + escalatedCount) > 99 ? '99+' : unreadCount + escalatedCount}
+                </span>
               )}
             </NavLink>
           ))}
         </div>
 
         <div className="nav-section nav-section-bottom">
-          <span className="nav-section-title">System</span>
-          {BOTTOM_ITEMS.map(item => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+          {/* Collapsible Settings & Tools */}
+          <button
+            className="nav-section-toggle"
+            onClick={() => setSettingsOpen(!settingsOpen)}
+          >
+            <span className="nav-section-title">Settings & Tools</span>
+            {settingsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+
+          {settingsOpen && (
+            <div className="nav-section-collapsible">
+              {SETTINGS_ITEMS.map(item => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                >
+                  <item.icon size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
 
           {/* Legal links */}
           <div className="nav-legal">

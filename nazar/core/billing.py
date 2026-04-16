@@ -42,6 +42,8 @@ PLANS = {
         "name": "Starter",
         "price_inr": 1999,
         "price_usd": 24,
+        "price_inr_annual": 19190,     # 20% discount: 1999*12*0.8
+        "price_usd_annual": 230,
         "billing_cycle": "monthly",
         "limits": {
             "contacts": 200,
@@ -64,6 +66,8 @@ PLANS = {
         "name": "Growth",
         "price_inr": 5999,
         "price_usd": 72,
+        "price_inr_annual": 57590,     # 20% discount
+        "price_usd_annual": 691,
         "billing_cycle": "monthly",
         "limits": {
             "contacts": 2000,
@@ -88,6 +92,8 @@ PLANS = {
         "name": "Pro",
         "price_inr": 14999,
         "price_usd": 180,
+        "price_inr_annual": 143990,    # 20% discount
+        "price_usd_annual": 1728,
         "billing_cycle": "monthly",
         "limits": {
             "contacts": 20000,
@@ -490,6 +496,9 @@ def get_plans_for_display() -> list:
             "name": p["name"],
             "price_inr": p["price_inr"],
             "price_usd": p["price_usd"],
+            "price_inr_annual": p.get("price_inr_annual", p["price_inr"] * 12),
+            "price_usd_annual": p.get("price_usd_annual", p["price_usd"] * 12),
+            "annual_discount_pct": 20,
             "billing_cycle": p["billing_cycle"],
             "limits": p["limits"],
             "features": p["features"],

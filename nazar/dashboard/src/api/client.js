@@ -75,6 +75,9 @@ export const contacts = {
   update: (id, data) => patch(`/contacts/${id}`, data),
   delete: (id) => del(`/contacts/${id}`),
   import: (csv) => post('/contacts/import', { csv }),
+  // 24h service window
+  getWindow: (id) => get(`/contacts/${id}/window`),
+  listWindows: (stage) => get('/contacts/windows', { stage }),
 };
 
 export const conversations = {
@@ -94,6 +97,7 @@ export const handoffs = {
 export const pipeline = {
   get: () => get('/pipeline'),
   moveStage: (id, stage) => patch(`/pipeline/${id}/move`, { stage }),
+  enableAutoClassify: (id) => patch(`/pipeline/${id}/auto-classify`),
 };
 
 export const followups = {
@@ -105,6 +109,13 @@ export const campaigns = {
   get: (id) => get(`/campaigns/${id}`),
   create: (data) => post('/campaigns', data),
   retarget: (id, type = 'failed') => post(`/campaigns/${id}/retarget`, { type }),
+  audienceAnalysis: (stage, tag) => get('/campaigns/audience-analysis', { stage, tag }),
+};
+
+export const jobs = {
+  get: (jobId) => get(`/jobs/${jobId}`),
+  list: (params) => get('/jobs', params),
+  cancel: (jobId) => post(`/jobs/${jobId}/cancel`),
 };
 
 export const replyModes = {
@@ -128,6 +139,11 @@ export const templates = {
   update: (id, data) => patch(`/templates/${id}`, data),
   delete: (id) => del(`/templates/${id}`),
   render: (id, contactId) => post(`/templates/${id}/render`, { contact_id: contactId }),
+  // Meta template sync
+  metaStatus: () => get('/templates/meta/status'),
+  submitToMeta: (id) => post(`/templates/${id}/submit-to-meta`),
+  getMetaStatus: (id) => get(`/templates/${id}/meta-status`),
+  syncWithMeta: () => post('/templates/meta/sync'),
 };
 
 export const config = {
@@ -138,6 +154,34 @@ export const config = {
 export const kb = {
   get: () => get('/kb'),
   update: (content) => post('/kb/upload', { content }),
+  listDocuments: (params) => get('/kb/documents', params),
+  addDocument: (data) => post('/kb/documents', data),
+  deleteDocument: (id) => del(`/kb/documents/${id}`),
+  uploadFile: (file, title = '', scope = 'global') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title);
+    formData.append('scope', scope);
+    const token = localStorage.getItem('nazar_token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : { 'X-Nazar-Key': 'nazar_dev_key' };
+    return fetch(`/api/kb/upload-file`, { method: 'POST', headers, body: formData })
+      .then(async res => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.detail || res.statusText);
+        return data;
+      });
+  },
+};
+
+export const groups = {
+  list: () => get('/groups'),
+  get: (id) => get(`/groups/${id}`),
+  create: (data) => post('/groups', data),
+  update: (id, data) => patch(`/groups/${id}`, data),
+  delete: (id) => del(`/groups/${id}`),
+  addMembers: (id, contactIds) => post(`/groups/${id}/members`, { contact_ids: contactIds }),
+  removeMembers: (id, contactIds) => request('DELETE', `/groups/${id}/members`, { contact_ids: contactIds }),
+  getContactGroups: (contactId) => get(`/contacts/${contactId}/groups`),
 };
 
 export const team = {
@@ -197,6 +241,13 @@ export const billing = {
   usage: () => get('/billing/usage'),
   upgrade: (planId) => post('/billing/upgrade', { plan_id: planId }),
   cancel: (atPeriodEnd = true) => post('/billing/cancel', { at_period_end: atPeriodEnd }),
+};
+
+export const payments = {
+  config: () => get('/payments/config'),
+  subscribe: (planId) => post('/payments/subscribe', { plan_id: planId }),
+  verify: (data) => post('/payments/verify', data),
+  invoice: (workspaceId) => get(`/payments/invoice/${workspaceId}`),
 };
 
 export const users = {

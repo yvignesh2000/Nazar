@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { FileText, Plus, Trash2, Edit, Search, Filter, Eye, X, ChevronDown, Variable, Bold, Italic, Smile, CheckCircle, Clock, XCircle, BarChart3, Send, Image, Video, FileDown, MapPin, Type, CornerDownRight } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { FileText, Plus, Trash2, Edit, Search, Filter, Eye, X, ChevronDown, Variable, Bold, Italic, Smile, CheckCircle, Clock, XCircle, BarChart3, Send, Image, Video, FileDown, MapPin, Type, CornerDownRight, RefreshCw, Upload, ExternalLink, AlertTriangle, CloudOff, Cloud } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { templates as templateApi } from '../api/client';
 import PageHeader from '../components/ui/PageHeader';
@@ -69,7 +69,11 @@ function WhatsAppPreview({ header, body, footer, buttons }) {
             {header && header.type !== 'none' && (
               <div className="wa-bubble-header">
                 {header.type === 'text' && <strong>{header.text || 'Header text'}</strong>}
-                {header.type === 'image' && <div className="wa-media-placeholder"><Image size={32} /><span>Image</span></div>}
+                {header.type === 'image' && (
+                  header.image_url
+                    ? <img src={header.image_url} alt="Header" className="wa-header-image" onError={e => { e.target.style.display = 'none'; }} />
+                    : <div className="wa-media-placeholder"><Image size={32} /><span>Image</span></div>
+                )}
                 {header.type === 'video' && <div className="wa-media-placeholder"><Video size={32} /><span>Video</span></div>}
                 {header.type === 'document' && <div className="wa-media-placeholder"><FileDown size={32} /><span>Document</span></div>}
               </div>
@@ -222,9 +226,29 @@ function TemplateBuilder({ template, onSave, onClose, saving }) {
                   maxLength={60}
                 />
               )}
-              {['image', 'video', 'document'].includes(form.header.type) && (
-                <div className="tb-media-note">
-                  <span>Media will be uploaded when sending via Meta API. For preview, a placeholder is shown.</span>
+              {form.header.type === 'image' && (
+                <div className="tb-media-input">
+                  <input
+                    className="tb-header-input"
+                    placeholder="Image URL (https://...)"
+                    value={form.header.image_url || ''}
+                    onChange={e => setForm(f => ({ ...f, header: { ...f.header, image_url: e.target.value } }))}
+                  />
+                  {form.header.image_url && (
+                    <img src={form.header.image_url} alt="Header preview" className="tb-image-preview" onError={e => { e.target.style.display = 'none'; }} />
+                  )}
+                  <span className="tb-media-hint">Enter a publicly accessible image URL. WhatsApp supports JPEG and PNG (max 5MB).</span>
+                </div>
+              )}
+              {['video', 'document'].includes(form.header.type) && (
+                <div className="tb-media-input">
+                  <input
+                    className="tb-header-input"
+                    placeholder={`${form.header.type === 'video' ? 'Video' : 'Document'} URL (https://...)`}
+                    value={form.header.media_url || ''}
+                    onChange={e => setForm(f => ({ ...f, header: { ...f.header, media_url: e.target.value } }))}
+                  />
+                  <span className="tb-media-hint">{form.header.type === 'video' ? 'MP4 format, max 16MB.' : 'PDF format, max 100MB.'}</span>
                 </div>
               )}
             </div>
@@ -352,9 +376,51 @@ export default function Templates() {
   const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [metaConfigured, setMetaConfigured] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [submitting, setSubmitting] = useState({});
 
   const templates = data?.templates || [];
   const stats = data?.stats || {};
+
+  // Check Meta configuration on mount
+  useEffect(() => {
+    templateApi.metaStatus().then(r => setMetaConfigured(r?.configured || false)).catch(() => {});
+  }, []);
+
+  async function handleSubmitToMeta(templateId) {
+    setSubmitting(s => ({ ...s, [templateId]: true }));
+    try {
+      const result = await templateApi.submitToMeta(templateId);
+      if (result.success) {
+        alert(`Template submitted to Meta! Status: ${result.status}. It will be reviewed shortly.`);
+        refetch();
+      } else {
+        alert(`Submission failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSubmitting(s => ({ ...s, [templateId]: false }));
+    }
+  }
+
+  async function handleSyncWithMeta() {
+    setSyncing(true);
+    try {
+      const result = await templateApi.syncWithMeta();
+      if (result.error) {
+        alert(`Sync error: ${result.error}`);
+      } else {
+        alert(`Synced ${result.synced} templates from Meta. ${result.updated} updated locally.`);
+        refetch();
+      }
+    } catch (err) {
+      alert(`Sync failed: ${err.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const filtered = useMemo(() => {
     let list = templates;
@@ -404,11 +470,56 @@ export default function Templates() {
         title="Templates"
         description="WhatsApp message templates — create, manage, and track performance"
         actions={
-          <Button icon={Plus} onClick={() => { setEditTemplate(null); setShowBuilder(true); }}>
-            New Template
-          </Button>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {metaConfigured && (
+              <Button variant="secondary" icon={RefreshCw} onClick={handleSyncWithMeta} loading={syncing} size="sm">
+                Sync with Meta
+              </Button>
+            )}
+            <Button icon={Plus} onClick={() => { setEditTemplate(null); setShowBuilder(true); }}>
+              New Template
+            </Button>
+          </div>
         }
       />
+
+      {/* How this works — education block */}
+      <details className="education-block">
+        <summary className="education-summary">
+          <FileText size={15} />
+          <span>How WhatsApp templates work</span>
+        </summary>
+        <div className="education-content">
+          <p>WhatsApp requires <strong>pre-approved message templates</strong> for outbound messages (messages you send first, or after the 24h reply window closes).</p>
+          <p><strong>How the approval process works:</strong></p>
+          <ol>
+            <li>Create a template here with your message, variables, and buttons</li>
+            <li>Submit it to Meta for approval (takes minutes to hours)</li>
+            <li>Once approved, use it in campaigns to reach contacts at scale</li>
+          </ol>
+          <p><strong>Categories:</strong> <em>Utility</em> (order updates, confirmations) are cheaper. <em>Marketing</em> (promotions, offers) cost more. <em>Authentication</em> (OTPs) have special formatting.</p>
+        </div>
+      </details>
+
+      {/* Meta sync info banner */}
+      {!metaConfigured && (
+        <div className="meta-sync-banner meta-sync-banner--warning">
+          <AlertTriangle size={16} />
+          <div>
+            <strong>Meta Template API not configured.</strong>{' '}
+            Set <code>WA_BUSINESS_ACCOUNT_ID</code> in your .env to enable template submission to WhatsApp.
+            Without this, templates are local-only and campaigns may fail.
+          </div>
+        </div>
+      )}
+      {metaConfigured && (
+        <div className="meta-sync-banner meta-sync-banner--info">
+          <Cloud size={16} />
+          <div>
+            Meta Template API connected. Templates can be submitted for approval and synced automatically.
+          </div>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="template-stats">
@@ -495,6 +606,17 @@ export default function Templates() {
 
                 {/* Actions */}
                 <div className="tpl-card-actions">
+                  {metaConfigured && t.approval_status !== 'approved' && (
+                    <button
+                      className="tpl-action-btn tpl-action-btn--submit"
+                      onClick={() => handleSubmitToMeta(t.id)}
+                      title="Submit to Meta for approval"
+                      disabled={submitting[t.id]}
+                    >
+                      {submitting[t.id] ? <RefreshCw size={14} className="spinning" /> : <Upload size={14} />}
+                      <span className="tpl-action-label">Submit</span>
+                    </button>
+                  )}
                   <button className="tpl-action-btn" onClick={() => setPreviewTemplate(t)} title="Preview">
                     <Eye size={14} />
                   </button>

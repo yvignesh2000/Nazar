@@ -180,16 +180,18 @@ class TestAutoResume:
 
     def test_auto_resume_happens_when_threshold_reached(self, tmp_data_dir):
         from handoff_manager import trigger_handoff, check_auto_resume, is_bot_active
-        from handoff_manager import _load_state, _save_state
+        from database import get_db
         from datetime import datetime, timezone, timedelta
 
         trigger_handoff("c1", "reason")
 
         # Backdate the triggered_at to 5 hours ago
-        state = _load_state()
         five_hours_ago = (datetime.now(timezone(timedelta(hours=5, minutes=30))) - timedelta(hours=5)).isoformat()
-        state["c1"]["triggered_at"] = five_hours_ago
-        _save_state(state)
+        with get_db() as conn:
+            conn.execute(
+                "UPDATE handoff_states SET triggered_at = ? WHERE contact_id = ?",
+                (five_hours_ago, "c1"),
+            )
 
         resumed = check_auto_resume(auto_resume_hours=4)
         assert "c1" in resumed

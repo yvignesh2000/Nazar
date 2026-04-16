@@ -171,9 +171,11 @@ class CreateCampaignRequest(BaseModel):
     filter_stage: Optional[str] = None
     filter_tag: Optional[str] = None
     contact_ids: Optional[List[str]] = Field(default_factory=list)
+    group_ids: Optional[List[str]] = Field(default_factory=list)
     scheduled_at: Optional[str] = None
     reply_mode: str = "auto_ai"
     campaign_kb: Optional[str] = Field("", max_length=50000)
+    header_image_url: Optional[str] = Field("", max_length=2000)
 
     @field_validator("reply_mode")
     @classmethod

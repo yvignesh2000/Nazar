@@ -11,6 +11,11 @@ nazar/data/.token_secret
 nazar/data/contacts/
 nazar/data/chromadb/
 
+# SQLite database files (runtime — never commit)
+nazar/data/*.db
+nazar/data/*.db-shm
+nazar/data/*.db-wal
+
 # Runtime data (generated at runtime — never commit)
 nazar/data/auth/
 nazar/data/audit/

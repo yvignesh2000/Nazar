@@ -29,8 +29,10 @@ import json
 import logging
 import os
 import secrets
+import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
@@ -39,6 +41,9 @@ logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
 DATA_DIR = Path(__file__).parent.parent / "data" / "auth"
+
+# File-level lock to prevent concurrent read-modify-write race conditions
+_auth_lock = threading.Lock()
 
 ROLES = ["owner", "admin", "agent", "viewer"]
 ROLE_PERMISSIONS = {
@@ -66,10 +71,17 @@ def _token_secret() -> str:
         return TOKEN_SECRET
     secret = os.environ.get("NAZAR_TOKEN_SECRET", "")
     if not secret:
-        secret_path = DATA_DIR.parent / ".token_secret"
+        # Store in data/auth/ (inside Docker volume)
+        secret_path = DATA_DIR / ".token_secret"
+        legacy_path = DATA_DIR.parent / ".token_secret"
         _ensure_dir()
         if secret_path.exists():
             secret = secret_path.read_text().strip()
+        elif legacy_path.exists():
+            # Migrate from legacy location
+            secret = legacy_path.read_text().strip()
+            secret_path.write_text(secret)
+            secret_path.chmod(0o600)
         else:
             secret = secrets.token_hex(32)
             secret_path.write_text(secret)
@@ -78,7 +90,25 @@ def _token_secret() -> str:
     return secret
 
 
-def _load(filename: str) -> dict:
+@contextmanager
+def _locked_file(filename: str):
+    """
+    Context manager that acquires the auth lock and yields (data, save_fn).
+    Ensures no two threads can read-modify-write the same file concurrently.
+    Usage:
+        with _locked_file("users.json") as (data, save_fn):
+            data["new_user"] = {...}
+            save_fn(data)
+    """
+    with _auth_lock:
+        data = _load_unlocked(filename)
+        def save_fn(new_data):
+            _save_unlocked(filename, new_data)
+        yield data, save_fn
+
+
+def _load_unlocked(filename: str) -> dict:
+    """Load without lock — use inside _locked_file or when lock is already held."""
     _ensure_dir()
     path = DATA_DIR / filename
     if path.exists():
@@ -89,10 +119,26 @@ def _load(filename: str) -> dict:
     return {}
 
 
-def _save(filename: str, data: dict):
+def _save_unlocked(filename: str, data: dict):
+    """Save without lock — use inside _locked_file or when lock is already held."""
     _ensure_dir()
     path = DATA_DIR / filename
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    # Atomic write: write to temp file then rename
+    tmp_path = path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _load(filename: str) -> dict:
+    """Thread-safe read of a JSON auth file."""
+    with _auth_lock:
+        return _load_unlocked(filename)
+
+
+def _save(filename: str, data: dict):
+    """Thread-safe write of a JSON auth file."""
+    with _auth_lock:
+        _save_unlocked(filename, data)
 
 
 def _load_list(filename: str) -> list:
@@ -195,7 +241,6 @@ def create_workspace(
 
     Returns the workspace dict.
     """
-    workspaces = _load("workspaces.json")
     workspace_id = "ws_" + uuid.uuid4().hex[:10]
     api_key = "nzr_" + secrets.token_urlsafe(32)
     now = datetime.now(IST).isoformat()
@@ -214,8 +259,11 @@ def create_workspace(
             "bot_enabled": True,
         },
     }
-    workspaces[workspace_id] = workspace
-    _save("workspaces.json", workspaces)
+
+    with _locked_file("workspaces.json") as (workspaces, save_fn):
+        workspaces[workspace_id] = workspace
+        save_fn(workspaces)
+
     logger.info(f"Workspace created: {workspace_id} ({name})")
     return workspace
 
@@ -278,12 +326,6 @@ def create_user(
     if role not in ROLES:
         raise ValueError(f"Invalid role '{role}'. Must be one of: {ROLES}")
 
-    users = _load("users.json")
-    # Check duplicate email in this workspace
-    for u in users.values():
-        if u["email"] == email and u["workspace_id"] == workspace_id:
-            raise ValueError(f"User with email {email} already exists in this workspace")
-
     user_id = "usr_" + uuid.uuid4().hex[:10]
     now = datetime.now(IST).isoformat()
 
@@ -298,8 +340,15 @@ def create_user(
         "created_at": now,
         "last_login": None,
     }
-    users[user_id] = user
-    _save("users.json", users)
+
+    with _locked_file("users.json") as (users, save_fn):
+        # Check duplicate email in this workspace (inside lock)
+        for u in users.values():
+            if u["email"] == email and u["workspace_id"] == workspace_id:
+                raise ValueError(f"User with email {email} already exists in this workspace")
+        users[user_id] = user
+        save_fn(users)
+
     logger.info(f"User created: {user_id} ({email}) in workspace {workspace_id}")
 
     # Return without password hash
@@ -360,24 +409,24 @@ def delete_user(user_id: str):
 
 def change_password(user_id: str, old_password: str, new_password: str) -> bool:
     """Change a user's password. Returns True on success."""
-    users = _load("users.json")
-    u = users.get(user_id)
-    if not u:
-        return False
-    if not _verify_password(old_password, u["password_hash"]):
-        return False
-    users[user_id]["password_hash"] = _hash_password(new_password)
-    _save("users.json", users)
+    with _locked_file("users.json") as (users, save_fn):
+        u = users.get(user_id)
+        if not u:
+            return False
+        if not _verify_password(old_password, u["password_hash"]):
+            return False
+        users[user_id]["password_hash"] = _hash_password(new_password)
+        save_fn(users)
     return True
 
 
 def reset_password(user_id: str, new_password: str):
     """Admin reset of a user's password (no old password required)."""
-    users = _load("users.json")
-    if user_id not in users:
-        raise ValueError(f"User {user_id} not found")
-    users[user_id]["password_hash"] = _hash_password(new_password)
-    _save("users.json", users)
+    with _locked_file("users.json") as (users, save_fn):
+        if user_id not in users:
+            raise ValueError(f"User {user_id} not found")
+        users[user_id]["password_hash"] = _hash_password(new_password)
+        save_fn(users)
 
 
 # ---------------------------------------------------------------------------
@@ -391,22 +440,22 @@ def login(email: str, password: str, workspace_id: str = "default") -> Optional[
     If workspace_id is "default", searches all workspaces for matching email.
     Tokens are HMAC-signed and expire after SESSION_TTL_SECONDS.
     """
-    users = _load("users.json")
-    for u in users.values():
-        email_match = u["email"] == email and u.get("active", True)
-        ws_match = (
-            workspace_id == "default"  # search all workspaces
-            or u["workspace_id"] == workspace_id
-        )
-        if email_match and ws_match:
-            if _verify_password(password, u["password_hash"]):
-                # Update last_login
-                u["last_login"] = datetime.now(IST).isoformat()
-                _save("users.json", users)
-                actual_ws = u["workspace_id"]
-                token = _make_token(u["user_id"], actual_ws)
-                logger.info(f"Login: {email} in workspace {actual_ws}")
-                return token
+    with _locked_file("users.json") as (users, save_fn):
+        for u in users.values():
+            email_match = u["email"] == email and u.get("active", True)
+            ws_match = (
+                workspace_id == "default"  # search all workspaces
+                or u["workspace_id"] == workspace_id
+            )
+            if email_match and ws_match:
+                if _verify_password(password, u["password_hash"]):
+                    # Update last_login atomically
+                    u["last_login"] = datetime.now(IST).isoformat()
+                    save_fn(users)
+                    actual_ws = u["workspace_id"]
+                    token = _make_token(u["user_id"], actual_ws)
+                    logger.info(f"Login: {email} in workspace {actual_ws}")
+                    return token
     logger.warning(f"Failed login: {email} in workspace {workspace_id}")
     return None
 
@@ -449,21 +498,30 @@ def validate_token(token: str) -> Optional[dict]:
 # ---------------------------------------------------------------------------
 
 _revoked_tokens = set()  # type: set
-_REVOKED_PATH = DATA_DIR.parent / ".revoked_tokens.json"
+# Store in data/auth/ (inside Docker volume) — not in app root
+_REVOKED_PATH = DATA_DIR / ".revoked_tokens.json"
+# Legacy path for backward compat
+_LEGACY_REVOKED_PATH = DATA_DIR.parent / ".revoked_tokens.json"
 
 
 def _load_revoked():
     """Load persisted revocation list into memory on startup."""
     global _revoked_tokens
-    if _REVOKED_PATH.exists():
+    _ensure_dir()
+    # Check new location first, then legacy
+    path = _REVOKED_PATH if _REVOKED_PATH.exists() else _LEGACY_REVOKED_PATH
+    if path.exists():
         try:
-            tokens = json.loads(_REVOKED_PATH.read_text())
+            tokens = json.loads(path.read_text())
             # Filter out tokens that have also naturally expired
             valid_revoked = set()
             for t in tokens:
                 if _verify_token_format(t) is not None:
                     valid_revoked.add(t)
             _revoked_tokens = valid_revoked
+            # Migrate to new location if needed
+            if path == _LEGACY_REVOKED_PATH:
+                _persist_revoked()
         except Exception:
             _revoked_tokens = set()
 
@@ -629,7 +687,7 @@ def bootstrap_default_workspace() -> dict:
     Create the default workspace and owner account if none exists.
 
     Called at startup for single-tenant / dev mode.
-    Returns {workspace, user, already_existed}.
+    Returns {workspace, user, already_existed, password_change_required}.
     """
     workspaces = _load("workspaces.json")
     if workspaces:
@@ -640,9 +698,16 @@ def bootstrap_default_workspace() -> dict:
             "workspace": ws,
             "user": users[0] if users else None,
             "already_existed": True,
+            "password_change_required": False,
         }
 
-    # Create default
+    # Create default — use env var for password if set, otherwise generate random
+    default_password = os.environ.get("NAZAR_ADMIN_PASSWORD", "")
+    password_change_required = False
+    if not default_password:
+        default_password = "changeme123"
+        password_change_required = True
+
     ws = create_workspace(
         name="My Business",
         owner_email="admin@nazar.app",
@@ -650,16 +715,32 @@ def bootstrap_default_workspace() -> dict:
     )
     user = create_user(
         email="admin@nazar.app",
-        password="changeme123",
+        password=default_password,
         workspace_id=ws["workspace_id"],
         role="owner",
         name="Admin",
     )
-    logger.info(
-        f"Default workspace bootstrapped: {ws['workspace_id']} "
-        f"(email=admin@nazar.app, password=changeme123)"
-    )
-    return {"workspace": ws, "user": user, "already_existed": False}
+    # Mark user as needing password change
+    if password_change_required:
+        with _locked_file("users.json") as (users_data, save_fn):
+            if user["user_id"] in users_data:
+                users_data[user["user_id"]]["password_change_required"] = True
+                save_fn(users_data)
+
+    if password_change_required:
+        logger.warning(
+            "⚠️  Default workspace bootstrapped with default password. "
+            "Change it immediately at login!"
+        )
+    else:
+        logger.info(f"Default workspace bootstrapped: {ws['workspace_id']}")
+
+    return {
+        "workspace": ws,
+        "user": user,
+        "already_existed": False,
+        "password_change_required": password_change_required,
+    }
 
 
 # ---------------------------------------------------------------------------

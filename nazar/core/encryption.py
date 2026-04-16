@@ -19,14 +19,45 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.fernet import Fernet
 
 # Master secret — in production, this comes from env var or vault
-MASTER_SECRET_PATH = Path(__file__).parent.parent / ".master_secret"
-SALT_PATH = Path(__file__).parent.parent / ".salt"
+# IMPORTANT: Store in data/ directory so Docker volume mount persists it.
+# Old location (.master_secret in app root) is checked for backward compat.
+_DATA_DIR = Path(__file__).parent.parent / "data"
+MASTER_SECRET_PATH = _DATA_DIR / ".master_secret"
+SALT_PATH = _DATA_DIR / ".salt"
+_LEGACY_SECRET_PATH = Path(__file__).parent.parent / ".master_secret"
+_LEGACY_SALT_PATH = Path(__file__).parent.parent / ".salt"
 
 
 def _get_master_secret() -> bytes:
-    """Load or generate the master secret."""
+    """
+    Load or generate the master secret.
+
+    Priority:
+    1. NAZAR_MASTER_SECRET env var (base64-encoded, for production/K8s)
+    2. data/.master_secret file (persisted in Docker volume)
+    3. Legacy .master_secret in app root (migrate to data/ on first read)
+    4. Auto-generate and save to data/.master_secret
+    """
+    # 1. Environment variable (highest priority — for prod/K8s/vault)
+    env_secret = os.environ.get("NAZAR_MASTER_SECRET", "")
+    if env_secret:
+        import base64
+        return base64.b64decode(env_secret)
+
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 2. New location (data/ — inside Docker volume)
     if MASTER_SECRET_PATH.exists():
         return MASTER_SECRET_PATH.read_bytes()
+
+    # 3. Legacy location — migrate to new path
+    if _LEGACY_SECRET_PATH.exists():
+        secret = _LEGACY_SECRET_PATH.read_bytes()
+        MASTER_SECRET_PATH.write_bytes(secret)
+        MASTER_SECRET_PATH.chmod(0o600)
+        return secret
+
+    # 4. Auto-generate
     secret = os.urandom(32)
     MASTER_SECRET_PATH.write_bytes(secret)
     MASTER_SECRET_PATH.chmod(0o600)
@@ -34,9 +65,19 @@ def _get_master_secret() -> bytes:
 
 
 def _get_salt() -> bytes:
-    """Load or generate the salt."""
+    """Load or generate the salt. Same priority as master secret."""
+    _DATA_DIR.mkdir(parents=True, exist_ok=True)
+
     if SALT_PATH.exists():
         return SALT_PATH.read_bytes()
+
+    # Legacy migration
+    if _LEGACY_SALT_PATH.exists():
+        salt = _LEGACY_SALT_PATH.read_bytes()
+        SALT_PATH.write_bytes(salt)
+        SALT_PATH.chmod(0o600)
+        return salt
+
     salt = os.urandom(16)
     SALT_PATH.write_bytes(salt)
     SALT_PATH.chmod(0o600)

@@ -1,123 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Nazar -- Handoff Manager
+Nazar — Handoff Manager
 
 Handles human handoff lifecycle:
 1. AI-powered intent detection (replaces keyword matching)
-2. Persistent handoff state (survives server restarts)
+2. Persistent handoff state (SQLite)
 3. Reason logging with full audit trail
 4. Team notification via WhatsApp
 5. Auto-resume after configurable timeout
 6. Handoff queue for the dashboard
 
-Storage: data/handoffs/
-  state.json        -- current bot on/off per contact + metadata
-  history.jsonl     -- audit log of all handoff events
+Storage: SQLite via core/database.py (handoff_states + handoff_events tables)
 """
 
 import json
 import logging
-import fcntl
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Optional, Callable
+
+from database import get_db, row_to_dict, rows_to_list
 
 logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
-DATA_DIR = Path(__file__).parent.parent / "data" / "handoffs"
 
-# Default auto-resume timeout in hours (0 = disabled)
 DEFAULT_AUTO_RESUME_HOURS = 0
 
 # -----------------------------------------------------------------------
-# Keyword triggers (fast, no LLM cost — first pass filter)
+# Keyword triggers
 # -----------------------------------------------------------------------
 
 EXPLICIT_HANDOFF_PHRASES = [
-    "talk to a person",
-    "talk to someone",
-    "real person",
-    "speak to a human",
-    "speak to someone",
-    "connect me with someone",
-    "connect me to a person",
-    "transfer me",
-    "let me talk to",
-    "i want to speak with",
-    "get me a human",
-    "get me a manager",
-    "i need a manager",
-    "i need a supervisor",
+    "talk to a person", "talk to someone", "real person",
+    "speak to a human", "speak to someone",
+    "connect me with someone", "connect me to a person",
+    "transfer me", "let me talk to", "i want to speak with",
+    "get me a human", "get me a manager",
+    "i need a manager", "i need a supervisor",
     "can i talk to your manager",
 ]
 
 ESCALATION_KEYWORDS = [
-    "escalate",
-    "complaint",
-    "unsubscribe",
-    "cancel my",
-    "refund",
-    "sue",
-    "lawyer",
-    "legal action",
-    "consumer court",
-    "trading standards",
-    "file a complaint",
-    "report you",
-    "worst experience",
-    "disgusted",
-    "unacceptable",
-    "ridiculous",
+    "escalate", "complaint", "unsubscribe", "cancel my", "refund",
+    "sue", "lawyer", "legal action", "consumer court", "trading standards",
+    "file a complaint", "report you", "worst experience", "disgusted",
+    "unacceptable", "ridiculous",
 ]
-
-
-# -----------------------------------------------------------------------
-# State persistence
-# -----------------------------------------------------------------------
-
-def _state_path() -> Path:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return DATA_DIR / "state.json"
-
-
-def _history_path() -> Path:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return DATA_DIR / "history.jsonl"
-
-
-def _load_state() -> dict:
-    """Load the full handoff state. Returns {contact_id: {...}}."""
-    path = _state_path()
-    if not path.exists():
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        logger.warning(f"Failed to load handoff state: {e}")
-        return {}
-
-
-def _save_state(state: dict):
-    """Save the full handoff state with file locking."""
-    path = _state_path()
-    lock_path = path.with_suffix(".lock")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(lock_path, "w") as lock_file:
-        fcntl.flock(lock_file, fcntl.LOCK_EX)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=2, ensure_ascii=False)
-
-
-def _append_history(event: dict):
-    """Append a handoff event to the audit log."""
-    path = _history_path()
-    try:
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(event, ensure_ascii=False) + "\n")
-    except Exception as e:
-        logger.warning(f"Failed to log handoff event: {e}")
 
 
 # -----------------------------------------------------------------------
@@ -126,26 +54,33 @@ def _append_history(event: dict):
 
 def is_bot_active(contact_id: str) -> bool:
     """Check if the bot is active for a given contact (True = bot handles)."""
-    state = _load_state()
-    entry = state.get(contact_id)
-    if entry is None:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT bot_active FROM handoff_states WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
+    if row is None:
         return True  # Default: bot is on
-    return entry.get("bot_active", True)
+    return bool(row["bot_active"])
 
 
 def get_contact_handoff_state(contact_id: str) -> Optional[dict]:
-    """
-    Get the full handoff state for a contact.
-    Returns None if no handoff has ever happened.
-    Returns dict with: bot_active, reason, triggered_at, triggered_by, etc.
-    """
-    state = _load_state()
-    return state.get(contact_id)
+    """Get the full handoff state for a contact."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM handoff_states WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return _row_to_state(row)
 
 
 def get_all_handoff_states() -> dict:
     """Get the full handoff state map {contact_id: {...}}."""
-    return _load_state()
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM handoff_states").fetchall()
+    return {r["contact_id"]: _row_to_state(r) for r in rows}
 
 
 # -----------------------------------------------------------------------
@@ -161,24 +96,9 @@ def trigger_handoff(
     message_excerpt: str = "",
     detection_method: str = "keyword",
 ) -> dict:
-    """
-    Trigger a human handoff for a contact.
-
-    Args:
-        contact_id: The contact's unique ID.
-        reason: Why the handoff happened (human-readable).
-        triggered_by: "keyword", "ai", "manual", "error".
-        contact_name: Customer name for notifications.
-        contact_phone: Customer phone for notifications.
-        message_excerpt: The message that triggered the handoff.
-        detection_method: "keyword", "ai_intent", "ai_response", "manual".
-
-    Returns:
-        The handoff state entry.
-    """
+    """Trigger a human handoff for a contact."""
     now = datetime.now(IST).isoformat()
 
-    state = _load_state()
     entry = {
         "bot_active": False,
         "reason": reason,
@@ -192,23 +112,33 @@ def trigger_handoff(
         "human_responded_at": None,
         "resumed_at": None,
     }
-    state[contact_id] = entry
-    _save_state(state)
 
-    # Log to audit trail
-    _append_history({
-        "event": "handoff_triggered",
-        "contact_id": contact_id,
-        "contact_name": contact_name,
-        "timestamp": now,
-        **entry,
-    })
+    with get_db() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO handoff_states
+               (contact_id, bot_active, reason, triggered_by, triggered_at,
+                detection_method, contact_name, contact_phone, message_excerpt,
+                human_responded, human_responded_at, resumed_at)
+               VALUES (?, 0, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL)""",
+            (contact_id, reason, triggered_by, now,
+             detection_method, contact_name, contact_phone, message_excerpt[:200]),
+        )
+
+        # Audit trail
+        conn.execute(
+            """INSERT INTO handoff_events
+               (contact_id, event, reason, actor, contact_name, contact_phone,
+                detection_method, message_excerpt, bot_active, triggered_by,
+                triggered_at, timestamp)
+               VALUES (?, 'handoff_triggered', ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)""",
+            (contact_id, reason, triggered_by, contact_name, contact_phone,
+             detection_method, message_excerpt[:200], triggered_by, now, now),
+        )
 
     logger.info(
-        f"Handoff triggered for {contact_id} ({contact_name}): "
-        f"{reason} [method={detection_method}]"
+        "Handoff triggered for %s (%s): %s [method=%s]",
+        contact_id, contact_name, reason, detection_method,
     )
-
     return entry
 
 
@@ -217,71 +147,75 @@ def resume_bot(
     resumed_by: str = "manual",
     reason: str = "",
 ) -> dict:
-    """
-    Resume bot for a contact (end human mode).
-
-    Args:
-        contact_id: The contact's unique ID.
-        resumed_by: "manual", "auto_timeout", "human_agent".
-        reason: Optional reason for resuming.
-
-    Returns:
-        The updated state entry.
-    """
+    """Resume bot for a contact (end human mode)."""
     now = datetime.now(IST).isoformat()
 
-    state = _load_state()
-    entry = state.get(contact_id, {})
+    with get_db() as conn:
+        # Get existing state for the return value
+        row = conn.execute(
+            "SELECT * FROM handoff_states WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
+
+        conn.execute(
+            """UPDATE handoff_states SET
+               bot_active = 1, resumed_at = ?, resumed_by = ?, resume_reason = ?
+               WHERE contact_id = ?""",
+            (now, resumed_by, reason, contact_id),
+        )
+
+        if not row:
+            # No existing state, create one
+            conn.execute(
+                """INSERT OR IGNORE INTO handoff_states
+                   (contact_id, bot_active, resumed_at, resumed_by, resume_reason)
+                   VALUES (?, 1, ?, ?, ?)""",
+                (contact_id, now, resumed_by, reason),
+            )
+
+        conn.execute(
+            """INSERT INTO handoff_events
+               (contact_id, event, reason, actor, resumed_by, timestamp)
+               VALUES (?, 'bot_resumed', ?, ?, ?, ?)""",
+            (contact_id, reason, resumed_by, resumed_by, now),
+        )
+
+    entry = _row_to_state(row) if row else {}
     entry["bot_active"] = True
     entry["resumed_at"] = now
     entry["resumed_by"] = resumed_by
     entry["resume_reason"] = reason
-    state[contact_id] = entry
-    _save_state(state)
 
-    # Log to audit trail
-    _append_history({
-        "event": "bot_resumed",
-        "contact_id": contact_id,
-        "timestamp": now,
-        "resumed_by": resumed_by,
-        "reason": reason,
-    })
-
-    logger.info(f"Bot resumed for {contact_id} by {resumed_by}")
+    logger.info("Bot resumed for %s by %s", contact_id, resumed_by)
     return entry
 
 
 def mark_human_responded(contact_id: str):
     """Mark that a human agent has responded to this handoff."""
     now = datetime.now(IST).isoformat()
-    state = _load_state()
-    entry = state.get(contact_id)
-    if entry:
-        entry["human_responded"] = True
-        entry["human_responded_at"] = now
-        _save_state(state)
-        _append_history({
-            "event": "human_responded",
-            "contact_id": contact_id,
-            "timestamp": now,
-        })
+
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE handoff_states SET human_responded = 1, human_responded_at = ? "
+            "WHERE contact_id = ?",
+            (now, contact_id),
+        )
+        conn.execute(
+            """INSERT INTO handoff_events
+               (contact_id, event, timestamp)
+               VALUES (?, 'human_responded', ?)""",
+            (contact_id, now),
+        )
 
 
 # -----------------------------------------------------------------------
-# Keyword detection (fast first-pass — no LLM cost)
+# Keyword detection
 # -----------------------------------------------------------------------
 
 def check_keyword_handoff(message: str) -> Optional[dict]:
-    """
-    Check if a message matches keyword-based handoff triggers.
-
-    Returns None if no match, or a dict with:
-        {"reason": str, "category": "explicit_request"|"escalation"}
-    """
+    """Check if a message matches keyword-based handoff triggers."""
     lower = message.lower()
 
-    # Check explicit requests to talk to a human
     for phrase in EXPLICIT_HANDOFF_PHRASES:
         if phrase in lower:
             return {
@@ -289,7 +223,6 @@ def check_keyword_handoff(message: str) -> Optional[dict]:
                 "category": "explicit_request",
             }
 
-    # Check escalation keywords
     for keyword in ESCALATION_KEYWORDS:
         if keyword in lower:
             return {
@@ -318,7 +251,7 @@ Trigger a handoff if ANY of these are true:
 
 DO NOT trigger a handoff for:
 - Normal product questions
-- Casual use of words like "human" in non-request context (e.g., "I'm only human")
+- Casual use of words like "human" in non-request context
 - Mild confusion that can be resolved with a better answer
 - Price inquiries about standard plans
 
@@ -333,23 +266,7 @@ async def check_ai_handoff(
     llm_call: Callable,
     contact_name: str = "",
 ) -> Optional[dict]:
-    """
-    Use the LLM to determine if a handoff is needed.
-
-    This is the smart check — more expensive but much more accurate
-    than keyword matching. Only called when keyword check is negative
-    and smart_handoff is enabled.
-
-    Args:
-        message: The current customer message.
-        recent_messages: Last few messages for context.
-        llm_call: async callable(messages) -> str.
-        contact_name: Customer name for context.
-
-    Returns:
-        None if no handoff needed, or dict with reason/confidence/category.
-    """
-    # Build context from recent messages
+    """Use the LLM to determine if a handoff is needed."""
     context_lines = []
     for msg in recent_messages[-6:]:
         role = "Customer" if msg.get("direction") == "inbound" else "Bot"
@@ -363,9 +280,7 @@ async def check_ai_handoff(
 
     try:
         raw = await llm_call(messages)
-        # Parse JSON from response
         raw = raw.strip()
-        # Handle markdown-wrapped JSON
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -384,10 +299,10 @@ async def check_ai_handoff(
         return None
 
     except json.JSONDecodeError:
-        logger.warning(f"AI handoff check returned invalid JSON: {raw[:100]}")
+        logger.warning("AI handoff check returned invalid JSON: %s", raw[:100])
         return None
     except Exception as e:
-        logger.warning(f"AI handoff check failed: {e}")
+        logger.warning("AI handoff check failed: %s", e)
         return None
 
 
@@ -396,34 +311,17 @@ async def check_ai_handoff(
 # -----------------------------------------------------------------------
 
 def check_ai_response_handoff(ai_response: str) -> Optional[dict]:
-    """
-    Check if the AI's own response indicates it is handing off.
-
-    The SOUL.md instructs the AI to say things like:
-    "Let me connect you with someone from the team..."
-
-    If the AI says this, we should actually trigger the handoff
-    rather than letting the bot continue handling the next message.
-
-    Returns None or {"reason": str}.
-    """
+    """Check if the AI's own response indicates it is handing off."""
     lower = ai_response.lower()
 
     handoff_phrases = [
-        "connect you with",
-        "someone from the team",
-        "team member will",
-        "team member who can",
-        "have someone reach out",
-        "let me get someone",
-        "transfer you to",
-        "have a colleague",
-        "our team will reach out",
-        "our team will get back",
-        "a specialist will",
-        "right person to help",
-        "pass this along",
-        "escalate this",
+        "connect you with", "someone from the team",
+        "team member will", "team member who can",
+        "have someone reach out", "let me get someone",
+        "transfer you to", "have a colleague",
+        "our team will reach out", "our team will get back",
+        "a specialist will", "right person to help",
+        "pass this along", "escalate this",
     ]
 
     for phrase in handoff_phrases:
@@ -441,43 +339,35 @@ def check_ai_response_handoff(ai_response: str) -> Optional[dict]:
 # -----------------------------------------------------------------------
 
 def check_auto_resume(auto_resume_hours: int = 0) -> list:
-    """
-    Check for contacts that should be auto-resumed.
-
-    Args:
-        auto_resume_hours: Hours after which to auto-resume.
-                          0 = disabled.
-
-    Returns:
-        List of contact_ids that were auto-resumed.
-    """
+    """Check for contacts that should be auto-resumed."""
     if auto_resume_hours <= 0:
         return []
 
     now = datetime.now(IST)
-    state = _load_state()
     resumed = []
 
-    for contact_id, entry in state.items():
-        if entry.get("bot_active", True):
-            continue  # Already active
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT contact_id, triggered_at FROM handoff_states "
+            "WHERE bot_active = 0 AND triggered_at IS NOT NULL"
+        ).fetchall()
 
-        triggered_at = entry.get("triggered_at")
+    for row in rows:
+        triggered_at = row["triggered_at"]
         if not triggered_at:
             continue
-
         try:
             triggered_dt = datetime.fromisoformat(triggered_at)
             hours_since = (now - triggered_dt).total_seconds() / 3600
             if hours_since >= auto_resume_hours:
                 resume_bot(
-                    contact_id,
+                    row["contact_id"],
                     resumed_by="auto_timeout",
                     reason=f"Auto-resumed after {auto_resume_hours}h with no human response",
                 )
-                resumed.append(contact_id)
+                resumed.append(row["contact_id"])
         except Exception as e:
-            logger.warning(f"Auto-resume check failed for {contact_id}: {e}")
+            logger.warning("Auto-resume check failed for %s: %s", row["contact_id"], e)
 
     return resumed
 
@@ -487,91 +377,78 @@ def check_auto_resume(auto_resume_hours: int = 0) -> list:
 # -----------------------------------------------------------------------
 
 def get_handoff_queue() -> list:
-    """
-    Get all contacts currently in human mode (bot off).
-    Returns a list sorted by triggered_at (newest first).
-    """
-    state = _load_state()
-    queue = []
+    """Get all contacts currently in human mode (bot off)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM handoff_states WHERE bot_active = 0 "
+            "ORDER BY triggered_at DESC"
+        ).fetchall()
 
-    for contact_id, entry in state.items():
-        if not entry.get("bot_active", True):
-            queue.append({
-                "contact_id": contact_id,
-                "contact_name": entry.get("contact_name", "Unknown"),
-                "contact_phone": entry.get("contact_phone", ""),
-                "reason": entry.get("reason", "Unknown"),
-                "category": entry.get("category", entry.get("detection_method", "unknown")),
-                "triggered_at": entry.get("triggered_at", ""),
-                "triggered_by": entry.get("triggered_by", "unknown"),
-                "detection_method": entry.get("detection_method", "unknown"),
-                "message_excerpt": entry.get("message_excerpt", ""),
-                "human_responded": entry.get("human_responded", False),
-                "human_responded_at": entry.get("human_responded_at"),
-            })
-
-    queue.sort(key=lambda x: x.get("triggered_at", ""), reverse=True)
-    return queue
+    result = []
+    for r in rows:
+        d = dict(r)
+        result.append({
+            "contact_id": d["contact_id"],
+            "contact_name": d.get("contact_name") or "Unknown",
+            "contact_phone": d.get("contact_phone") or "",
+            "reason": d.get("reason") or "Unknown",
+            "category": d.get("detection_method", "unknown"),
+            "triggered_at": d.get("triggered_at") or "",
+            "triggered_by": d.get("triggered_by") or "unknown",
+            "detection_method": d.get("detection_method", "unknown"),
+            "message_excerpt": d.get("message_excerpt") or "",
+            "human_responded": bool(d.get("human_responded", 0)),
+            "human_responded_at": d.get("human_responded_at"),
+        })
+    return result
 
 
 def get_handoff_history(limit: int = 50) -> list:
-    """
-    Get the handoff audit log (most recent first).
+    """Get the handoff audit log (most recent first)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM handoff_events ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
 
-    Returns list of event dicts.
-    """
-    path = _history_path()
-    if not path.exists():
-        return []
-
-    events = []
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    events.append(json.loads(line))
-    except Exception as e:
-        logger.warning(f"Failed to read handoff history: {e}")
-        return []
-
-    events.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-    return events[:limit]
+    return [dict(r) for r in rows]
 
 
 def get_handoff_stats() -> dict:
-    """
-    Get aggregate handoff statistics.
+    """Get aggregate handoff statistics."""
+    with get_db() as conn:
+        triggers = conn.execute(
+            "SELECT COUNT(*) as cnt FROM handoff_events WHERE event = 'handoff_triggered'"
+        ).fetchone()["cnt"]
 
-    Returns dict with counts by category, avg time to human response, etc.
-    """
-    history = get_handoff_history(limit=500)
+        resumes = conn.execute(
+            "SELECT COUNT(*) as cnt FROM handoff_events WHERE event = 'bot_resumed'"
+        ).fetchone()["cnt"]
 
-    triggers = [e for e in history if e.get("event") == "handoff_triggered"]
-    resumes = [e for e in history if e.get("event") == "bot_resumed"]
+        queue_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM handoff_states WHERE bot_active = 0"
+        ).fetchone()["cnt"]
 
-    by_category = {}
-    by_method = {}
-    for t in triggers:
-        cat = t.get("category", "unknown")
-        by_category[cat] = by_category.get(cat, 0) + 1
+        # By category
+        cat_rows = conn.execute(
+            "SELECT detection_method, COUNT(*) as cnt "
+            "FROM handoff_events WHERE event = 'handoff_triggered' "
+            "GROUP BY detection_method"
+        ).fetchall()
 
-        method = t.get("detection_method", "unknown")
-        by_method[method] = by_method.get(method, 0) + 1
-
-    queue = get_handoff_queue()
+    by_method = {r["detection_method"]: r["cnt"] for r in cat_rows}
 
     return {
-        "total_handoffs": len(triggers),
-        "total_resumes": len(resumes),
-        "currently_in_queue": len(queue),
-        "by_category": by_category,
+        "total_handoffs": triggers,
+        "total_resumes": resumes,
+        "currently_in_queue": queue_count,
+        "by_category": {},
         "by_detection_method": by_method,
     }
 
 
 # -----------------------------------------------------------------------
-# Full handoff evaluation (the main entry point)
+# Full handoff evaluation
 # -----------------------------------------------------------------------
 
 async def evaluate_handoff(
@@ -583,24 +460,7 @@ async def evaluate_handoff(
     contact_phone: str = "",
     smart_handoff_enabled: bool = True,
 ) -> Optional[dict]:
-    """
-    Full handoff evaluation pipeline:
-    1. Keyword check (fast, free)
-    2. AI intent check (smart, costs tokens — only if enabled)
-
-    Args:
-        contact_id: Contact ID.
-        message: Current inbound message.
-        recent_messages: Recent conversation for context.
-        llm_call: async callable for AI check (haiku tier).
-        contact_name: Customer name.
-        contact_phone: Customer phone.
-        smart_handoff_enabled: Whether to run AI check after keywords.
-
-    Returns:
-        None if no handoff, or the handoff state entry dict.
-    """
-    # 1. Keyword check (always runs — free and fast)
+    """Full handoff evaluation pipeline."""
     keyword_result = check_keyword_handoff(message)
     if keyword_result:
         entry = trigger_handoff(
@@ -614,7 +474,6 @@ async def evaluate_handoff(
         )
         return entry
 
-    # 2. AI intent check (only if smart handoff is enabled and llm available)
     if smart_handoff_enabled and llm_call:
         ai_result = await check_ai_handoff(
             message=message,
@@ -643,12 +502,7 @@ async def evaluate_response_handoff(
     contact_name: str = "",
     contact_phone: str = "",
 ) -> Optional[dict]:
-    """
-    Check if the AI's own response triggered a handoff.
-    Called AFTER the AI generates a reply.
-
-    Returns None or the handoff state entry.
-    """
+    """Check if the AI's own response triggered a handoff."""
     result = check_ai_response_handoff(ai_response)
     if result:
         entry = trigger_handoff(
@@ -674,11 +528,7 @@ def build_team_notification(
     reason: str,
     message_excerpt: str,
 ) -> str:
-    """
-    Build a WhatsApp notification message for the team.
-
-    Returns a formatted string ready to send.
-    """
+    """Build a WhatsApp notification message for the team."""
     return (
         f"🔔 *Handoff Alert*\n\n"
         f"*Customer:* {contact_name or 'Unknown'}\n"
@@ -691,70 +541,24 @@ def build_team_notification(
 
 
 # -----------------------------------------------------------------------
-# Test
+# Internal
 # -----------------------------------------------------------------------
 
-if __name__ == "__main__":
-    import shutil
-    import asyncio
-
-    # Clean
-    if DATA_DIR.exists():
-        shutil.rmtree(DATA_DIR)
-
-    # 1. Keyword detection
-    assert check_keyword_handoff("I want to talk to a person") is not None
-    assert check_keyword_handoff("I want to sue you") is not None
-    assert check_keyword_handoff("What's the price?") is None
-    assert check_keyword_handoff("I'm only human, I make mistakes") is None  # No false positive!
-    print("✅ Keyword detection tests passed")
-
-    # 2. Trigger handoff
-    entry = trigger_handoff(
-        "test123", "Customer requested human",
-        contact_name="Raj", contact_phone="+919876543210",
-        message_excerpt="Talk to a person please",
-        detection_method="keyword",
-    )
-    assert entry["bot_active"] is False
-    assert is_bot_active("test123") is False
-    assert is_bot_active("other_contact") is True  # default
-    print("✅ Trigger handoff tests passed")
-
-    # 3. Queue
-    queue = get_handoff_queue()
-    assert len(queue) == 1
-    assert queue[0]["contact_id"] == "test123"
-    print("✅ Queue tests passed")
-
-    # 4. Resume
-    resume_bot("test123", resumed_by="manual")
-    assert is_bot_active("test123") is True
-    queue = get_handoff_queue()
-    assert len(queue) == 0
-    print("✅ Resume tests passed")
-
-    # 5. History
-    history = get_handoff_history()
-    assert len(history) >= 2  # triggered + resumed
-    print("✅ History tests passed")
-
-    # 6. AI response detection
-    assert check_ai_response_handoff("Here's the pricing for plan A") is None
-    assert check_ai_response_handoff("Let me connect you with someone from the team who can help") is not None
-    print("✅ AI response detection tests passed")
-
-    # 7. Stats
-    stats = get_handoff_stats()
-    assert stats["total_handoffs"] >= 1
-    print(f"✅ Stats: {json.dumps(stats, indent=2)}")
-
-    # 8. Notification
-    msg = build_team_notification("Raj", "+919876543210", "Customer frustrated", "This is terrible")
-    assert "Raj" in msg
-    assert "Handoff Alert" in msg
-    print("✅ Notification format tests passed")
-
-    # Cleanup
-    shutil.rmtree(DATA_DIR)
-    print("\n✅ All handoff manager tests passed!")
+def _row_to_state(row) -> dict:
+    """Convert a handoff_states row to a dict."""
+    d = dict(row)
+    return {
+        "bot_active": bool(d.get("bot_active", 1)),
+        "reason": d.get("reason", ""),
+        "triggered_by": d.get("triggered_by", ""),
+        "triggered_at": d.get("triggered_at"),
+        "detection_method": d.get("detection_method", ""),
+        "contact_name": d.get("contact_name", ""),
+        "contact_phone": d.get("contact_phone", ""),
+        "message_excerpt": d.get("message_excerpt", ""),
+        "human_responded": bool(d.get("human_responded", 0)),
+        "human_responded_at": d.get("human_responded_at"),
+        "resumed_at": d.get("resumed_at"),
+        "resumed_by": d.get("resumed_by"),
+        "resume_reason": d.get("resume_reason", ""),
+    }

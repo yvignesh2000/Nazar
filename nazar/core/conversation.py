@@ -190,6 +190,15 @@ async def handle_inbound(
     if signals:
         _auto_score(contact_id, contact, signals)
 
+    # 12. AI pipeline stage classification
+    try:
+        await _auto_classify_stage(contact_id, contact, recent + [
+            {"direction": "inbound", "content": message},
+            {"direction": "outbound", "content": response},
+        ], llm_call)
+    except Exception as e:
+        logger.debug("Auto-classify stage skipped: %s", e)
+
     logger.info(f"[{phone}] Handled inbound, response: {response[:60]}...")
     return response
 
@@ -214,6 +223,35 @@ def _auto_score(contact_id: str, contact: dict, signals: list):
     new_score = max(0, min(100, current_score + delta))
     if new_score != current_score:
         update_lead_score(contact_id, new_score)
+
+
+async def _auto_classify_stage(
+    contact_id: str,
+    contact: dict,
+    recent_messages: list,
+    llm_call: Callable,
+):
+    """Run AI pipeline classification if appropriate."""
+    from pipeline_classifier import classify_contact_stage, should_classify
+    from contact_manager import update_contact
+
+    if not should_classify(contact):
+        return
+
+    result = await classify_contact_stage(contact, recent_messages, llm_call)
+    if result is None:
+        return
+
+    new_stage = result["stage"]
+    current_stage = contact.get("pipeline_stage", "New")
+
+    if new_stage != current_stage:
+        update_contact(contact_id, pipeline_stage=new_stage)
+        logger.info(
+            "AI classified %s: %s → %s (confidence=%.2f, reason=%s)",
+            contact_id, current_stage, new_stage,
+            result["confidence"], result["reason"],
+        )
 
 
 def _load_knowledge_base() -> str:

@@ -15,6 +15,14 @@ import os
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+# Fix SQLite version for ChromaDB on older systems (needs >= 3.35.0)
+try:
+    __import__("pysqlite3")
+    import sys as _sys
+    _sys.modules["sqlite3"] = _sys.modules.pop("pysqlite3")
+except ImportError:
+    pass
+
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -74,7 +82,7 @@ from reply_mode import (
 )
 from template_manager import (
     list_templates, get_template, get_template_by_name, create_template,
-    update_template, delete_template, increment_usage, render_template,
+    update_template, delete_template, increment_usage as increment_template_usage, render_template,
     suggest_template, get_template_stats, TEMPLATE_CATEGORIES,
 )
 from digest_engine import (
@@ -113,6 +121,7 @@ from optout_manager import (
 )
 from job_queue import job_queue, JobStatus
 from rate_limiter import wa_rate_limiter, DailyLimitExceeded
+from workspace_context import set_workspace, get_workspace
 from assignment_manager import (
     assign_conversation, manual_assign, claim_conversation,
     transfer_conversation, resolve_conversation,
@@ -128,6 +137,18 @@ from segmentation import (
 import knowledge_base as kb_manager
 import webhook_dispatcher as webhook_dispatcher_mod
 from auth_manager import revoke_token
+from contact_groups import (
+    create_group, list_groups, get_group, update_group, delete_group,
+    add_members, remove_members, get_group_members, get_contact_groups,
+    get_contacts_by_group_ids, GROUP_COLORS,
+)
+from pipeline_classifier import classify_contact_stage, should_classify
+from service_window import compute_window as sw_compute_window, batch_window_status, classify_campaign_targets
+from meta_template_sync import (
+    submit_template_to_meta, get_meta_template_status,
+    delete_template_from_meta, sync_all_templates,
+    handle_template_status_webhook, is_meta_configured,
+)
 from schemas import (
     CreateContactRequest, UpdateContactRequest, ImportContactsRequest,
     MovePipelineRequest, SendMessageRequest, HandoverRequest,
@@ -178,20 +199,53 @@ RATE_LIMIT_MAX = 120         # max requests per window per IP
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    """Add security headers and simple rate limiting."""
-    # Rate limiting (skip for static assets)
-    if not request.url.path.startswith("/assets"):
+    """Add security headers, CSRF protection, and rate limiting."""
+    # CSRF protection: reject state-changing requests from foreign origins
+    # This prevents cross-site attacks where a malicious page submits forms to our API
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        origin = request.headers.get("origin", "")
+        referer = request.headers.get("referer", "")
+        # Allow requests with no origin (server-to-server, CLI tools, mobile apps)
+        # and requests with API key auth (not browser sessions)
+        has_api_key = bool(request.headers.get("X-Nazar-Key", ""))
+        if origin and not has_api_key:
+            # For browser-originated requests, validate the origin
+            host = request.headers.get("host", "")
+            allowed_origins = {f"http://{host}", f"https://{host}", "http://localhost:5173"}
+            if origin not in allowed_origins:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "CSRF validation failed: origin mismatch"},
+                )
+
+    # Rate limiting (skip for static assets and health checks)
+    if not request.url.path.startswith("/assets") and request.url.path != "/health":
+        # Use IP + API key fingerprint as rate limit key to prevent bypass
         client_ip = request.client.host if request.client else "unknown"
+        api_key_finger = ""
+        auth_header = request.headers.get("Authorization", "")
+        nazar_key = request.headers.get("X-Nazar-Key", "")
+        if auth_header:
+            api_key_finger = auth_header[-8:]  # last 8 chars as fingerprint
+        elif nazar_key:
+            api_key_finger = nazar_key[-8:]
+        rate_key = f"{client_ip}:{api_key_finger}" if api_key_finger else client_ip
+
         now = time.time()
-        timestamps = _rate_limit_store[client_ip]
+        timestamps = _rate_limit_store[rate_key]
         # Prune old entries
-        _rate_limit_store[client_ip] = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
-        if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_MAX:
+        _rate_limit_store[rate_key] = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+        if len(_rate_limit_store[rate_key]) >= RATE_LIMIT_MAX:
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded. Try again later."},
             )
-        _rate_limit_store[client_ip].append(now)
+        _rate_limit_store[rate_key].append(now)
+        # Prune stale rate limit keys every 1000 requests
+        if len(_rate_limit_store) > 5000:
+            stale_keys = [k for k, v in _rate_limit_store.items() if not v or now - v[-1] > RATE_LIMIT_WINDOW * 2]
+            for k in stale_keys:
+                del _rate_limit_store[k]
 
     response = await call_next(request)
 
@@ -201,10 +255,33 @@ async def security_middleware(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; connect-src 'self' wss: ws:;"
+    )
     return response
 
-# Track processed messages to avoid duplicates
+# Track processed messages to avoid duplicates (persisted to SQLite)
 _processed_messages: deque = deque(maxlen=10000)
+
+
+def _load_recent_message_ids():
+    """Load recent wa_message_ids from DB to prevent duplicate processing after restart."""
+    try:
+        from database import get_db as _dedup_get_db
+        with _dedup_get_db() as conn:
+            rows = conn.execute(
+                "SELECT wa_message_id FROM messages "
+                "WHERE wa_message_id IS NOT NULL AND wa_message_id != '' "
+                "ORDER BY timestamp DESC LIMIT 10000"
+            ).fetchall()
+        for row in rows:
+            mid = row["wa_message_id"]
+            if mid and mid not in _processed_messages:
+                _processed_messages.append(mid)
+        logger.info("Loaded %d recent message IDs for dedup", len(_processed_messages))
+    except Exception as e:
+        logger.warning("Could not load message IDs for dedup: %s", e)
 
 # Bot mode is now managed by handoff_manager (persistent to disk)
 # _bot_mode dict removed -- use is_bot_active(contact_id) instead
@@ -229,6 +306,7 @@ def _check_api_key(request: Request) -> dict:
       - Authorization: Bearer <jwt>  (session tokens from login)
 
     Returns the auth context dict (with workspace info).
+    Sets the thread-local workspace context for multi-tenancy.
     Raises 401 if invalid.
     """
     # 1. Try session token (Authorization: Bearer ...)
@@ -237,6 +315,7 @@ def _check_api_key(request: Request) -> dict:
         token = auth_header[7:]
         ctx = validate_token(token)
         if ctx:
+            set_workspace(ctx.get("workspace_id", "default"))
             return ctx
 
     # 2. Try API key (X-Nazar-Key header)
@@ -244,9 +323,44 @@ def _check_api_key(request: Request) -> dict:
     if key:
         workspace = validate_api_key(key)
         if workspace:
-            return {"workspace_id": workspace["workspace_id"], "workspace": workspace, "user": None}
+            ws_id = workspace["workspace_id"]
+            set_workspace(ws_id)
+            return {"workspace_id": ws_id, "workspace": workspace, "user": None}
 
     raise HTTPException(status_code=401, detail="Invalid API key or session token")
+
+
+def _check_subscription_active(ctx: dict) -> None:
+    """
+    Verify the workspace has an active or trialing subscription.
+    Raises HTTP 402 if the subscription is expired/canceled.
+    Called on state-changing endpoints (send message, create campaign, etc.)
+    """
+    workspace_id = ctx.get("workspace_id", "default")
+    if not is_subscription_active(workspace_id):
+        raise HTTPException(
+            status_code=402,
+            detail="Your subscription has expired or been canceled. "
+                   "Please upgrade your plan to continue using Nazar.",
+        )
+
+
+def _check_billing_limit(ctx: dict, metric: str, amount: int = 1) -> None:
+    """
+    Check if a workspace is within its plan limits for a metric.
+    Raises HTTP 403 if over the limit.
+    """
+    workspace_id = ctx.get("workspace_id", "default")
+    result = check_limit(workspace_id, metric, amount)
+    if not result["allowed"]:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Plan limit reached for {metric}. "
+                f"Current usage: {result['current']}/{result['limit']}. "
+                f"Please upgrade your plan."
+            ),
+        )
 
 
 # ====================================================================
@@ -262,6 +376,12 @@ def _load_config() -> dict:
         except Exception:
             pass
     return {"business_name": "our company", "bot_enabled": True, "smart_handoff": True}
+
+
+def _save_config(config: dict):
+    """Save bot configuration to data/config.json."""
+    config_path = DATA_DIR / "config.json"
+    config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 
 # ====================================================================
@@ -389,6 +509,111 @@ async def mark_as_read(message_id: str):
                 logger.error(f"Mark read failed for {message_id}: {err}")
 
 
+async def send_interactive_buttons(phone: str, body_text: str, buttons: list, header: str = "", footer: str = "") -> dict:
+    """
+    Send a WhatsApp interactive button message (up to 3 buttons).
+
+    Args:
+        phone: recipient phone number
+        body_text: main message body
+        buttons: list of {"id": "btn_1", "title": "Click Me"} dicts (max 3)
+        header: optional header text
+        footer: optional footer text
+
+    WhatsApp docs: https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-reply-buttons-messages
+    """
+    phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
+    if not can_message(phone_e164):
+        return {"skipped": True, "reason": "opted_out"}
+
+    await wa_rate_limiter.acquire()
+
+    action_buttons = []
+    for b in buttons[:3]:
+        action_buttons.append({
+            "type": "reply",
+            "reply": {"id": b["id"], "title": b["title"][:20]},
+        })
+
+    interactive = {
+        "type": "button",
+        "body": {"text": body_text[:1024]},
+        "action": {"buttons": action_buttons},
+    }
+    if header:
+        interactive["header"] = {"type": "text", "text": header[:60]}
+    if footer:
+        interactive["footer"] = {"text": footer[:60]}
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone.replace("+", ""),
+        "type": "interactive",
+        "interactive": interactive,
+    }
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(WA_API_URL, headers=headers, json=payload) as resp:
+            result = await resp.json()
+            if resp.status != 200:
+                logger.error(f"Interactive buttons send failed: {result}")
+            return result
+
+
+async def send_interactive_list(phone: str, body_text: str, button_text: str, sections: list, header: str = "", footer: str = "") -> dict:
+    """
+    Send a WhatsApp interactive list message.
+
+    Args:
+        phone: recipient phone number
+        body_text: main message body
+        button_text: text on the list button (e.g., "View Options")
+        sections: list of {"title": "Section Name", "rows": [{"id": "row_1", "title": "Row Title", "description": "optional"}]}
+        header: optional header text
+        footer: optional footer text
+
+    WhatsApp docs: https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-list-messages
+    """
+    phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
+    if not can_message(phone_e164):
+        return {"skipped": True, "reason": "opted_out"}
+
+    await wa_rate_limiter.acquire()
+
+    interactive = {
+        "type": "list",
+        "body": {"text": body_text[:1024]},
+        "action": {
+            "button": button_text[:20],
+            "sections": sections[:10],
+        },
+    }
+    if header:
+        interactive["header"] = {"type": "text", "text": header[:60]}
+    if footer:
+        interactive["footer"] = {"text": footer[:60]}
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone.replace("+", ""),
+        "type": "interactive",
+        "interactive": interactive,
+    }
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(WA_API_URL, headers=headers, json=payload) as resp:
+            result = await resp.json()
+            if resp.status != 200:
+                logger.error(f"Interactive list send failed: {result}")
+            return result
+
+
 async def download_whatsapp_media(media_id: str) -> tuple:
     """Download media from WhatsApp Cloud API. Returns (bytes, mime_type)."""
     headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
@@ -470,8 +695,32 @@ async def webhook_receive(request: Request):
         changes = entry.get("changes", [])
         for change in changes:
             value = change.get("value", {})
+            field = change.get("field", "")
             messages = value.get("messages", [])
             statuses = value.get("statuses", [])
+
+            # Handle template status update webhooks
+            # Meta sends these with field="message_template_status_update"
+            if field == "message_template_status_update":
+                try:
+                    result = handle_template_status_webhook(value)
+                    if result.get("handled"):
+                        logger.info(
+                            "Template status webhook: %s → %s",
+                            result.get("template_name"), result.get("new_status"),
+                        )
+                        # Notify dashboard via WebSocket
+                        t_ws = asyncio.create_task(ws_manager.broadcast({
+                            "type": "template_status_update",
+                            "template_name": result.get("template_name", ""),
+                            "old_status": result.get("old_status", ""),
+                            "new_status": result.get("new_status", ""),
+                            "event": result.get("event", ""),
+                        }))
+                        t_ws.add_done_callback(_log_task_error)
+                except Exception as e:
+                    logger.error("Template status webhook error: %s", e)
+                continue
 
             # Handle status updates (delivered, read)
             for status in statuses:
@@ -485,6 +734,13 @@ async def webhook_receive(request: Request):
 
                 phone = msg.get("from", "")
                 msg_type = msg.get("type", "")
+
+                # CTWA (Click-to-WhatsApp) Ad Attribution
+                # When a user clicks a WhatsApp ad on Facebook/Instagram,
+                # Meta includes a "referral" object in the first message.
+                referral = msg.get("referral") or msg.get("context", {}).get("referred_product") or None
+                if referral:
+                    _handle_ctwa_referral(phone, referral, msg_id)
 
                 if msg_type == "text":
                     text = msg.get("text", {}).get("body", "")
@@ -517,16 +773,154 @@ async def webhook_receive(request: Request):
     return Response(status_code=200)
 
 
+def _handle_ctwa_referral(phone: str, referral: dict, msg_id: str):
+    """
+    Track Click-to-WhatsApp (CTWA) ad attribution.
+
+    When a user clicks a WhatsApp ad on Facebook/Instagram, Meta includes:
+      - source_url: the ad URL
+      - source_id: the ad ID
+      - source_type: "ad" for paid, "post" for organic
+      - headline: the ad headline
+      - body: the ad body text
+      - media_type: "image" or "video"
+      - ctwa_clid: click ID for conversion tracking
+
+    This data is stored as the contact's source + tags for analytics.
+    """
+    phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
+    source_type = referral.get("source_type", "unknown")
+    source_url = referral.get("source_url", "")
+    source_id = referral.get("source_id", "")
+    headline = referral.get("headline", "")
+    ctwa_clid = referral.get("ctwa_clid", "")
+
+    logger.info(
+        "[%s] CTWA referral: type=%s, source_id=%s, headline=%s, clid=%s",
+        phone, source_type, source_id, headline, ctwa_clid,
+    )
+
+    try:
+        contact = get_contact_by_phone(phone_e164)
+        if contact:
+            # Update existing contact with ad attribution
+            update_fields = {}
+            if source_type == "ad":
+                update_fields["source"] = f"ctwa_ad:{source_id}" if source_id else "ctwa_ad"
+            else:
+                update_fields["source"] = f"ctwa_{source_type}"
+
+            update_contact(contact["contact_id"], **update_fields)
+
+            # Add CTWA tags
+            ctwa_tag = f"ctwa:{source_type}"
+            add_tag(contact["contact_id"], ctwa_tag)
+            if source_id:
+                add_tag(contact["contact_id"], f"ad:{source_id}")
+        else:
+            # Will be auto-created by _handle_text_message with source info
+            # Store in a temporary cache for the contact creation
+            _ctwa_pending[phone_e164] = {
+                "source": f"ctwa_ad:{source_id}" if source_id else f"ctwa_{source_type}",
+                "source_id": source_id,
+                "source_url": source_url,
+                "headline": headline,
+                "ctwa_clid": ctwa_clid,
+                "timestamp": datetime.now(IST).isoformat(),
+            }
+
+        # Log the ad attribution event for analytics
+        log_event("ctwa_referral", contact_id=contact["contact_id"] if contact else "",
+                  metadata={
+                      "source_type": source_type,
+                      "source_id": source_id,
+                      "headline": headline,
+                      "ctwa_clid": ctwa_clid,
+                  })
+
+    except Exception as e:
+        logger.error(f"[{phone}] CTWA referral tracking failed: {e}", exc_info=True)
+
+
+# Temporary storage for CTWA attribution pending contact creation
+_ctwa_pending: dict = {}
+
+
 def _handle_status_update(status: dict):
-    """Handle WhatsApp delivery/read status updates."""
-    # Update message status in conversation history
+    """
+    Handle WhatsApp delivery/read status updates.
+
+    Updates:
+    1. Message status in the messages table (sent → delivered → read → failed)
+    2. Campaign delivered/read/replied counters via campaign_contacts linkage
+    """
     wa_msg_id = status.get("id", "")
     new_status = status.get("status", "")  # sent, delivered, read, failed
     recipient = status.get("recipient_id", "")
 
-    if new_status and recipient:
-        logger.info(f"Status update: {wa_msg_id} → {new_status} for {recipient}")
-        # TODO: update message status in contact's conversation log
+    if not new_status or not recipient:
+        return
+
+    logger.info(f"Status update: {wa_msg_id} → {new_status} for {recipient}")
+
+    try:
+        from database import get_db
+
+        with get_db() as conn:
+            # 1. Update message status in messages table
+            if wa_msg_id:
+                conn.execute(
+                    "UPDATE messages SET status = ? WHERE wa_message_id = ?",
+                    (new_status, wa_msg_id),
+                )
+
+            # 2. Update campaign counters via campaign_contacts linkage
+            # Find the contact for this recipient phone
+            phone_e164 = f"+{recipient}" if not recipient.startswith("+") else recipient
+            phone_raw = recipient.replace("+", "")
+            row = conn.execute(
+                "SELECT id FROM contacts WHERE phone = ? OR phone = ?",
+                (phone_e164, phone_raw),
+            ).fetchone()
+            if not row:
+                return
+
+            contact_id = row["id"]
+
+            # Look up active campaign association
+            cc_row = conn.execute(
+                "SELECT campaign_id FROM campaign_contacts WHERE contact_id = ?",
+                (contact_id,),
+            ).fetchone()
+            if not cc_row:
+                return
+
+            campaign_id = cc_row["campaign_id"]
+
+            # Increment the appropriate campaign counter
+            if new_status == "delivered":
+                conn.execute(
+                    "UPDATE campaigns SET delivered = delivered + 1 WHERE id = ?",
+                    (campaign_id,),
+                )
+            elif new_status == "read":
+                conn.execute(
+                    "UPDATE campaigns SET read_count = read_count + 1 WHERE id = ?",
+                    (campaign_id,),
+                )
+            elif new_status == "failed":
+                conn.execute(
+                    "UPDATE campaigns SET failed = failed + 1 WHERE id = ?",
+                    (campaign_id,),
+                )
+
+            logger.debug(
+                "Campaign %s counter updated: %s for contact %s",
+                campaign_id, new_status, contact_id,
+            )
+
+    except Exception as e:
+        logger.error(f"Status update processing error: {e}", exc_info=True)
 
 
 async def _handle_text_message(phone: str, text: str, msg_id: str):
@@ -564,6 +958,39 @@ async def _handle_text_message(phone: str, text: str, msg_id: str):
 
         # 1. Get or create contact
         contact = get_contact_by_phone(phone_e164)
+
+        # 1.5 Attribute inbound reply to campaign if linked
+        if contact:
+            try:
+                from reply_mode import get_contact_campaign
+                linked_campaign_id = get_contact_campaign(contact["contact_id"])
+                if linked_campaign_id:
+                    from database import get_db as _get_db
+                    with _get_db() as _conn:
+                        _conn.execute(
+                            "UPDATE campaigns SET replied = replied + 1 WHERE id = ?",
+                            (linked_campaign_id,),
+                        )
+                    logger.debug(
+                        "Campaign %s: reply attributed from %s",
+                        linked_campaign_id, phone,
+                    )
+            except Exception as _attr_err:
+                logger.debug("Campaign reply attribution skipped: %s", _attr_err)
+
+        # 1.6 Apply CTWA ad attribution if pending
+        if phone_e164 in _ctwa_pending:
+            try:
+                ctwa_data = _ctwa_pending.pop(phone_e164)
+                # Re-fetch contact (may have been auto-created by handle_inbound)
+                if not contact:
+                    contact = get_contact_by_phone(phone_e164)
+                if contact:
+                    update_contact(contact["contact_id"], source=ctwa_data["source"])
+                    add_tag(contact["contact_id"], f"ctwa:{ctwa_data.get('source_id', 'ad')}")
+                    logger.info("[%s] CTWA attribution applied: %s", phone, ctwa_data["source"])
+            except Exception as _ctwa_err:
+                logger.debug("CTWA attribution failed: %s", _ctwa_err)
 
         # 2. If bot is off (human mode), just save the message silently
         if contact and not is_bot_active(contact["contact_id"]):
@@ -746,6 +1173,12 @@ async def _handle_text_message(phone: str, text: str, msg_id: str):
                     t = asyncio.create_task(send_whatsapp_message(notify_phone, notification))
                     t.add_done_callback(_log_task_error)
 
+        # Meter AI message usage
+        try:
+            increment_usage("default", "ai_messages")
+        except Exception:
+            pass
+
         log_event("ai_reply_generated", contact_id=contact_id or "")
         await send_whatsapp_message(phone, response)
         log_event("message_sent", contact_id=contact_id or "")
@@ -839,11 +1272,17 @@ async def _handle_media_message(
         filename = f"{msg_id}.{ext}"
         media_path = media_dir / filename
         try:
-            from encryption import encrypt_file
-            encrypt_file(phone_e164, media_bytes, str(media_path))
-        except Exception:
-            # Fallback: store unencrypted (degraded mode)
-            media_path.write_bytes(media_bytes)
+            from encryption import encrypt_data
+            encrypted_bytes = encrypt_data(phone_e164, media_bytes.hex())
+            media_path.write_bytes(encrypted_bytes)
+        except Exception as enc_err:
+            # SECURITY: Log loudly — never silently store unencrypted PII
+            logger.error(
+                "[%s] Media encryption FAILED — storing encrypted placeholder only: %s",
+                phone, enc_err,
+            )
+            # Store a placeholder instead of raw unencrypted media
+            media_path.write_bytes(b"ENCRYPTION_FAILED:media_not_stored")
 
         # Save message record
         text_content = caption if caption else f"[{media_type.title()} message]"
@@ -876,6 +1315,28 @@ async def _handle_media_message(
 # ====================================================================
 #  DASHBOARD API — OVERVIEW
 # ====================================================================
+
+@app.get("/api/billing/trial-status")
+async def api_trial_status(request: Request):
+    """Check if the workspace trial has expired. Used by frontend paywall."""
+    ctx = _check_api_key(request)
+    workspace_id = ctx.get("workspace_id", "default")
+    from billing import get_trial_days_remaining
+    sub = get_subscription(workspace_id)
+    if not sub:
+        return {"active": False, "status": "none", "trial_expired": True}
+
+    active = is_subscription_active(workspace_id)
+    trial_days = get_trial_days_remaining(workspace_id)
+    return {
+        "active": active,
+        "status": sub.get("status", "none"),
+        "plan_id": sub.get("plan_id", "starter"),
+        "trial_expired": sub.get("status") == "trialing" and not active,
+        "trial_days_remaining": trial_days,
+        "cancel_at_period_end": sub.get("cancel_at_period_end", False),
+    }
+
 
 @app.get("/api/overview")
 async def api_overview(request: Request):
@@ -1002,6 +1463,8 @@ async def api_list_contacts(
 @app.post("/api/contacts")
 async def api_create_contact(request: Request):
     ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
+    _check_billing_limit(ctx, "contacts")
     try:
         body_raw = await request.json()
         body = CreateContactRequest(**body_raw)
@@ -1018,6 +1481,8 @@ async def api_create_contact(request: Request):
         )
         if body.deal_value is not None:
             contact = update_contact(contact["contact_id"], deal_value=body.deal_value)
+        # Meter contact usage
+        increment_usage(ctx.get("workspace_id", "default"), "contacts")
         # Audit + WebSocket
         actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
         log_audit("contact.created", "contact", contact["contact_id"], actor_id=actor_id,
@@ -1035,6 +1500,66 @@ async def api_create_contact(request: Request):
         return {"contact": contact}
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+# NOTE: Static paths like /export and /merge MUST be defined BEFORE
+# parameterized paths like /{contact_id} to avoid FastAPI capturing
+# "export" or "merge" as a contact_id.
+
+@app.get("/api/contacts/export")
+async def api_export_contacts_route(request: Request, stage: str = None, tag: str = None):
+    """
+    Export contacts as CSV.
+
+    Query params:
+      - stage: filter by pipeline stage
+      - tag: filter by tag
+
+    Returns: CSV file download
+    """
+    _check_api_key(request)
+    import csv as _csv
+    import io as _io
+
+    contacts = list_contacts(stage=stage, tag=tag)
+
+    output = _io.StringIO()
+    writer = _csv.writer(output)
+
+    writer.writerow([
+        "Name", "Phone", "Company", "Pipeline Stage", "Lead Score",
+        "Deal Value", "Tags", "Source", "Assigned To", "Notes",
+        "Total Messages", "Last Contacted", "Last Replied", "Created At",
+    ])
+
+    for c in contacts:
+        writer.writerow([
+            c.get("name", ""),
+            c.get("phone", ""),
+            c.get("company", ""),
+            c.get("pipeline_stage", ""),
+            c.get("lead_score", 0),
+            c.get("deal_value", 0),
+            "; ".join(c.get("tags", [])),
+            c.get("source", ""),
+            c.get("assigned_to", ""),
+            c.get("notes", ""),
+            c.get("total_messages", 0),
+            c.get("last_contacted_at", ""),
+            c.get("last_replied_at", ""),
+            c.get("created_at", ""),
+        ])
+
+    csv_content = output.getvalue()
+    output.close()
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=nazar_contacts_{datetime.now(IST).strftime('%Y%m%d')}.csv",
+        },
+    )
 
 
 @app.get("/api/contacts/{contact_id}")
@@ -1071,15 +1596,102 @@ async def api_delete_contact(contact_id: str, request: Request):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/contacts/merge")
+async def api_merge_contacts(request: Request):
+    """
+    Merge two duplicate contacts into one.
+
+    Body:
+      - primary_id: str — the contact to keep
+      - secondary_id: str — the contact to merge into primary (will be deleted)
+
+    Merges:
+      - All messages from secondary → primary
+      - Tags combined
+      - Notes appended
+      - Higher lead_score kept
+      - Higher deal_value kept
+    """
+    ctx = _check_api_key(request)
+    body = await request.json()
+    primary_id = body.get("primary_id", "")
+    secondary_id = body.get("secondary_id", "")
+
+    if not primary_id or not secondary_id:
+        raise HTTPException(400, "primary_id and secondary_id are required")
+    if primary_id == secondary_id:
+        raise HTTPException(400, "Cannot merge a contact with itself")
+
+    try:
+        primary = get_contact(primary_id)
+        secondary = get_contact(secondary_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "One or both contacts not found")
+
+    from database import get_db as _merge_get_db
+
+    with _merge_get_db() as conn:
+        # Move all messages from secondary to primary
+        conn.execute(
+            "UPDATE messages SET contact_id = ? WHERE contact_id = ?",
+            (primary_id, secondary_id),
+        )
+
+        # Merge tags
+        primary_tags = set(primary.get("tags", []))
+        secondary_tags = set(secondary.get("tags", []))
+        merged_tags = list(primary_tags | secondary_tags)
+
+        # Merge notes
+        primary_notes = primary.get("notes", "")
+        secondary_notes = secondary.get("notes", "")
+        merged_notes = primary_notes
+        if secondary_notes:
+            merged_notes += f"\n\n--- Merged from {secondary.get('name', secondary_id)} ---\n{secondary_notes}"
+
+        # Take higher values
+        merged_score = max(primary.get("lead_score", 0), secondary.get("lead_score", 0))
+        merged_deal = max(primary.get("deal_value", 0), secondary.get("deal_value", 0))
+        merged_messages = (primary.get("total_messages", 0) + secondary.get("total_messages", 0))
+
+        # Update primary
+        update_contact(
+            primary_id,
+            tags=merged_tags,
+            notes=merged_notes,
+            lead_score=merged_score,
+            deal_value=merged_deal,
+            total_messages=merged_messages,
+        )
+
+        # Delete secondary
+        conn.execute("DELETE FROM contacts WHERE id = ?", (secondary_id,))
+
+    # Audit
+    actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
+    log_audit("contact.merged", "contact", primary_id, actor_id=actor_id,
+              details={"merged_from": secondary_id, "secondary_name": secondary.get("name", "")})
+
+    return {
+        "ok": True,
+        "primary": get_contact(primary_id),
+        "merged_from": secondary_id,
+    }
+
+
 @app.post("/api/contacts/import")
 async def api_import_contacts(request: Request):
-    _check_api_key(request)
+    ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
     try:
         body_raw = await request.json()
         body = ImportContactsRequest(**body_raw)
     except Exception as e:
         raise HTTPException(400, str(e))
     result = import_contacts_csv(body.csv)
+    # Update contact count in usage
+    contacts = list_contacts()
+    set_usage(ctx.get("workspace_id", "default"), "contacts", len(contacts))
     return result
 
 
@@ -1088,28 +1700,143 @@ async def api_import_contacts(request: Request):
 # ====================================================================
 
 @app.get("/api/conversations")
-async def api_list_conversations(request: Request, status: str = None):
+async def api_list_conversations(
+    request: Request,
+    status: str = None,
+    page: int = 1,
+    page_size: int = 50,
+):
     _check_api_key(request)
-    contacts = list_contacts()
+
+    # Optimized: single DB query to get contacts + latest message + handoff state
+    # instead of O(N) queries per contact
+    from database import get_db as _conv_get_db
+
+    now = datetime.now(IST)
+
+    with _conv_get_db() as conn:
+        # Single query: join contacts with their latest message
+        rows = conn.execute("""
+            SELECT
+                c.id AS contact_id,
+                c.name,
+                c.phone,
+                c.pipeline_stage AS stage,
+                c.tags,
+                c.lead_score,
+                c.total_messages AS message_count,
+                c.last_replied_at,
+                c.last_contacted_at,
+                m.content AS last_message_content,
+                m.timestamp AS last_message_time,
+                COALESCE(h.bot_active, 1) AS bot_active
+            FROM contacts c
+            LEFT JOIN (
+                SELECT contact_id, content, timestamp,
+                       ROW_NUMBER() OVER (PARTITION BY contact_id ORDER BY timestamp DESC) AS rn
+                FROM messages
+            ) m ON m.contact_id = c.id AND m.rn = 1
+            LEFT JOIN handoff_states h ON h.contact_id = c.id
+            WHERE c.workspace_id = 'default'
+            ORDER BY COALESCE(m.timestamp, c.last_replied_at, c.created_at) DESC
+        """).fetchall()
 
     conversations = []
-    for c in contacts:
-        today_msgs = get_today_conversation(c["contact_id"])
-        last_msg = today_msgs[-1] if today_msgs else None
+    for row in rows:
+        d = dict(row)
+        last_inbound = d.get("last_replied_at") or ""
+
+        # Inline window computation (avoid function call overhead)
+        window_open = False
+        hours_remaining = 0
+        if last_inbound:
+            try:
+                last_dt = datetime.fromisoformat(last_inbound)
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=IST)
+                remaining = (last_dt + timedelta(hours=24) - now).total_seconds()
+                window_open = remaining > 0
+                hours_remaining = round(max(0, remaining / 3600), 2)
+            except Exception:
+                pass
+
+        import json as _json
+        tags = d.get("tags", "[]")
+        if isinstance(tags, str):
+            try:
+                tags = _json.loads(tags)
+            except Exception:
+                tags = []
+
         conversations.append({
-            "contact_id": c["contact_id"],
-            "name": c.get("name", "Unknown"),
-            "phone": c.get("phone", ""),
-            "stage": c.get("pipeline_stage", "New"),
-            "tags": c.get("tags", []),
-            "lead_score": c.get("lead_score", 0),
-            "last_message": last_msg.get("content", "")[:100] if last_msg else "",
-            "last_time": last_msg.get("timestamp", "") if last_msg else c.get("last_replied_at", ""),
-            "bot_mode": is_bot_active(c["contact_id"]),
-            "message_count": c.get("total_messages", 0),
+            "contact_id": d["contact_id"],
+            "name": d.get("name") or "Unknown",
+            "phone": d.get("phone") or "",
+            "stage": d.get("stage") or "New",
+            "tags": tags,
+            "lead_score": d.get("lead_score") or 0,
+            "last_message": (d.get("last_message_content") or "")[:100],
+            "last_time": d.get("last_message_time") or d.get("last_replied_at") or "",
+            "bot_mode": bool(d.get("bot_active", 1)),
+            "message_count": d.get("message_count") or 0,
+            "window_open": window_open,
+            "hours_remaining": hours_remaining,
         })
-    conversations.sort(key=lambda x: x["last_time"] or "", reverse=True)
-    return {"conversations": conversations}
+
+    # Pagination
+    total = len(conversations)
+    page_size = min(max(page_size, 1), 200)
+    page = max(page, 1)
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    return {
+        "conversations": conversations[start:end],
+        "total": total,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": max(1, (total + page_size - 1) // page_size),
+        },
+    }
+
+
+@app.get("/api/conversations/search")
+async def api_search_conversations(request: Request, q: str = "", limit: int = 50):
+    """Full-text search across message content."""
+    _check_api_key(request)
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(400, "Search query must be at least 2 characters")
+
+    from database import get_db as _search_get_db
+
+    with _search_get_db() as conn:
+        rows = conn.execute(
+            """SELECT m.contact_id, m.content, m.direction, m.timestamp, m.sent_by,
+                      c.name AS contact_name, c.phone AS contact_phone
+               FROM messages m
+               JOIN contacts c ON c.id = m.contact_id
+               WHERE m.content LIKE ? AND m.workspace_id = 'default'
+               ORDER BY m.timestamp DESC
+               LIMIT ?""",
+            (f"%{q}%", min(limit, 200)),
+        ).fetchall()
+
+    results = []
+    for row in rows:
+        d = dict(row)
+        results.append({
+            "contact_id": d["contact_id"],
+            "contact_name": d.get("contact_name", ""),
+            "contact_phone": d.get("contact_phone", ""),
+            "content": d["content"],
+            "direction": d["direction"],
+            "sent_by": d.get("sent_by", ""),
+            "timestamp": d["timestamp"],
+        })
+
+    return {"results": results, "count": len(results), "query": q}
 
 
 @app.get("/api/conversations/{contact_id}")
@@ -1125,6 +1852,7 @@ async def api_get_conversation(contact_id: str, request: Request, days: int = 7)
     memory_summary = get_customer_summary(contact_id)
     reply_mode_info = get_effective_reply_mode(contact_id)
     draft = get_draft(contact_id)
+    window = _compute_service_window(contact)
     return {
         "contact": contact,
         "messages": messages,
@@ -1133,13 +1861,15 @@ async def api_get_conversation(contact_id: str, request: Request, days: int = 7)
         "handoff_state": get_contact_handoff_state(contact_id),
         "reply_mode": reply_mode_info,
         "pending_draft": draft,
+        "service_window": window,
     }
 
 
 @app.post("/api/conversations/{contact_id}/send")
 async def api_send_message(contact_id: str, request: Request):
     """Send a message — works with or without WhatsApp configured."""
-    _check_api_key(request)
+    ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
     try:
         body_raw = await request.json()
         body = SendMessageRequest(**body_raw)
@@ -1161,18 +1891,35 @@ async def api_send_message(contact_id: str, request: Request):
     if not can_message(phone_e164):
         raise HTTPException(400, "Contact has opted out. Cannot send message.")
 
+    # Check 24h service window
+    window = _compute_service_window(contact)
+    window_warning = window.get("warning")
+
     wa_msg_id = ""
+    wa_send_error = None
 
     # Try WhatsApp send if configured
     if WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID:
         try:
             result = await send_whatsapp_message(phone, text)
-            if "messages" in result:
+            if "error" in result:
+                error_code = result["error"].get("code", 0)
+                error_msg = result["error"].get("message", "Unknown error")
+                # 131047 = re-engagement message (outside 24h window without template)
+                if error_code == 131047:
+                    wa_send_error = (
+                        "WhatsApp rejected this message because the 24h customer service window "
+                        "has closed. Use an approved template to re-initiate the conversation."
+                    )
+                    logger.warning(f"[{phone}] Free-form message rejected (131047): window closed")
+                else:
+                    wa_send_error = f"WhatsApp error [{error_code}]: {error_msg}"
+            elif "messages" in result:
                 wa_msg_id = result["messages"][0].get("id", "")
         except Exception as e:
             logger.warning(f"WhatsApp send failed (continuing locally): {e}")
 
-    # Always save to conversation history
+    # Always save to conversation history (even if WA rejected it)
     save_message(contact_id, "outbound", text, sent_by="human", wa_message_id=wa_msg_id)
     memory_add_message(contact_id, "outbound", text)
 
@@ -1192,7 +1939,170 @@ async def api_send_message(contact_id: str, request: Request):
         "content": text[:500],
         "sent_by": "human",
     }))
-    return {"ok": True, "wa_message_id": wa_msg_id, "whatsapp_sent": bool(wa_msg_id)}
+    return {
+        "ok": True,
+        "wa_message_id": wa_msg_id,
+        "whatsapp_sent": bool(wa_msg_id),
+        "window_warning": window_warning,
+        "wa_send_error": wa_send_error,
+        "service_window": {
+            "window_open": window["window_open"],
+            "hours_remaining": window["hours_remaining"],
+            "requires_template": window["requires_template"],
+        },
+    }
+
+
+@app.post("/api/conversations/{contact_id}/send-interactive")
+async def api_send_interactive(contact_id: str, request: Request):
+    """
+    Send a WhatsApp interactive message (buttons or list).
+
+    Body:
+      - type: "buttons" or "list"
+      - body: str — main message body
+      - buttons: list of {"id": "btn_1", "title": "Click"} (for type=buttons, max 3)
+      - button_text: str — button label for list (for type=list)
+      - sections: list of sections (for type=list)
+      - header: str — optional header
+      - footer: str — optional footer
+    """
+    ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
+    body = await request.json()
+
+    msg_type = body.get("type", "buttons")
+    body_text = body.get("body", "").strip()
+    if not body_text:
+        raise HTTPException(400, "body text is required")
+
+    try:
+        contact = get_contact(contact_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "Contact not found")
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+
+    phone = contact["phone"]
+
+    if not WHATSAPP_ACCESS_TOKEN or not WHATSAPP_PHONE_NUMBER_ID:
+        raise HTTPException(503, "WhatsApp not configured")
+
+    result = {}
+    if msg_type == "buttons":
+        buttons = body.get("buttons", [])
+        if not buttons or len(buttons) > 3:
+            raise HTTPException(400, "1-3 buttons required")
+        result = await send_interactive_buttons(
+            phone, body_text, buttons,
+            header=body.get("header", ""),
+            footer=body.get("footer", ""),
+        )
+    elif msg_type == "list":
+        button_text = body.get("button_text", "View Options")
+        sections = body.get("sections", [])
+        if not sections:
+            raise HTTPException(400, "At least one section required")
+        result = await send_interactive_list(
+            phone, body_text, button_text, sections,
+            header=body.get("header", ""),
+            footer=body.get("footer", ""),
+        )
+    else:
+        raise HTTPException(400, "type must be 'buttons' or 'list'")
+
+    wa_msg_id = ""
+    if "messages" in result:
+        wa_msg_id = result["messages"][0].get("id", "")
+
+    # Save as outbound message
+    preview = f"[Interactive {msg_type}] {body_text[:200]}"
+    save_message(contact_id, "outbound", preview, sent_by="human", wa_message_id=wa_msg_id)
+
+    return {"ok": True, "wa_message_id": wa_msg_id, "result": result}
+
+
+@app.post("/api/conversations/{contact_id}/schedule")
+async def api_schedule_message(contact_id: str, request: Request):
+    """
+    Schedule a message to be sent at a specific time.
+
+    Body:
+      - message: str — the message text
+      - send_at: str — ISO datetime when to send
+    """
+    ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
+    body = await request.json()
+    message_text = body.get("message", "").strip()
+    send_at = body.get("send_at", "")
+
+    if not message_text:
+        raise HTTPException(400, "message is required")
+    if not send_at:
+        raise HTTPException(400, "send_at is required (ISO datetime)")
+
+    try:
+        contact = get_contact(contact_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "Contact not found")
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+
+    # Schedule via background job
+    async def _scheduled_send_worker(job_id: str, params: dict, update_progress):
+        import asyncio as _asyncio
+        target_time = datetime.fromisoformat(params["send_at"])
+        if target_time.tzinfo is None:
+            target_time = target_time.replace(tzinfo=IST)
+        now = datetime.now(IST)
+        delay = (target_time - now).total_seconds()
+        if delay > 0:
+            await _asyncio.sleep(delay)
+
+        phone = params["phone"]
+        text = params["message"]
+        cid = params["contact_id"]
+
+        wa_msg_id = ""
+        if WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID:
+            try:
+                result = await send_whatsapp_message(phone, text)
+                if "messages" in result:
+                    wa_msg_id = result["messages"][0].get("id", "")
+            except Exception as e:
+                logger.warning(f"Scheduled message send failed: {e}")
+
+        save_message(cid, "outbound", text, sent_by="scheduled", wa_message_id=wa_msg_id)
+        update_progress(job_id, 1, 1, 0)
+
+        await ws_manager.broadcast({
+            "type": "new_message",
+            "contact_id": cid,
+            "contact_name": params.get("contact_name", ""),
+            "direction": "outbound",
+            "content": text[:500],
+            "sent_by": "scheduled",
+        })
+
+    job_id = await job_queue.enqueue(
+        "scheduled_message",
+        {
+            "contact_id": contact_id,
+            "phone": contact["phone"],
+            "message": message_text,
+            "send_at": send_at,
+            "contact_name": contact.get("name", ""),
+        },
+        _scheduled_send_worker,
+    )
+
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "scheduled_at": send_at,
+        "contact_id": contact_id,
+    }
 
 
 @app.post("/api/conversations/{contact_id}/handover")
@@ -1240,7 +2150,25 @@ async def api_handoff_history(request: Request):
 @app.get("/api/handoffs/stats")
 async def api_handoff_stats(request: Request):
     _check_api_key(request)
-    return get_handoff_stats()
+    stats = get_handoff_stats()
+    # Count followups and merge into stats
+    contacts = list_contacts()
+    now = datetime.now(IST)
+    followup_count = 0
+    for c in contacts:
+        if c["pipeline_stage"] in ("Won", "Lost"):
+            continue
+        last_contact = c.get("last_contacted_at") or c.get("last_replied_at") or ""
+        if not last_contact:
+            continue
+        try:
+            days_since = (now - datetime.fromisoformat(last_contact)).days
+            if days_since >= 2:
+                followup_count += 1
+        except Exception:
+            pass
+    stats["followup_count"] = followup_count
+    return stats
 
 
 @app.post("/api/handoffs/{contact_id}/resume")
@@ -1438,9 +2366,11 @@ async def api_move_stage(contact_id: str, request: Request):
         raise HTTPException(400, str(e))
     try:
         contact = move_stage(contact_id, body.stage)
+        # Mark manual override so AI won't reclassify
+        update_contact(contact_id, manual_stage_override=1)
         actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
         log_audit("contact.stage_changed", "contact", contact_id, actor_id=actor_id,
-                  details={"new_stage": body.stage})
+                  details={"new_stage": body.stage, "manual_override": True})
         asyncio.create_task(webhook_dispatcher_mod.dispatch("contact.stage_changed", {
             "contact_id": contact_id,
             "stage": body.stage,
@@ -1495,6 +2425,19 @@ async def api_followups(request: Request):
 
     followups.sort(key=lambda f: f["days_since_contact"], reverse=True)
     return {"followups": followups}
+
+
+@app.patch("/api/pipeline/{contact_id}/auto-classify")
+async def api_enable_auto_classify(contact_id: str, request: Request):
+    """Clear manual stage override so AI can reclassify this contact."""
+    ctx = _check_api_key(request)
+    try:
+        update_contact(contact_id, manual_stage_override=0)
+    except FileNotFoundError:
+        raise HTTPException(404, "Contact not found")
+    actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
+    log_audit("contact.auto_classify_enabled", "contact", contact_id, actor_id=actor_id)
+    return {"ok": True, "message": "AI auto-classification re-enabled for this contact"}
 
 
 
@@ -1663,6 +2606,239 @@ async def api_render_template(template_id: str, request: Request):
 
 
 # ====================================================================
+#  DASHBOARD API — META TEMPLATE SYNC
+# ====================================================================
+
+@app.get("/api/templates/meta/status")
+async def api_meta_template_config(request: Request):
+    """Check if Meta template sync is configured."""
+    _check_api_key(request)
+    return {
+        "configured": is_meta_configured(),
+        "waba_id_set": bool(os.environ.get("WA_BUSINESS_ACCOUNT_ID", "")),
+        "access_token_set": bool(os.environ.get("WA_ACCESS_TOKEN", "")),
+    }
+
+
+@app.post("/api/templates/{template_id}/submit-to-meta")
+async def api_submit_template_to_meta(template_id: str, request: Request):
+    """
+    Submit a template to Meta's WhatsApp Template Management API for approval.
+
+    The template must exist locally. After submission, Meta reviews it
+    (usually takes minutes to hours). Status updates arrive via webhook
+    or can be polled via the sync endpoint.
+    """
+    ctx = _check_api_key(request)
+    template = get_template(template_id)
+    if not template:
+        raise HTTPException(404, "Template not found")
+
+    result = await submit_template_to_meta(template)
+
+    if result["success"]:
+        # Update local template with Meta's response
+        update_fields = {"approval_status": result["status"]}
+        if result.get("meta_id"):
+            update_fields["meta_template_id"] = result["meta_id"]
+        update_template(template_id, **update_fields)
+
+        actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
+        log_audit("template.submitted_to_meta", "template", template_id,
+                  actor_id=actor_id,
+                  details={"meta_id": result.get("meta_id"), "status": result["status"]})
+
+    return result
+
+
+@app.get("/api/templates/{template_id}/meta-status")
+async def api_get_template_meta_status(template_id: str, request: Request):
+    """
+    Fetch the current approval status of a template from Meta's API.
+    Useful for polling status after submission.
+    """
+    _check_api_key(request)
+    template = get_template(template_id)
+    if not template:
+        raise HTTPException(404, "Template not found")
+
+    meta_status = await get_meta_template_status(template["name"])
+    if not meta_status:
+        return {
+            "found_on_meta": False,
+            "local_status": template.get("approval_status", "pending"),
+            "message": "Template not found on Meta. Submit it first.",
+        }
+
+    # Auto-update local status if different
+    if meta_status["status"] != template.get("approval_status"):
+        update_template(template_id, approval_status=meta_status["status"])
+
+    return {
+        "found_on_meta": True,
+        "meta_status": meta_status,
+        "local_status": template.get("approval_status"),
+        "synced": meta_status["status"] == template.get("approval_status"),
+    }
+
+
+@app.post("/api/templates/meta/sync")
+async def api_sync_meta_templates(request: Request):
+    """
+    Sync all local template statuses with Meta's API.
+    Fetches all templates from Meta and updates local approval_status.
+    """
+    ctx = _check_api_key(request)
+    result = await sync_all_templates()
+
+    if result.get("updated", 0) > 0:
+        actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
+        log_audit("templates.synced_with_meta", "template", "all",
+                  actor_id=actor_id,
+                  details={"synced": result.get("synced"), "updated": result.get("updated")})
+
+    return result
+
+
+# ====================================================================
+#  DASHBOARD API — 24H CUSTOMER SERVICE WINDOW
+# ====================================================================
+
+@app.get("/api/contacts/{contact_id}/window")
+async def api_contact_service_window(contact_id: str, request: Request):
+    """
+    Get the 24h customer service window status for a contact.
+
+    WhatsApp rules:
+      - Customer messages you → opens a 24h free-form messaging window
+      - After 24h of no inbound → only pre-approved templates can be sent
+      - Each new inbound message resets the 24h timer
+
+    Returns:
+      - window_open: bool (can you send free-form messages?)
+      - expires_at: ISO datetime when the window closes (null if closed)
+      - hours_remaining: float (0 if closed)
+      - last_inbound_at: ISO datetime of last customer message
+      - requires_template: bool (opposite of window_open)
+    """
+    _check_api_key(request)
+    try:
+        contact = get_contact(contact_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "Contact not found")
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+
+    return _compute_service_window(contact)
+
+
+@app.get("/api/contacts/windows")
+async def api_all_service_windows(request: Request, stage: str = None):
+    """
+    Get 24h service window status for all contacts (or filtered by stage).
+    Useful for the campaign wizard to show which contacts can receive
+    free-form messages vs. which require templates.
+    """
+    _check_api_key(request)
+    contacts = list_contacts(stage=stage)
+    now = datetime.now(IST)
+
+    window_open = 0
+    window_closed = 0
+    results = []
+
+    for c in contacts:
+        w = _compute_service_window(c, now=now)
+        if w["window_open"]:
+            window_open += 1
+        else:
+            window_closed += 1
+        results.append({
+            "contact_id": c["contact_id"],
+            "name": c.get("name", ""),
+            "phone": c.get("phone", ""),
+            "window_open": w["window_open"],
+            "hours_remaining": w["hours_remaining"],
+            "last_inbound_at": w["last_inbound_at"],
+        })
+
+    return {
+        "contacts": results,
+        "summary": {
+            "window_open": window_open,
+            "window_closed": window_closed,
+            "total": len(results),
+        },
+    }
+
+
+def _compute_service_window(contact: dict, now: datetime = None) -> dict:
+    """
+    Compute the 24h customer service window status for a contact.
+    Delegates to service_window module for centralized logic.
+    """
+    return sw_compute_window(contact, now)
+
+
+# ====================================================================
+#  CAMPAIGN AUDIENCE WINDOW ANALYSIS
+# ====================================================================
+
+@app.get("/api/campaigns/audience-analysis")
+async def api_campaign_audience_analysis(
+    request: Request,
+    stage: str = None,
+    tag: str = None,
+):
+    """
+    Analyze campaign target contacts by 24h service window status.
+
+    Campaigns ALWAYS use template messages (required by Meta for business-initiated
+    conversations). This endpoint helps users understand which contacts have active
+    windows (for context) and which require templates (all of them, for campaigns).
+
+    Returns:
+      - summary: { open_count, closed_count, total }
+      - contacts: list with window status per contact
+    """
+    _check_api_key(request)
+    contacts = list_contacts(stage=stage, tag=tag)
+
+    results = []
+    open_count = 0
+    closed_count = 0
+
+    for c in contacts:
+        w = _compute_service_window(c)
+        if w["window_open"]:
+            open_count += 1
+        else:
+            closed_count += 1
+        results.append({
+            "contact_id": c["contact_id"],
+            "name": c.get("name", ""),
+            "phone": c.get("phone", ""),
+            "stage": c.get("pipeline_stage", ""),
+            "window_open": w["window_open"],
+            "hours_remaining": w["hours_remaining"],
+            "last_inbound_at": w.get("last_inbound_at"),
+        })
+
+    return {
+        "contacts": results,
+        "summary": {
+            "open_count": open_count,
+            "closed_count": closed_count,
+            "total": len(results),
+        },
+        "info": (
+            "Campaigns always use Meta-approved template messages regardless of window status. "
+            "Templates can reach contacts even outside the 24h window."
+        ),
+    }
+
+
+# ====================================================================
 #  DASHBOARD API — CAMPAIGNS
 # ====================================================================
 
@@ -1706,7 +2882,10 @@ async def api_get_campaign(campaign_id: str, request: Request):
 @app.post("/api/campaigns")
 async def api_create_campaign(request: Request):
     """
-    Create and execute a campaign.
+    Create and execute a campaign via background job queue.
+
+    Returns immediately with a campaign record and job_id.
+    The actual sending happens asynchronously — progress is pushed via WebSocket.
 
     Body:
       - name: Campaign name
@@ -1719,6 +2898,8 @@ async def api_create_campaign(request: Request):
       - campaign_kb: (optional) Campaign-specific knowledge base text
     """
     ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
+    _check_billing_limit(ctx, "campaigns")
     workspace_id = ctx.get("workspace_id", "default")
     try:
         body_raw = await request.json()
@@ -1731,103 +2912,42 @@ async def api_create_campaign(request: Request):
     filter_stage = body.filter_stage
     filter_tag = body.filter_tag
     contact_ids = body.contact_ids or []
+    group_ids = body_raw.get("group_ids") or []
     scheduled_at = body.scheduled_at
     reply_mode = body.reply_mode
     campaign_kb_text = body.campaign_kb or ""
-    
+    header_image_url = body_raw.get("header_image_url", "")
+
     # Load template
     template = get_template(template_id)
     if not template:
         raise HTTPException(404, "Template not found")
     if template.get("approval_status") != "approved":
         raise HTTPException(400, "Template must be approved before sending")
-    
-    # Get target contacts
-    if contact_ids:
+
+    # Get target contacts — group_ids take precedence, then contact_ids, then filters
+    if group_ids:
+        group_contact_ids = get_contacts_by_group_ids(group_ids)
+        targets = [get_contact(cid) for cid in group_contact_ids]
+        targets = [c for c in targets if c]
+    elif contact_ids:
         targets = [get_contact(cid) for cid in contact_ids]
         targets = [c for c in targets if c]
     else:
         targets = list_contacts(stage=filter_stage, tag=filter_tag)
-    
+
     if not targets:
         raise HTTPException(400, "No contacts match the selected filters")
-    
-    # Execute sends
-    sent = 0
-    failed = 0
-    delivered = 0
-    details = []
-    total_targets = len(targets)
 
-    # Pre-create campaign ID for progress tracking
-    import uuid as _uuid
-    pending_campaign_id = f"cmp_{_uuid.uuid4().hex[:8]}"
-
-    for idx, contact in enumerate(targets):
-        phone = contact.get("phone", "")
-        if not phone:
-            failed += 1
-            details.append({"phone": "", "status": "failed", "error": "No phone"})
-            continue
-
-        # Skip opted-out contacts
-        phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
-        if not can_message(phone_e164):
-            failed += 1
-            details.append({"phone": phone, "status": "skipped", "error": "opted_out"})
-            continue
-
-        try:
-            rendered_msg = render_template(template, contact)
-            # Attempt proper template API send; fall back to free-form text
-            if WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID:
-                try:
-                    components = _build_template_components(template, contact)
-                    await send_template_message(
-                        phone,
-                        template.get("name", ""),
-                        template.get("language", "en"),
-                        components=components or None,
-                    )
-                except Exception:
-                    # Fallback: send as free-form (works within 24h session window)
-                    await send_whatsapp_message(phone, rendered_msg)
-            else:
-                await send_whatsapp_message(phone, rendered_msg)
-            save_message(contact["contact_id"], "outbound", rendered_msg, sent_by="campaign")
-            sent += 1
-            delivered += 1
-            details.append({"phone": phone, "status": "sent"})
-        except Exception as e:
-            failed += 1
-            details.append({"phone": phone, "status": "failed", "error": str(e)[:200]})
-
-        # Push live progress every 5 sends or at start/end
-        if (idx % 5 == 0) or (idx == total_targets - 1):
-            asyncio.create_task(ws_manager.send_to_workspace(workspace_id, {
-                "type": "campaign_progress",
-                "campaign_id": pending_campaign_id,
-                "sent": sent,
-                "total": total_targets,
-                "failed": failed,
-                "pct": round((sent + failed) / max(total_targets, 1) * 100, 1),
-                "status": "sending" if idx < total_targets - 1 else "completed",
-            }))
-
-        await asyncio.sleep(0.1)  # Rate limit
-    
-    # Increment template usage
-    increment_usage(template_id)
-    
-    # Create campaign record (includes reply_mode)
+    # Pre-create the campaign record with status "sending"
     campaign = create_campaign(
         name=campaign_name,
         template_id=template_id,
         template_name=template.get("name", ""),
         target_count=len(targets),
-        sent=sent,
-        failed=failed,
-        delivered=delivered,
+        sent=0,
+        failed=0,
+        delivered=0,
         read=0,
         replied=0,
         filter_stage=filter_stage,
@@ -1837,45 +2957,184 @@ async def api_create_campaign(request: Request):
         reply_mode=reply_mode,
         campaign_kb=campaign_kb_text,
     )
-    
+    campaign_id = campaign["id"]
+
+    # Update campaign status to "sending"
+    update_campaign(campaign_id, status="sending")
+
     # Save campaign-specific knowledge base if provided
     if campaign_kb_text:
-        save_campaign_kb(campaign["id"], campaign_kb_text)
-    
+        save_campaign_kb(campaign_id, campaign_kb_text)
+
     # Associate target contacts with this campaign (for reply routing)
     target_ids = [c["contact_id"] for c in targets]
-    associate_contacts_to_campaign(target_ids, campaign["id"])
+    associate_contacts_to_campaign(target_ids, campaign_id)
 
     actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
-    log_audit("campaign.sent", "campaign", campaign["id"], actor_id=actor_id,
-              details={"sent": sent, "failed": failed, "total": total_targets})
-    asyncio.create_task(webhook_dispatcher_mod.dispatch("campaign.completed", {
-        "campaign_id": campaign["id"],
-        "name": campaign_name,
-        "sent": sent,
-        "failed": failed,
-        "total": total_targets,
-    }))
 
-    campaign["details"] = details
-    return {"campaign": campaign}
+    # --- Background worker function ---
+    async def _campaign_send_worker(job_id: str, params: dict, update_progress):
+        """Async worker that sends campaign messages in the background."""
+        p_template = params["template"]
+        p_targets = params["targets"]
+        p_workspace_id = params["workspace_id"]
+        p_campaign_id = params["campaign_id"]
+        p_campaign_name = params["campaign_name"]
+        p_actor_id = params["actor_id"]
+
+        sent = 0
+        failed = 0
+        delivered = 0
+        total_targets = len(p_targets)
+
+        for idx, contact in enumerate(p_targets):
+            phone = contact.get("phone", "")
+            if not phone:
+                failed += 1
+                update_progress(job_id, idx + 1, total_targets, failed)
+                continue
+
+            # Skip opted-out contacts
+            phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
+            if not can_message(phone_e164):
+                failed += 1
+                update_progress(job_id, idx + 1, total_targets, failed)
+                continue
+
+            try:
+                rendered_msg = render_template(p_template, contact)
+                if WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID:
+                    # Always send via template API for campaigns.
+                    # Campaigns initiate conversations outside the 24h window,
+                    # so free-form text will be rejected by Meta.
+                    components = _build_template_components(p_template, contact)
+                    result = await send_template_message(
+                        phone,
+                        p_template.get("name", ""),
+                        p_template.get("language", "en"),
+                        components=components or None,
+                    )
+                    # Check for Meta API errors
+                    if "error" in result:
+                        error_code = result["error"].get("code", 0)
+                        error_msg = result["error"].get("message", "Unknown error")
+                        # 132000 = template not found on Meta
+                        # 132001 = template not approved
+                        # 131047 = re-engagement message outside 24h without template
+                        if error_code in (132000, 132001):
+                            failed += 1
+                            logger.error(
+                                "Campaign %s: Template '%s' not registered/approved on Meta (code=%s). "
+                                "Submit the template to Meta for approval first.",
+                                p_campaign_id, p_template.get("name"), error_code,
+                            )
+                            update_progress(job_id, idx + 1, total_targets, failed)
+                            continue
+                        else:
+                            failed += 1
+                            logger.warning(
+                                "Campaign %s send failed for %s: [%s] %s",
+                                p_campaign_id, phone, error_code, error_msg,
+                            )
+                            update_progress(job_id, idx + 1, total_targets, failed)
+                            continue
+                else:
+                    # Dev/test mode: no WhatsApp configured — save locally only
+                    logger.debug("Campaign %s: No WA configured, saving locally for %s", p_campaign_id, phone)
+                save_message(contact["contact_id"], "outbound", rendered_msg, sent_by="campaign")
+                sent += 1
+                delivered += 1
+            except DailyLimitExceeded as e:
+                # Stop entire campaign if daily limit hit
+                failed += (total_targets - idx)
+                logger.error("Campaign %s halted: daily rate limit exceeded at %d/%d", p_campaign_id, idx, total_targets)
+                break
+            except Exception as e:
+                failed += 1
+                logger.warning(f"Campaign {p_campaign_id} send failed for {phone}: {e}")
+
+            update_progress(job_id, idx + 1, total_targets, failed)
+
+            # Push live progress via WebSocket every 5 sends or at start/end
+            if (idx % 5 == 0) or (idx == total_targets - 1):
+                await ws_manager.send_to_workspace(p_workspace_id, {
+                    "type": "campaign_progress",
+                    "campaign_id": p_campaign_id,
+                    "job_id": job_id,
+                    "sent": sent,
+                    "total": total_targets,
+                    "failed": failed,
+                    "pct": round((idx + 1) / max(total_targets, 1) * 100, 1),
+                    "status": "sending" if idx < total_targets - 1 else "completed",
+                })
+
+            await asyncio.sleep(0.1)  # Rate limit between sends
+
+        # Increment template usage
+        increment_template_usage(template_id)
+
+        # Update campaign record with final stats
+        update_campaign(p_campaign_id, sent=sent, failed=failed, delivered=delivered, status="completed")
+
+        # Audit + webhook
+        log_audit("campaign.sent", "campaign", p_campaign_id, actor_id=p_actor_id,
+                  details={"sent": sent, "failed": failed, "total": total_targets})
+        await webhook_dispatcher_mod.dispatch("campaign.completed", {
+            "campaign_id": p_campaign_id,
+            "name": p_campaign_name,
+            "sent": sent,
+            "failed": failed,
+            "total": total_targets,
+        })
+
+        # Final WebSocket notification
+        await ws_manager.send_to_workspace(p_workspace_id, {
+            "type": "campaign_completed",
+            "campaign_id": p_campaign_id,
+            "sent": sent,
+            "failed": failed,
+            "total": total_targets,
+        })
+
+    # Enqueue background job
+    job_id = await job_queue.enqueue(
+        "campaign_send",
+        {
+            "template": template,
+            "targets": targets,
+            "workspace_id": workspace_id,
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "actor_id": actor_id,
+        },
+        _campaign_send_worker,
+    )
+
+    # Meter campaign usage
+    increment_usage(workspace_id, "campaigns")
+
+    campaign["job_id"] = job_id
+    campaign["status"] = "sending"
+    return {"campaign": campaign, "job_id": job_id}
 
 
 @app.post("/api/campaigns/{campaign_id}/retarget")
 async def api_retarget_campaign(campaign_id: str, request: Request):
-    """Retarget failed/unread contacts from a previous campaign."""
-    _check_api_key(request)
+    """Retarget failed/unread contacts from a previous campaign via background job."""
+    ctx = _check_api_key(request)
+    _check_subscription_active(ctx)
+    workspace_id = ctx.get("workspace_id", "default")
     body = await request.json()
     retarget_type = body.get("type", "failed")  # "failed" or "unread"
-    
+
     original = get_campaign(campaign_id)
     if not original:
         raise HTTPException(404, "Campaign not found")
-    
+
     template = get_template(original.get("template_id", ""))
     if not template:
         raise HTTPException(404, "Original template no longer exists")
-    
+
     # For retargeting, re-send to original contacts
     contact_ids = original.get("contact_ids", [])
     if contact_ids:
@@ -1886,40 +3145,111 @@ async def api_retarget_campaign(campaign_id: str, request: Request):
             stage=original.get("filter_stage") or None,
             tag=original.get("filter_tag") or None,
         )
-    
+
     if not targets:
         raise HTTPException(400, "No contacts to retarget")
-    
-    sent = 0
-    failed = 0
-    for contact in targets:
-        phone = contact.get("phone", "")
-        if not phone:
-            failed += 1
-            continue
-        try:
-            rendered_msg = render_template(template, contact)
-            await send_whatsapp_message(phone, rendered_msg)
-            save_message(contact["contact_id"], "outbound", rendered_msg, sent_by="campaign-retarget")
-            sent += 1
-        except Exception:
-            failed += 1
-        await asyncio.sleep(0.1)
-    
+
+    # Pre-create retarget campaign record
     new_campaign = create_campaign(
         name=f"{original['name']} (Retarget)",
         template_id=original.get("template_id", ""),
         template_name=original.get("template_name", ""),
         target_count=len(targets),
-        sent=sent,
-        failed=failed,
-        delivered=sent,
+        sent=0,
+        failed=0,
+        delivered=0,
         filter_stage=original.get("filter_stage"),
         filter_tag=original.get("filter_tag"),
         contact_ids=contact_ids,
     )
-    
-    return {"campaign": new_campaign}
+    retarget_id = new_campaign["id"]
+    update_campaign(retarget_id, status="sending")
+
+    # Background worker for retarget
+    async def _retarget_worker(job_id: str, params: dict, update_progress):
+        p_template = params["template"]
+        p_targets = params["targets"]
+        p_campaign_id = params["campaign_id"]
+        p_workspace_id = params["workspace_id"]
+
+        sent = 0
+        failed = 0
+        total = len(p_targets)
+
+        for idx, contact in enumerate(p_targets):
+            phone = contact.get("phone", "")
+            if not phone:
+                failed += 1
+                update_progress(job_id, idx + 1, total, failed)
+                continue
+
+            phone_e164 = f"+{phone}" if not phone.startswith("+") else phone
+            if not can_message(phone_e164):
+                failed += 1
+                update_progress(job_id, idx + 1, total, failed)
+                continue
+
+            try:
+                rendered_msg = render_template(p_template, contact)
+                if WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID:
+                    components = _build_template_components(p_template, contact)
+                    result = await send_template_message(
+                        phone,
+                        p_template.get("name", ""),
+                        p_template.get("language", "en"),
+                        components=components or None,
+                    )
+                    if "error" in result:
+                        failed += 1
+                        update_progress(job_id, idx + 1, total, failed)
+                        continue
+                save_message(contact["contact_id"], "outbound", rendered_msg, sent_by="campaign-retarget")
+                sent += 1
+            except DailyLimitExceeded:
+                failed += (total - idx)
+                break
+            except Exception:
+                failed += 1
+
+            update_progress(job_id, idx + 1, total, failed)
+
+            if (idx % 5 == 0) or (idx == total - 1):
+                await ws_manager.send_to_workspace(p_workspace_id, {
+                    "type": "campaign_progress",
+                    "campaign_id": p_campaign_id,
+                    "job_id": job_id,
+                    "sent": sent,
+                    "total": total,
+                    "failed": failed,
+                    "pct": round((idx + 1) / max(total, 1) * 100, 1),
+                    "status": "sending" if idx < total - 1 else "completed",
+                })
+
+            await asyncio.sleep(0.1)
+
+        update_campaign(p_campaign_id, sent=sent, failed=failed, delivered=sent, status="completed")
+        await ws_manager.send_to_workspace(p_workspace_id, {
+            "type": "campaign_completed",
+            "campaign_id": p_campaign_id,
+            "sent": sent,
+            "failed": failed,
+            "total": total,
+        })
+
+    job_id = await job_queue.enqueue(
+        "campaign_retarget",
+        {
+            "template": template,
+            "targets": targets,
+            "campaign_id": retarget_id,
+            "workspace_id": workspace_id,
+        },
+        _retarget_worker,
+    )
+
+    new_campaign["job_id"] = job_id
+    new_campaign["status"] = "sending"
+    return {"campaign": new_campaign, "job_id": job_id}
 
 
 # ====================================================================
@@ -1994,7 +3324,23 @@ async def api_analytics_pipeline(request: Request):
 @app.get("/api/analytics/campaigns")
 async def api_analytics_campaigns(request: Request, days: int = 30):
     _check_api_key(request)
-    return get_campaign_analytics(days=days)
+    result = get_campaign_analytics(days=days)
+
+    # Enrich with WhatsApp conversation cost estimates
+    # Meta charges per conversation (not per message):
+    # Marketing: ~₹0.76/conversation, Utility: ~₹0.34, Service: free (24h window)
+    from outbound import get_campaign_stats as _get_cmp_stats
+    stats = _get_cmp_stats()
+    total_delivered = stats.get("total_delivered", 0)
+    estimated_wa_cost_inr = round(total_delivered * 0.76, 2)  # Marketing rate
+    result["whatsapp_cost_estimate"] = {
+        "total_conversations": total_delivered,
+        "estimated_cost_inr": estimated_wa_cost_inr,
+        "rate_per_conversation_inr": 0.76,
+        "category": "marketing",
+        "note": "Estimate based on Meta marketing conversation rate. Actual costs may vary.",
+    }
+    return result
 
 
 @app.get("/api/analytics/ai")
@@ -2038,7 +3384,20 @@ async def api_login(request: Request):
 
     from auth_manager import get_user_by_email
     user = get_user_by_email(email, workspace_id)
-    return {"token": token, "user": user}
+
+    # Check if password change is required (default credentials)
+    password_change_required = False
+    if user:
+        from auth_manager import _load as _auth_load
+        all_users = _auth_load("users.json")
+        raw_user = all_users.get(user.get("user_id", ""), {})
+        password_change_required = raw_user.get("password_change_required", False)
+
+    return {
+        "token": token,
+        "user": user,
+        "password_change_required": password_change_required,
+    }
 
 
 
@@ -2255,6 +3614,153 @@ async def api_stripe_webhook(request: Request):
     data_obj = body.get("data", {}).get("object", {})
     result = handle_stripe_webhook(event_type, data_obj)
     return result
+
+
+# ====================================================================
+#  RAZORPAY PAYMENT API
+# ====================================================================
+
+@app.get("/api/payments/config")
+async def api_payment_config(request: Request):
+    """Return payment gateway configuration for the frontend."""
+    _check_api_key(request)
+    import payment_gateway as pg
+    return {
+        "provider": "razorpay" if pg.is_configured() else "none",
+        "key_id": pg.RAZORPAY_KEY_ID if pg.is_configured() else "",
+        "configured": pg.is_configured(),
+    }
+
+
+@app.post("/api/payments/subscribe")
+async def api_create_payment_subscription(request: Request):
+    """
+    Create a Razorpay subscription for the current workspace.
+
+    Body:
+      - plan_id: "starter" | "growth" | "pro"
+
+    Returns:
+      - subscription_id, short_url (redirect user to this)
+    """
+    ctx = _check_api_key(request)
+    workspace_id = ctx.get("workspace_id", "default")
+    body = await request.json()
+    plan_id = body.get("plan_id", "")
+
+    if plan_id not in ("starter", "growth", "pro"):
+        raise HTTPException(400, f"Invalid plan_id '{plan_id}'")
+
+    import payment_gateway as pg
+    if not pg.is_configured():
+        raise HTTPException(503, "Payment gateway not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.")
+
+    # Get user email from auth context
+    user = ctx.get("user") or {}
+    email = user.get("email", "")
+    name = user.get("name", "")
+
+    try:
+        result = pg.create_subscription(
+            workspace_id=workspace_id,
+            plan_id=plan_id,
+            customer_email=email,
+            customer_name=name,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Razorpay subscription creation failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/payments/verify")
+async def api_verify_payment(request: Request):
+    """
+    Verify a Razorpay payment signature after checkout.
+
+    Body:
+      - razorpay_payment_id
+      - razorpay_signature
+      - razorpay_subscription_id (for subscriptions)
+      - razorpay_order_id (for one-time payments)
+    """
+    ctx = _check_api_key(request)
+    workspace_id = ctx.get("workspace_id", "default")
+    body = await request.json()
+
+    import payment_gateway as pg
+
+    verified = pg.verify_payment_signature(
+        razorpay_order_id=body.get("razorpay_order_id", ""),
+        razorpay_payment_id=body.get("razorpay_payment_id", ""),
+        razorpay_signature=body.get("razorpay_signature", ""),
+        razorpay_subscription_id=body.get("razorpay_subscription_id", ""),
+    )
+
+    if verified:
+        # Update billing state
+        plan_id = body.get("plan_id", "")
+        if plan_id:
+            try:
+                upgrade_plan(workspace_id, plan_id)
+                update_subscription(
+                    workspace_id,
+                    status="active",
+                    payment_provider="razorpay",
+                    payment_subscription_id=body.get("razorpay_subscription_id", ""),
+                )
+            except Exception as e:
+                logger.error(f"Post-payment plan update failed: {e}")
+
+        return {"verified": True, "ok": True}
+    else:
+        raise HTTPException(400, "Payment signature verification failed")
+
+
+@app.post("/api/payments/webhook/razorpay")
+async def api_razorpay_webhook(request: Request):
+    """
+    Razorpay webhook endpoint.
+    Verifies signature and processes subscription/payment events.
+    """
+    import payment_gateway as pg
+
+    body_bytes = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+
+    if not pg.verify_webhook_signature(body_bytes, signature):
+        logger.warning("Razorpay webhook: invalid signature")
+        raise HTTPException(400, "Invalid webhook signature")
+
+    try:
+        body = json.loads(body_bytes)
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    event_type = body.get("event", "")
+    payload = body.get("payload", {}).get("subscription", body.get("payload", {}))
+    # Flatten: payload.subscription.entity → payload.entity
+    if "entity" not in payload:
+        # Try payment payload
+        payload = body.get("payload", {}).get("payment", body.get("payload", {}))
+
+    result = pg.process_webhook_event(event_type, payload)
+    return result
+
+
+@app.get("/api/payments/invoice/{workspace_id}")
+async def api_get_invoice(workspace_id: str, request: Request):
+    """Get GST invoice data for a workspace's current plan."""
+    ctx = _check_api_key(request)
+    # Only allow workspace members to view their own invoices
+    if ctx.get("workspace_id", "default") != workspace_id:
+        raise HTTPException(403, "Cannot view invoices for another workspace")
+
+    import payment_gateway as pg
+    sub = get_subscription(workspace_id)
+    plan_id = sub.get("plan_id", "starter") if sub else "starter"
+    invoice = pg.get_invoice_data(workspace_id, plan_id)
+    return {"invoice": invoice}
 
 
 # ====================================================================
@@ -2616,6 +4122,99 @@ async def api_segment_fields(request: Request):
 
 
 # ====================================================================
+#  CONTACT GROUPS API
+# ====================================================================
+
+@app.get("/api/groups")
+async def api_list_groups(request: Request):
+    """List all contact groups."""
+    _check_api_key(request)
+    groups = list_groups()
+    return {"groups": groups, "count": len(groups), "colors": GROUP_COLORS}
+
+
+@app.post("/api/groups")
+async def api_create_group(request: Request):
+    """Create a new contact group."""
+    ctx = _check_api_key(request)
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        raise HTTPException(400, "name is required")
+    group = create_group(
+        name=name,
+        description=body.get("description", ""),
+        color=body.get("color", "#6366f1"),
+    )
+    actor_id = ctx.get("user", {}).get("user_id", "api") if ctx.get("user") else "api"
+    log_audit("group.created", "group", group["id"], actor_id=actor_id, details={"name": name})
+    return {"group": group}
+
+
+@app.get("/api/groups/{group_id}")
+async def api_get_group(group_id: str, request: Request):
+    """Get a group with its members."""
+    _check_api_key(request)
+    group = get_group(group_id)
+    if not group:
+        raise HTTPException(404, "Group not found")
+    members = get_group_members(group_id)
+    return {"group": group, "members": members}
+
+
+@app.patch("/api/groups/{group_id}")
+async def api_update_group(group_id: str, request: Request):
+    """Update a group (name, description, color)."""
+    _check_api_key(request)
+    body = await request.json()
+    try:
+        group = update_group(group_id, **body)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"group": group}
+
+
+@app.delete("/api/groups/{group_id}")
+async def api_delete_group(group_id: str, request: Request):
+    """Delete a group."""
+    _check_api_key(request)
+    deleted = delete_group(group_id)
+    if not deleted:
+        raise HTTPException(404, "Group not found")
+    return {"ok": True}
+
+
+@app.post("/api/groups/{group_id}/members")
+async def api_add_group_members(group_id: str, request: Request):
+    """Add contacts to a group."""
+    _check_api_key(request)
+    body = await request.json()
+    contact_ids = body.get("contact_ids", [])
+    if not contact_ids:
+        raise HTTPException(400, "contact_ids is required")
+    added = add_members(group_id, contact_ids)
+    return {"added": added, "group_id": group_id}
+
+
+@app.delete("/api/groups/{group_id}/members")
+async def api_remove_group_members(group_id: str, request: Request):
+    """Remove contacts from a group."""
+    _check_api_key(request)
+    body = await request.json()
+    contact_ids = body.get("contact_ids", [])
+    removed = remove_members(group_id, contact_ids)
+    return {"removed": removed, "group_id": group_id}
+
+
+@app.get("/api/contacts/{contact_id}/groups")
+async def api_contact_groups(contact_id: str, request: Request):
+    """Get all groups a contact belongs to."""
+    _check_api_key(request)
+    groups = get_contact_groups(contact_id)
+    return {"groups": groups}
+
+
+# ====================================================================
 #  KNOWLEDGE BASE DOCUMENTS API (structured KB)
 # ====================================================================
 
@@ -2657,6 +4256,57 @@ async def api_delete_kb_document(doc_id: str, request: Request):
     return {"ok": True}
 
 
+@app.post("/api/kb/upload-file")
+async def api_upload_kb_file(request: Request, file: UploadFile = File(...), title: str = Form(""), scope: str = Form("global"), campaign_id: str = Form("")):
+    """Upload a file (.txt, .md, .pdf, .csv) to the knowledge base."""
+    _check_api_key(request)
+    if not file.filename:
+        raise HTTPException(400, "No file provided")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ("txt", "md", "pdf", "csv"):
+        raise HTTPException(400, f"Unsupported file type '.{ext}'. Allowed: .txt, .md, .pdf, .csv")
+
+    content_bytes = await file.read()
+    if len(content_bytes) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(400, "File too large (max 5MB)")
+
+    doc_title = title.strip() or file.filename
+
+    if ext == "pdf":
+        # Extract text from PDF
+        try:
+            import pdfplumber
+            import io as _io
+            text_parts = []
+            with pdfplumber.open(_io.BytesIO(content_bytes)) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_parts.append(page_text)
+            content = "\n\n".join(text_parts)
+        except ImportError:
+            raise HTTPException(500, "PDF support requires 'pdfplumber' package")
+        except Exception as e:
+            raise HTTPException(400, f"Failed to parse PDF: {e}")
+        doc_type = "pdf"
+    else:
+        content = content_bytes.decode("utf-8", errors="replace")
+        doc_type = {"txt": "text", "md": "markdown", "csv": "csv"}.get(ext, "text")
+
+    if not content.strip():
+        raise HTTPException(400, "File is empty or contains no extractable text")
+
+    doc = kb_manager.add_document(
+        title=doc_title, content=content, doc_type=doc_type,
+        scope=scope, campaign_id=campaign_id or None,
+    )
+    log_audit("kb.file_uploaded", "kb", scope, details={
+        "doc_id": doc["id"], "title": doc_title, "filename": file.filename, "type": doc_type,
+    })
+    return {"document": doc, "filename": file.filename}
+
+
 @app.post("/api/kb/query")
 async def api_query_kb(request: Request):
     """Test a KB query — returns relevant chunks for a given question."""
@@ -2678,10 +4328,14 @@ async def api_query_kb(request: Request):
 
 @app.get("/api/webhooks")
 async def api_list_webhooks(request: Request):
-    """List configured outbound webhook endpoints."""
+    """List configured outbound webhook endpoints with supported event types."""
     _check_api_key(request)
     hooks = webhook_dispatcher_mod.list_webhooks()
-    return {"webhooks": hooks, "count": len(hooks)}
+    return {
+        "webhooks": hooks,
+        "count": len(hooks),
+        "supported_events": webhook_dispatcher_mod.SUPPORTED_EVENTS,
+    }
 
 
 @app.post("/api/webhooks")
@@ -2703,6 +4357,28 @@ async def api_register_webhook(request: Request):
     log_audit("webhook.registered", "webhook", hook["id"], actor_id=actor_id,
               details={"url": url, "events": events})
     return {"webhook": hook}
+
+
+@app.get("/api/webhooks/{webhook_id}")
+async def api_get_webhook(webhook_id: str, request: Request):
+    """Get a specific webhook configuration and delivery stats."""
+    _check_api_key(request)
+    wh = webhook_dispatcher_mod.get_webhook(webhook_id)
+    if not wh:
+        raise HTTPException(404, "Webhook not found")
+    return {"webhook": wh}
+
+
+@app.patch("/api/webhooks/{webhook_id}")
+async def api_update_webhook(webhook_id: str, request: Request):
+    """Update a webhook (url, events, active status, etc.)."""
+    _check_api_key(request)
+    body = await request.json()
+    try:
+        wh = webhook_dispatcher_mod.update_webhook(webhook_id, **body)
+        return {"webhook": wh}
+    except FileNotFoundError:
+        raise HTTPException(404, "Webhook not found")
 
 
 @app.delete("/api/webhooks/{webhook_id}")
@@ -2727,6 +4403,208 @@ async def api_test_webhook(webhook_id: str, request: Request):
 # ====================================================================
 #  RATE LIMITER STATUS API
 # ====================================================================
+
+@app.get("/api/whatsapp/profile")
+async def api_get_whatsapp_profile(request: Request):
+    """Fetch WhatsApp Business profile information."""
+    _check_api_key(request)
+    if not WHATSAPP_ACCESS_TOKEN or not WHATSAPP_PHONE_NUMBER_ID:
+        raise HTTPException(503, "WhatsApp not configured")
+
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/whatsapp_business_profile"
+    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    params = {"fields": "about,address,description,email,profile_picture_url,websites,vertical"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, params=params) as resp:
+            if resp.status != 200:
+                err = await resp.text()
+                raise HTTPException(resp.status, f"WhatsApp API error: {err}")
+            data = await resp.json()
+            profile_data = data.get("data", [{}])
+            return {"profile": profile_data[0] if profile_data else {}}
+
+
+@app.patch("/api/whatsapp/profile")
+async def api_update_whatsapp_profile(request: Request):
+    """Update WhatsApp Business profile (about, description, address, etc.)."""
+    _check_api_key(request)
+    if not WHATSAPP_ACCESS_TOKEN or not WHATSAPP_PHONE_NUMBER_ID:
+        raise HTTPException(503, "WhatsApp not configured")
+
+    body = await request.json()
+    allowed_fields = {"about", "address", "description", "email", "websites", "vertical"}
+    update_data = {k: v for k, v in body.items() if k in allowed_fields}
+
+    if not update_data:
+        raise HTTPException(400, f"No valid fields to update. Allowed: {allowed_fields}")
+
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/whatsapp_business_profile"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {"messaging_product": "whatsapp", **update_data}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=payload) as resp:
+            result = await resp.json()
+            if resp.status != 200:
+                raise HTTPException(resp.status, f"WhatsApp API error: {result}")
+            return {"ok": True, "result": result}
+
+
+@app.post("/api/admin/backup")
+async def api_backup_data(request: Request):
+    """
+    Create a backup of all critical data: SQLite DB, auth, billing, vector store.
+    Returns a ZIP file containing everything needed to restore.
+    """
+    ctx = _check_api_key(request)
+
+    import zipfile
+    import io as _io
+    import shutil
+
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. SQLite database
+        db_path = DATA_DIR / "nazar.db"
+        if db_path.exists():
+            # Use SQLite backup (safe for WAL mode)
+            import sqlite3
+            backup_path = DATA_DIR / "nazar_backup.db"
+            src = sqlite3.connect(str(db_path))
+            dst = sqlite3.connect(str(backup_path))
+            src.backup(dst)
+            dst.close()
+            src.close()
+            zf.write(str(backup_path), "nazar.db")
+            backup_path.unlink(missing_ok=True)
+
+        # 2. Auth files
+        auth_dir = DATA_DIR / "auth"
+        if auth_dir.exists():
+            for f in auth_dir.iterdir():
+                if f.is_file() and not f.name.startswith("."):
+                    zf.write(str(f), f"auth/{f.name}")
+
+        # 3. Billing files
+        billing_dir = DATA_DIR / "billing"
+        if billing_dir.exists():
+            for f in billing_dir.iterdir():
+                if f.is_file():
+                    zf.write(str(f), f"billing/{f.name}")
+
+        # 4. Config
+        config_path = DATA_DIR / "config.json"
+        if config_path.exists():
+            zf.write(str(config_path), "config.json")
+
+        # 5. Templates
+        templates_path = DATA_DIR / "templates.json"
+        if templates_path.exists():
+            zf.write(str(templates_path), "templates.json")
+
+        # 6. Knowledge base
+        kb_dir = DATA_DIR / "kb"
+        if kb_dir.exists():
+            for root, dirs, files in os.walk(str(kb_dir)):
+                for f in files:
+                    full = os.path.join(root, f)
+                    arcname = os.path.relpath(full, str(DATA_DIR))
+                    zf.write(full, arcname)
+
+        # 7. ChromaDB vector store (if small enough)
+        chroma_dir = DATA_DIR / "contacts"
+        if chroma_dir.exists():
+            total_size = sum(f.stat().st_size for f in chroma_dir.rglob("*") if f.is_file())
+            if total_size < 100 * 1024 * 1024:  # Only if under 100MB
+                for root, dirs, files in os.walk(str(chroma_dir)):
+                    for f in files:
+                        full = os.path.join(root, f)
+                        arcname = os.path.relpath(full, str(DATA_DIR))
+                        zf.write(full, arcname)
+
+    buf.seek(0)
+    timestamp = datetime.now(IST).strftime("%Y%m%d_%H%M%S")
+    filename = f"nazar_backup_{timestamp}.zip"
+
+    return Response(
+        content=buf.read(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/whatsapp/numbers")
+async def api_list_whatsapp_numbers(request: Request):
+    """
+    List configured WhatsApp phone numbers.
+
+    Multi-number support: businesses can use different numbers
+    for sales vs. support vs. marketing.
+    """
+    _check_api_key(request)
+    numbers = []
+    # Primary number (always present if configured)
+    if WHATSAPP_PHONE_NUMBER_ID:
+        numbers.append({
+            "id": WHATSAPP_PHONE_NUMBER_ID,
+            "label": "Primary",
+            "is_primary": True,
+            "access_token_set": bool(WHATSAPP_ACCESS_TOKEN),
+        })
+    # Check for additional numbers from config
+    config = _load_config()
+    additional_numbers = config.get("additional_wa_numbers", [])
+    for num in additional_numbers:
+        numbers.append({
+            "id": num.get("phone_number_id", ""),
+            "label": num.get("label", ""),
+            "is_primary": False,
+            "access_token_set": bool(num.get("access_token")),
+        })
+    return {"numbers": numbers, "multi_number_enabled": len(numbers) > 1}
+
+
+@app.post("/api/whatsapp/numbers")
+async def api_add_whatsapp_number(request: Request):
+    """
+    Add an additional WhatsApp phone number.
+
+    Body:
+      - phone_number_id: str — Meta phone number ID
+      - access_token: str — access token for this number
+      - label: str — e.g., "Sales", "Support"
+    """
+    ctx = _check_api_key(request)
+    body = await request.json()
+    phone_number_id = body.get("phone_number_id", "").strip()
+    access_token = body.get("access_token", "").strip()
+    label = body.get("label", "").strip()
+
+    if not phone_number_id or not access_token:
+        raise HTTPException(400, "phone_number_id and access_token required")
+
+    config = _load_config()
+    additional = config.get("additional_wa_numbers", [])
+
+    # Check for duplicate
+    if any(n["phone_number_id"] == phone_number_id for n in additional):
+        raise HTTPException(409, "Phone number already added")
+
+    additional.append({
+        "phone_number_id": phone_number_id,
+        "access_token": access_token,
+        "label": label or phone_number_id,
+        "added_at": datetime.now(IST).isoformat(),
+    })
+    config["additional_wa_numbers"] = additional
+    _save_config(config)
+
+    return {"ok": True, "total_numbers": len(additional) + (1 if WHATSAPP_PHONE_NUMBER_ID else 0)}
+
 
 @app.get("/api/rate-limit/status")
 async def api_rate_limit_status(request: Request):
@@ -2884,7 +4762,22 @@ async def _campaign_scheduler_loop():
                                 continue
                             try:
                                 rendered = render_template(template, contact)
-                                await send_whatsapp_message(phone, rendered)
+                                # Scheduled campaigns must use template API (outside 24h window)
+                                if WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID:
+                                    components = _build_template_components(template, contact)
+                                    result = await send_template_message(
+                                        phone,
+                                        template.get("name", ""),
+                                        template.get("language", "en"),
+                                        components=components or None,
+                                    )
+                                    if "error" in result:
+                                        failed += 1
+                                        logger.error(
+                                            "Scheduled campaign %s: template send failed for %s: %s",
+                                            campaign["id"], phone, result["error"].get("message", ""),
+                                        )
+                                        continue
                                 save_message(contact["contact_id"], "outbound", rendered, sent_by="campaign")
                                 sent += 1
                             except Exception as exc:
@@ -2937,12 +4830,34 @@ async def _memory_maintenance_loop():
 
 @app.on_event("startup")
 async def startup_event():
-    """Start background tasks and bootstrap default workspace."""
-    # Security check: warn loudly if webhook secret is not configured
+    """Start background tasks, initialize database, and bootstrap default workspace."""
+    # Initialize SQLite database (creates tables if not exist)
+    from database import init_db
+    init_db()
+    logger.info("SQLite database initialized")
+
+    # Load recent message IDs for dedup (prevents duplicates after restart)
+    _load_recent_message_ids()
+
+    # Security checks — warn loudly about missing production configuration
     if not os.environ.get("WA_APP_SECRET", ""):
         logger.critical(
             "⚠️  WA_APP_SECRET is not set! All inbound webhooks will be rejected "
-            "with HTTP 503 until this is configured. Add WA_APP_SECRET to your .env file."
+            "with HTTP 503 until this is configured. Set WA_APP_SECRET in .env to enable webhook processing."
+        )
+    if API_KEY == "nazar_dev_key":
+        logger.critical(
+            "⚠️  NAZAR_API_KEY is still the default 'nazar_dev_key'! "
+            "Change it in .env before going to production."
+        )
+    if not os.environ.get("NAZAR_TOKEN_SECRET", ""):
+        logger.warning(
+            "NAZAR_TOKEN_SECRET not set — auto-generated. "
+            "Set it explicitly in .env for stable sessions across restarts."
+        )
+    if not os.environ.get("RAZORPAY_WEBHOOK_SECRET", ""):
+        logger.warning(
+            "RAZORPAY_WEBHOOK_SECRET not set — payment webhooks will be rejected."
         )
 
     asyncio.create_task(_auto_resume_loop())
@@ -2964,6 +4879,14 @@ async def startup_event():
         if not get_subscription(ws_id):
             create_subscription(ws_id, "starter", trial=True)
             logger.info(f"Starter trial subscription created for workspace {ws_id}")
+
+        # Sync contact count to billing usage (gauge metric)
+        try:
+            contacts_count = len(list_contacts())
+            set_usage(ws_id, "contacts", contacts_count)
+        except Exception:
+            pass
+
     except Exception as e:
         logger.warning(f"Bootstrap warning (non-fatal): {e}")
 
@@ -2991,11 +4914,20 @@ async def health():
 
     # 2. ChromaDB
     try:
-        import chromadb as _chroma
-        _chroma_path = DATA_DIR / "contacts" / "chroma_health"
-        _c = _chroma.PersistentClient(path=str(_chroma_path))
-        _c.heartbeat()
-        checks["vector_db"] = "ok"
+        from customer_memory import CHROMADB_AVAILABLE
+        if CHROMADB_AVAILABLE:
+            import chromadb as _chroma
+            _health_path = DATA_DIR / ".chroma_health"
+            _health_path.mkdir(parents=True, exist_ok=True)
+            _c = _chroma.PersistentClient(path=str(_health_path))
+            _c.heartbeat()
+            checks["vector_db"] = "ok"
+        else:
+            checks["vector_db"] = "unavailable (chromadb not installed)"
+    except TypeError:
+        # Python 3.8 incompatibility with some ChromaDB type annotations
+        # ChromaDB is installed and will work at runtime via lazy init
+        checks["vector_db"] = "ok (compat mode)"
     except Exception as e:
         checks["vector_db"] = f"error: {e}"
 

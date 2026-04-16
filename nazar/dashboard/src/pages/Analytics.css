@@ -207,6 +207,67 @@
   margin-top: var(--space-2);
 }
 
+/* Chart tooltip */
+.chart-tooltip {
+  background: var(--bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  font-size: var(--font-size-sm);
+}
+
+.chart-tooltip-label {
+  font-weight: 600;
+  color: var(--color-gray-700);
+  margin-bottom: 4px;
+}
+
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-gray-600);
+  padding: 1px 0;
+}
+
+.chart-tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Pipeline legend */
+.pipe-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-gray-100);
+  margin-top: var(--space-2);
+}
+
+.pipe-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
+}
+
+.pipe-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pipe-legend-count {
+  font-weight: 600;
+  color: var(--color-gray-800);
+}
+
 @media (max-width: 900px) {
   .analytics-grid { grid-template-columns: 1fr; }
   .analytics-panel--wide { grid-column: 1; }

@@ -1,3 +1,52 @@
+/* ── Inbox Filter Tabs ──────────────────────────────────────── */
+.inbox-filters {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.inbox-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-gray-600);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.inbox-filter-btn:hover {
+  border-color: var(--color-gray-300);
+  background: var(--color-gray-50);
+}
+
+.inbox-filter-btn--active {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+}
+
+.inbox-filter-count {
+  background: var(--color-orange-500);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  min-width: 18px;
+  text-align: center;
+}
+
+.inbox-filter-btn--active .inbox-filter-count {
+  background: var(--color-primary-600);
+}
+
+/* ── Search ──────────────────────────────────────────────────── */
 .conv-search-bar {
   display: flex;
   align-items: center;
@@ -19,11 +68,11 @@
   color: var(--color-gray-900);
 }
 
-.conv-search-bar input::placeholder {
-  color: var(--color-gray-400);
-}
-
+/* ── Conversation List ──────────────────────────────────────── */
 .conv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   background: var(--bg-primary);
   border: 1px solid var(--color-gray-200);
   border-radius: var(--radius-lg);
@@ -32,12 +81,12 @@
 
 .conv-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-gray-100);
   cursor: pointer;
   transition: background var(--transition-fast);
+  border-bottom: 1px solid var(--color-gray-100);
 }
 
 .conv-item:last-child {
@@ -46,6 +95,19 @@
 
 .conv-item:hover {
   background: var(--color-gray-50);
+}
+
+.conv-item--escalated {
+  border-left: 3px solid var(--color-orange-500);
+  background: var(--color-orange-50);
+}
+
+.conv-item--escalated:hover {
+  background: #fff7ed;
+}
+
+.conv-item--followup {
+  border-left: 3px solid var(--color-warning-500);
 }
 
 .conv-avatar {
@@ -58,8 +120,9 @@
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .conv-body {
@@ -70,8 +133,8 @@
 .conv-top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2px;
+  align-items: baseline;
+  margin-bottom: 4px;
 }
 
 .conv-name {
@@ -82,36 +145,52 @@
 .conv-time {
   font-size: var(--font-size-xs);
   color: var(--color-gray-400);
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .conv-bottom {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: var(--space-2);
 }
 
 .conv-preview {
+  flex: 1;
   font-size: var(--font-size-sm);
   color: var(--color-gray-500);
-  flex: 1;
   min-width: 0;
 }
 
 .conv-badges {
   display: flex;
-  gap: var(--space-2);
+  gap: 4px;
   flex-shrink: 0;
-  margin-left: var(--space-2);
+  flex-wrap: wrap;
 }
 
-.conv-unread {
-  background: var(--color-primary-600);
-  color: #fff;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: var(--radius-full);
-  min-width: 20px;
-  text-align: center;
+/* Escalation reason row */
+.conv-escalation-reason {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(249, 115, 22, 0.08);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-orange-600);
+}
+
+.conv-escalation-reason span {
+  flex: 1;
+}
+
+/* Follow-up info row */
+.conv-followup-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-warning-600);
 }

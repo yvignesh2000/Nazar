@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { HandMetal, AlertTriangle, Clock, CheckCircle2, Key, Brain, Bot, User, Play, MessageSquare, History } from 'lucide-react';
+import { HandMetal, AlertTriangle, Clock, CheckCircle2, Key, Brain, Bot, User, Play, MessageSquare, History, CalendarClock, ArrowRight } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
-import { handoffs as handoffApi } from '../api/client';
+import { handoffs as handoffApi, followups as followupApi } from '../api/client';
 import PageHeader from '../components/ui/PageHeader';
 import StatCard from '../components/ui/StatCard';
 import Button from '../components/ui/Button';
@@ -38,6 +38,9 @@ export default function Handoffs() {
   const { data: historyData, loading: historyLoading, refetch: refetchHistory } = useApi(
     () => handoffApi.history(), [], { enabled: tab === 'history' }
   );
+  const { data: followupData, loading: followupsLoading } = useApi(
+    () => followupApi.list(), [], { enabled: tab === 'followups' }
+  );
 
   const [resumingId, setResumingId] = useState(null);
 
@@ -56,21 +59,29 @@ export default function Handoffs() {
   }
 
   const queue = queueData?.queue || [];
+  const followups = followupData?.followups || [];
+  const followupCount = statsData?.followup_count || 0;
 
   return (
     <div className="page-content">
       <PageHeader
-        title="Handoffs"
-        description="Conversations escalated to human agents"
+        title="Attention Needed"
+        description="Escalated conversations and contacts needing follow-up"
       />
 
       {/* Stats */}
-      <div className="stat-grid stat-grid--3">
+      <div className="stat-grid stat-grid--4">
         <StatCard
           icon={AlertTriangle}
-          label="In Queue"
+          label="Escalated"
           value={statsData?.currently_in_queue || 0}
           variant="orange"
+        />
+        <StatCard
+          icon={CalendarClock}
+          label="Need Follow-up"
+          value={followupCount}
+          variant="warning"
         />
         <StatCard
           icon={HandMetal}
@@ -89,14 +100,17 @@ export default function Handoffs() {
       {/* Tabs */}
       <div className="tabs">
         <button className={`tab ${tab === 'queue' ? 'tab--active' : ''}`} onClick={() => setTab('queue')}>
-          <HandMetal size={15} /> Queue {queue.length > 0 && <span className="tab-count">{queue.length}</span>}
+          <HandMetal size={15} /> Escalated {queue.length > 0 && <span className="tab-count">{queue.length}</span>}
+        </button>
+        <button className={`tab ${tab === 'followups' ? 'tab--active' : ''}`} onClick={() => setTab('followups')}>
+          <CalendarClock size={15} /> Follow-ups {followupCount > 0 && <span className="tab-count tab-count--yellow">{followupCount}</span>}
         </button>
         <button className={`tab ${tab === 'history' ? 'tab--active' : ''}`} onClick={() => setTab('history')}>
           <History size={15} /> History
         </button>
       </div>
 
-      {/* Queue Tab */}
+      {/* Escalated Queue Tab */}
       {tab === 'queue' && (
         queueLoading ? <Spinner /> : queue.length === 0 ? (
           <EmptyState
@@ -164,6 +178,49 @@ export default function Handoffs() {
                 </div>
               );
             })}
+          </div>
+        )
+      )}
+
+      {/* Follow-ups Tab */}
+      {tab === 'followups' && (
+        followupsLoading ? <Spinner /> : followups.length === 0 ? (
+          <EmptyState icon={CalendarClock} title="All caught up!" description="No contacts need follow-up right now." />
+        ) : (
+          <div className="handoff-grid">
+            {followups.map(f => (
+              <div key={f.contact_id} className="handoff-card followup-card-styled">
+                <div className="handoff-card-header">
+                  <div className="handoff-contact">
+                    <div className="handoff-avatar handoff-avatar--yellow">{(f.name || '?')[0].toUpperCase()}</div>
+                    <div>
+                      <div className="handoff-name">{f.name || 'Unknown'}</div>
+                      <div className="handoff-phone">{f.phone}</div>
+                    </div>
+                  </div>
+                  <Badge variant={f.priority === 'high' ? 'danger' : f.priority === 'medium' ? 'warning' : 'default'}>
+                    {f.priority} priority
+                  </Badge>
+                </div>
+
+                <div className="followup-detail-row">
+                  <span className="followup-days">{f.days_since_contact} days since last contact</span>
+                  {f.stage && <Badge variant="default" size="sm">{f.stage}</Badge>}
+                  {f.deal_value > 0 && <Badge variant="success" size="sm">₹{f.deal_value.toLocaleString('en-IN')}</Badge>}
+                </div>
+
+                <div className="handoff-card-actions">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={MessageSquare}
+                    onClick={() => navigate(`/conversations/${f.contact_id}`)}
+                  >
+                    Open Chat
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         )
       )}

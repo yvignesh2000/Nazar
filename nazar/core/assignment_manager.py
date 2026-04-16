@@ -1,63 +1,22 @@
 """
 Nazar — Conversation Assignment Manager
 
-Handles routing inbound conversations (in human_only / ai_draft / handoff mode)
-to specific agents, and managing workload balancing.
-
-Routing strategies
-------------------
-round_robin   Rotate through agents in alphabetical-by-user_id order.
-least_busy    Assign to agent with fewest active (unresolved) conversations.
-manual        No auto-assignment; agents claim conversations from an inbox queue.
-
-Storage
--------
-data/assignments.json   {contact_id: assignment_record}
+Handles routing inbound conversations to agents and workload balancing.
+Storage: SQLite via core/database.py (assignments table)
 """
 
 import json
 import logging
-import fcntl
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Dict, List, Optional
+
+from database import get_db
 
 logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
-DATA_DIR = Path(__file__).parent.parent / "data"
 
 ROUTING_STRATEGIES = ("round_robin", "least_busy", "manual")
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Storage helpers
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _assignments_path():
-    # type: () -> Path
-    return DATA_DIR / "assignments.json"
-
-
-def _load():
-    # type: () -> dict
-    path = _assignments_path()
-    if path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
-
-
-def _save(data):
-    # type: (dict) -> None
-    path = _assignments_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = path.with_suffix(".lock")
-    with open(lock_path, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -65,24 +24,12 @@ def _save(data):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def assign_conversation(
-    contact_id,     # type: str
-    agents,         # type: List[str]
-    strategy="round_robin",  # type: str
-    assigned_by="auto",      # type: str
-):
-    # type: (...) -> dict
-    """
-    Auto-assign a conversation to an agent.
-
-    Args:
-        contact_id: Target contact.
-        agents:     List of user_id strings currently available.
-        strategy:   "round_robin" | "least_busy" | "manual"
-        assigned_by: Who is assigning ("auto:round_robin", user_id, etc.)
-
-    Returns:
-        Assignment record dict.
-    """
+    contact_id: str,
+    agents: List[str],
+    strategy: str = "round_robin",
+    assigned_by: str = "auto",
+) -> dict:
+    """Auto-assign a conversation to an agent."""
     if not agents:
         return _create_record(contact_id, assigned_to=None, assigned_by=assigned_by)
 
@@ -92,192 +39,202 @@ def assign_conversation(
     if strategy == "least_busy":
         agent = _pick_least_busy(agents)
     else:
-        # round_robin (default)
         agent = _pick_round_robin(agents, contact_id)
 
-    return _create_record(
-        contact_id,
-        assigned_to=agent,
-        assigned_by="auto:%s" % strategy,
-    )
+    return _create_record(contact_id, assigned_to=agent, assigned_by=f"auto:{strategy}")
 
 
-def manual_assign(contact_id, agent_id, assigned_by):
-    # type: (str, str, str) -> dict
-    """
-    Assign (or re-assign) a conversation to a specific agent by user_id.
-
-    Returns updated assignment record.
-    """
-    data = _load()
-    existing = data.get(contact_id)
-
+def manual_assign(contact_id: str, agent_id: str, assigned_by: str) -> dict:
+    """Assign (or re-assign) a conversation to a specific agent."""
     now = datetime.now(IST).isoformat()
-    if existing:
-        existing["assigned_to"] = agent_id
-        existing["assigned_at"] = now
-        existing["assigned_by"] = assigned_by
-        existing["status"] = "active"
-        data[contact_id] = existing
-    else:
-        data[contact_id] = _blank_record(contact_id, agent_id, assigned_by)
 
-    _save(data)
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT * FROM assignments WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                """UPDATE assignments SET assigned_to = ?, assigned_at = ?,
+                   assigned_by = ?, status = 'active' WHERE contact_id = ?""",
+                (agent_id, now, assigned_by, contact_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO assignments
+                   (contact_id, assigned_to, assigned_at, assigned_by, status, transfer_log)
+                   VALUES (?, ?, ?, ?, 'active', '[]')""",
+                (contact_id, agent_id, now, assigned_by),
+            )
+
     logger.info("Conversation %s assigned to %s by %s", contact_id, agent_id, assigned_by)
-    return data[contact_id]
+    return _get_record(contact_id)
 
 
-def claim_conversation(contact_id, agent_id):
-    # type: (str, str) -> dict
-    """
-    Agent manually claims an unassigned conversation.
-
-    Returns updated assignment record.
-    """
+def claim_conversation(contact_id: str, agent_id: str) -> dict:
+    """Agent manually claims an unassigned conversation."""
     return manual_assign(contact_id, agent_id, assigned_by=agent_id)
 
 
 def transfer_conversation(
-    contact_id,   # type: str
-    from_agent,   # type: str
-    to_agent,     # type: str
-    reason="",    # type: str
-):
-    # type: (...) -> dict
-    """
-    Transfer a conversation from one agent to another.
-
-    Appends a transfer log entry for audit purposes.
-    """
-    data = _load()
-    record = data.get(contact_id)
+    contact_id: str,
+    from_agent: str,
+    to_agent: str,
+    reason: str = "",
+) -> dict:
+    """Transfer a conversation from one agent to another."""
     now = datetime.now(IST).isoformat()
 
-    if not record:
-        record = _blank_record(contact_id, to_agent, from_agent)
-    else:
-        log_entry = {
-            "from": from_agent,
-            "to": to_agent,
-            "reason": reason,
-            "at": now,
-        }
-        record.setdefault("transfer_log", []).append(log_entry)
-        record["assigned_to"] = to_agent
-        record["assigned_at"] = now
-        record["assigned_by"] = from_agent
-        record["status"] = "active"
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT * FROM assignments WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
 
-    data[contact_id] = record
-    _save(data)
+        log_entry = {"from": from_agent, "to": to_agent, "reason": reason, "at": now}
+
+        if existing:
+            transfer_log = json.loads(existing["transfer_log"] or "[]")
+            transfer_log.append(log_entry)
+            conn.execute(
+                """UPDATE assignments SET assigned_to = ?, assigned_at = ?,
+                   assigned_by = ?, status = 'active', transfer_log = ?
+                   WHERE contact_id = ?""",
+                (to_agent, now, from_agent, json.dumps(transfer_log), contact_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO assignments
+                   (contact_id, assigned_to, assigned_at, assigned_by, status, transfer_log)
+                   VALUES (?, ?, ?, ?, 'active', ?)""",
+                (contact_id, to_agent, now, from_agent, json.dumps([log_entry])),
+            )
+
     logger.info(
         "Conversation %s transferred %s -> %s: %s",
         contact_id, from_agent, to_agent, reason,
     )
-    return record
+    return _get_record(contact_id)
 
 
-def resolve_conversation(contact_id, resolved_by="system"):
-    # type: (str, str) -> dict
-    """Mark a conversation as resolved (no longer needs agent attention)."""
-    data = _load()
-    record = data.get(contact_id, _blank_record(contact_id, None, resolved_by))
-    record["status"] = "resolved"
-    record["resolved_at"] = datetime.now(IST).isoformat()
-    record["resolved_by"] = resolved_by
-    data[contact_id] = record
-    _save(data)
-    return record
+def resolve_conversation(contact_id: str, resolved_by: str = "system") -> dict:
+    """Mark a conversation as resolved."""
+    now = datetime.now(IST).isoformat()
+
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT 1 FROM assignments WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
+
+        if existing:
+            conn.execute(
+                """UPDATE assignments SET status = 'resolved',
+                   resolved_at = ?, resolved_by = ? WHERE contact_id = ?""",
+                (now, resolved_by, contact_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO assignments
+                   (contact_id, assigned_to, assigned_at, assigned_by, status,
+                    resolved_at, resolved_by, transfer_log)
+                   VALUES (?, NULL, ?, ?, 'resolved', ?, ?, '[]')""",
+                (contact_id, now, resolved_by, now, resolved_by),
+            )
+
+    return _get_record(contact_id)
 
 
-def get_assignment(contact_id):
-    # type: (str) -> Optional[dict]
+def get_assignment(contact_id: str) -> Optional[dict]:
     """Return the assignment record for a contact, or None."""
-    return _load().get(contact_id)
+    return _get_record(contact_id)
 
 
-def get_agent_conversations(agent_id, status="active"):
-    # type: (str, str) -> List[dict]
-    """Return all conversations assigned to ``agent_id`` with the given status."""
-    data = _load()
-    return [
-        r for r in data.values()
-        if r.get("assigned_to") == agent_id and r.get("status") == status
-    ]
+def get_agent_conversations(agent_id: str, status: str = "active") -> List[dict]:
+    """Return all conversations assigned to an agent."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM assignments WHERE assigned_to = ? AND status = ?",
+            (agent_id, status),
+        ).fetchall()
+    return [_row_to_assignment(r) for r in rows]
 
 
-def get_unassigned_queue():
-    # type: () -> List[dict]
+def get_unassigned_queue() -> List[dict]:
     """Return all active conversations that have no assigned agent."""
-    data = _load()
-    return [
-        r for r in data.values()
-        if r.get("assigned_to") is None and r.get("status") == "active"
-    ]
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM assignments WHERE assigned_to IS NULL AND status = 'active'"
+        ).fetchall()
+    return [_row_to_assignment(r) for r in rows]
 
 
-def get_agent_workload():
-    # type: () -> Dict[str, int]
-    """
-    Return active conversation count per agent.
-
-    Returns:
-        Dict mapping agent user_id -> active conversation count.
-    """
-    data = _load()
-    counts = {}  # type: Dict[str, int]
-    for r in data.values():
-        if r.get("status") == "active" and r.get("assigned_to"):
-            agent = r["assigned_to"]
-            counts[agent] = counts.get(agent, 0) + 1
-    return counts
+def get_agent_workload() -> Dict[str, int]:
+    """Return active conversation count per agent."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT assigned_to, COUNT(*) as cnt FROM assignments "
+            "WHERE status = 'active' AND assigned_to IS NOT NULL "
+            "GROUP BY assigned_to"
+        ).fetchall()
+    return {r["assigned_to"]: r["cnt"] for r in rows}
 
 
-def get_all_assignments():
-    # type: () -> List[dict]
+def get_all_assignments() -> List[dict]:
     """Return all assignment records."""
-    return list(_load().values())
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM assignments").fetchall()
+    return [_row_to_assignment(r) for r in rows]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Internal helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _blank_record(contact_id, assigned_to, assigned_by):
-    # type: (str, Optional[str], str) -> dict
+def _get_record(contact_id: str) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM assignments WHERE contact_id = ?",
+            (contact_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return _row_to_assignment(row)
+
+
+def _row_to_assignment(row) -> dict:
+    d = dict(row)
     return {
-        "contact_id": contact_id,
-        "assigned_to": assigned_to,
-        "assigned_at": datetime.now(IST).isoformat(),
-        "assigned_by": assigned_by,
-        "status": "active",
-        "transfer_log": [],
+        "contact_id": d["contact_id"],
+        "assigned_to": d.get("assigned_to"),
+        "assigned_at": d.get("assigned_at", ""),
+        "assigned_by": d.get("assigned_by", ""),
+        "status": d.get("status", "active"),
+        "transfer_log": json.loads(d.get("transfer_log", "[]") or "[]"),
+        "resolved_at": d.get("resolved_at"),
+        "resolved_by": d.get("resolved_by"),
     }
 
 
-def _create_record(contact_id, assigned_to, assigned_by):
-    # type: (str, Optional[str], str) -> dict
-    data = _load()
-    record = _blank_record(contact_id, assigned_to, assigned_by)
-    data[contact_id] = record
-    _save(data)
-    return record
+def _create_record(contact_id: str, assigned_to: Optional[str], assigned_by: str) -> dict:
+    now = datetime.now(IST).isoformat()
+    with get_db() as conn:
+        conn.execute(
+            """INSERT OR REPLACE INTO assignments
+               (contact_id, assigned_to, assigned_at, assigned_by, status, transfer_log)
+               VALUES (?, ?, ?, ?, 'active', '[]')""",
+            (contact_id, assigned_to, now, assigned_by),
+        )
+    return _get_record(contact_id)
 
 
-def _pick_round_robin(agents, contact_id):
-    # type: (List[str], str) -> str
-    """
-    Simple deterministic round-robin: pick based on current assignment counts.
-    Falls back to hash-of-contact_id for tie-breaking so the same contact always
-    maps to the same position in an equal-load scenario.
-    """
+def _pick_round_robin(agents: List[str], contact_id: str) -> str:
     workload = get_agent_workload()
     sorted_agents = sorted(agents, key=lambda a: (workload.get(a, 0), a))
     return sorted_agents[0]
 
 
-def _pick_least_busy(agents):
-    # type: (List[str]) -> str
-    """Pick the agent with the fewest active conversations."""
+def _pick_least_busy(agents: List[str]) -> str:
     workload = get_agent_workload()
     return min(agents, key=lambda a: workload.get(a, 0))

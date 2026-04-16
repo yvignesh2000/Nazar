@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Send, Bot, User, HandMetal, Play, AlertTriangle,
-  TestTube, FileEdit, CheckCircle, XCircle, RotateCcw,
-  BookOpen, ChevronDown, Sparkles, Shield, Eye, Pencil,
+  ArrowLeft, Send, Bot, User, Play, AlertTriangle, Clock,
+  FileEdit, CheckCircle, XCircle, RotateCcw,
+  ChevronDown, Sparkles, Pencil, Settings2, TestTube,
 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import {
@@ -17,9 +17,9 @@ import { format } from 'date-fns';
 import './ConversationDetail.css';
 
 const REPLY_MODE_OPTIONS = [
-  { id: 'auto_ai', icon: Bot, label: 'AI Auto-Reply', color: 'var(--color-success-600)', badge: 'success' },
-  { id: 'ai_draft', icon: FileEdit, label: 'AI Draft + Approve', color: 'var(--color-primary-600)', badge: 'primary' },
-  { id: 'human_only', icon: User, label: 'Human Only', color: 'var(--color-orange-600)', badge: 'orange' },
+  { id: 'auto_ai', icon: Bot, label: 'AI is replying', color: 'var(--color-success-600)', badge: 'success' },
+  { id: 'ai_draft', icon: FileEdit, label: 'AI drafts, you approve', color: 'var(--color-primary-600)', badge: 'primary' },
+  { id: 'human_only', icon: User, label: "You're replying", color: 'var(--color-orange-600)', badge: 'orange' },
 ];
 
 export default function ConversationDetail() {
@@ -28,6 +28,10 @@ export default function ConversationDetail() {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [sendWarning, setSendWarning] = useState(null);
+
+  // Dev tools — hidden by default
+  const [showDevTools, setShowDevTools] = useState(false);
   const [simMode, setSimMode] = useState(false);
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState(null);
@@ -56,6 +60,7 @@ export default function ConversationDetail() {
   const handoffState = data?.handoff_state || null;
   const replyModeInfo = data?.reply_mode || { mode: 'auto_ai', source: 'default' };
   const pendingDraft = data?.pending_draft || null;
+  const serviceWindow = data?.service_window || { window_open: false, hours_remaining: 0 };
 
   const currentMode = REPLY_MODE_OPTIONS.find(m => m.id === replyModeInfo.mode) || REPLY_MODE_OPTIONS[0];
 
@@ -63,7 +68,6 @@ export default function ConversationDetail() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, simResult, pendingDraft]);
 
-  // Close reply mode menu on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (replyModeRef.current && !replyModeRef.current.contains(e.target)) {
@@ -74,7 +78,6 @@ export default function ConversationDetail() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // When draft changes, reset editing state
   useEffect(() => {
     if (pendingDraft) {
       setEditedDraft(pendingDraft.draft);
@@ -101,12 +104,18 @@ export default function ConversationDetail() {
       }
     } else {
       setSending(true);
+      setSendWarning(null);
       try {
-        await convApi.send(contactId, message.trim());
+        const res = await convApi.send(contactId, message.trim());
         setMessage('');
+        if (res?.wa_send_error) {
+          setSendWarning({ type: 'error', message: res.wa_send_error });
+        } else if (res?.window_warning && !res?.whatsapp_sent) {
+          setSendWarning({ type: 'warning', message: res.window_warning });
+        }
         refetch();
       } catch (err) {
-        console.error('Send failed:', err);
+        setSendWarning({ type: 'error', message: err.message || 'Failed to send message' });
       } finally {
         setSending(false);
       }
@@ -185,13 +194,24 @@ export default function ConversationDetail() {
     <div className="chat-page">
       {/* Header */}
       <div className="chat-header">
-        <button className="chat-back" onClick={() => navigate('/conversations')}>
+        <button className="chat-back" onClick={() => navigate('/inbox')}>
           <ArrowLeft size={18} />
         </button>
         <div className="chat-header-avatar">{(contact.name || '?')[0].toUpperCase()}</div>
         <div className="chat-header-info">
           <span className="chat-header-name">{contact.name || 'Unknown'}</span>
-          <span className="chat-header-phone">{contact.phone}</span>
+          <span className="chat-header-phone">
+            {contact.phone}
+            {serviceWindow.window_open ? (
+              <span className="service-window-badge service-window-badge--open" title={`Reply window open — ${serviceWindow.hours_remaining}h remaining. Free-form messages allowed.`}>
+                ● {serviceWindow.hours_remaining}h
+              </span>
+            ) : (
+              <span className="service-window-badge service-window-badge--closed" title="Reply window closed. Only template messages can be sent via WhatsApp.">
+                ○ Template only
+              </span>
+            )}
+          </span>
         </div>
         <div className="chat-header-actions">
           {!botOn && handoffState?.reason && (
@@ -218,7 +238,7 @@ export default function ConversationDetail() {
 
             {showReplyModeMenu && (
               <div className="reply-mode-dropdown">
-                <div className="rm-dropdown-header">Reply Mode</div>
+                <div className="rm-dropdown-header">How should replies be handled?</div>
                 {REPLY_MODE_OPTIONS.map(opt => {
                   const Icon = opt.icon;
                   const isActive = opt.id === replyModeInfo.mode;
@@ -234,16 +254,6 @@ export default function ConversationDetail() {
                     </button>
                   );
                 })}
-                {replyModeInfo.source !== 'default' && (
-                  <div className="rm-dropdown-footer">
-                    Currently set by: <strong>{replyModeInfo.source}</strong>
-                    {replyModeInfo.campaign_id && (
-                      <span className="rm-campaign-tag">
-                        <BookOpen size={10} /> Campaign KB active
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -251,14 +261,14 @@ export default function ConversationDetail() {
           <Button
             size="sm"
             variant={botOn ? 'secondary' : 'success'}
-            icon={botOn ? HandMetal : Play}
+            icon={botOn ? User : Play}
             loading={toggling}
             onClick={handleToggleBot}
           >
-            {botOn ? 'Hand to Human' : 'Resume Bot'}
+            {botOn ? 'Pause Bot' : 'Turn Bot On'}
           </Button>
           <Badge variant={botOn ? 'success' : 'orange'} size="md" dot>
-            {botOn ? 'Bot Active' : 'Human Mode'}
+            {botOn ? 'AI is replying' : "You're replying"}
           </Badge>
         </div>
       </div>
@@ -268,18 +278,23 @@ export default function ConversationDetail() {
         {messages.length === 0 ? (
           <div className="chat-empty">
             <p>No messages yet</p>
-            <p className="chat-empty-hint">Use <strong>Simulate Customer</strong> mode below to test the AI bot</p>
+            <p className="chat-empty-hint">Use <strong>Test Mode</strong> below to simulate a customer message and test the AI bot</p>
           </div>
         ) : (
           messages.map((msg, i) => (
             <div key={i} className={`chat-bubble ${msg.direction === 'inbound' ? 'chat-bubble--in' : 'chat-bubble--out'}`}>
-              <div className="chat-bubble-content">{msg.content || ''}</div>
+              <div className="chat-bubble-content">
+                <MessageContent msg={msg} />
+              </div>
               <div className="chat-bubble-meta">
                 {msg.sent_by && msg.sent_by !== 'customer' && (
                   <span className="chat-bubble-sender">
                     {msg.sent_by === 'bot' ? <Bot size={10} /> : msg.sent_by === 'bot-approved' ? <><Bot size={10} /><CheckCircle size={8} /></> : <User size={10} />}
-                    {msg.sent_by === 'bot-approved' ? 'AI (approved)' : msg.sent_by}
+                    {msg.sent_by === 'bot-approved' ? 'AI (approved)' : msg.sent_by === 'bot' ? 'AI' : 'You'}
                   </span>
+                )}
+                {msg.content_type && msg.content_type !== 'text' && (
+                  <span className="chat-bubble-type">{msg.content_type}</span>
                 )}
                 <span className="chat-bubble-time">
                   {msg.timestamp ? format(new Date(msg.timestamp), 'h:mm a') : ''}
@@ -295,7 +310,7 @@ export default function ConversationDetail() {
             <div className="draft-review-header">
               <div className="draft-review-title">
                 <Sparkles size={16} />
-                <span>AI Draft — Pending Approval</span>
+                <span>AI Draft — Review before sending</span>
               </div>
               <span className="draft-review-time">
                 {pendingDraft.generated_at ? format(new Date(pendingDraft.generated_at), 'h:mm a') : ''}
@@ -326,51 +341,24 @@ export default function ConversationDetail() {
 
             <div className="draft-actions">
               <div className="draft-actions-left">
-                <Button
-                  size="sm"
-                  variant="success"
-                  icon={Send}
-                  loading={approvingDraft}
-                  onClick={handleApproveDraft}
-                >
+                <Button size="sm" variant="success" icon={Send} loading={approvingDraft} onClick={handleApproveDraft}>
                   {draftEditing ? 'Send Edited' : 'Approve & Send'}
                 </Button>
                 {!draftEditing ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={Pencil}
-                    onClick={() => setDraftEditing(true)}
-                  >
+                  <Button size="sm" variant="secondary" icon={Pencil} onClick={() => setDraftEditing(true)}>
                     Edit
                   </Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => { setDraftEditing(false); setEditedDraft(pendingDraft.draft); }}
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => { setDraftEditing(false); setEditedDraft(pendingDraft.draft); }}>
                     Cancel Edit
                   </Button>
                 )}
               </div>
               <div className="draft-actions-right">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={RotateCcw}
-                  loading={regenerating}
-                  onClick={handleRegenerateDraft}
-                >
+                <Button size="sm" variant="ghost" icon={RotateCcw} loading={regenerating} onClick={handleRegenerateDraft}>
                   Regenerate
                 </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  icon={XCircle}
-                  loading={rejectingDraft}
-                  onClick={handleRejectDraft}
-                >
+                <Button size="sm" variant="danger" icon={XCircle} loading={rejectingDraft} onClick={handleRejectDraft}>
                   Reject
                 </Button>
               </div>
@@ -385,12 +373,12 @@ export default function ConversationDetail() {
               simResult.mode === 'handoff' ? (
                 <div className="sim-result-body">
                   <AlertTriangle size={14} />
-                  <span>Handoff triggered: <strong>{simResult.handoff_reason}</strong></span>
+                  <span>Escalation triggered: <strong>{simResult.handoff_reason}</strong></span>
                 </div>
               ) : simResult.mode === 'human' || simResult.mode === 'human_only' ? (
                 <div className="sim-result-body">
                   <User size={14} />
-                  <span>Reply mode is <strong>human-only</strong>. Message saved. No AI response.</span>
+                  <span>{"You're replying to this contact. Message saved. No AI response."}</span>
                 </div>
               ) : simResult.mode === 'ai_draft' ? (
                 <div className="sim-result-body">
@@ -401,14 +389,14 @@ export default function ConversationDetail() {
                 simResult.handoff_triggered && (
                   <div className="sim-result-body">
                     <AlertTriangle size={14} />
-                    <span>AI handed off after responding: {simResult.handoff_reason}</span>
+                    <span>AI escalated after responding: {simResult.handoff_reason}</span>
                   </div>
                 )
               )
             ) : (
               <div className="sim-result-body sim-result-body--error">
                 <AlertTriangle size={14} />
-                <span>Error: {simResult.error || 'LLM failed. Check API keys in Settings.'}</span>
+                <span>Error: {simResult.error || 'AI failed. Check API keys in Settings.'}</span>
               </div>
             )}
           </div>
@@ -417,26 +405,66 @@ export default function ConversationDetail() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Mode toggle + Input */}
-      <div className="chat-input-wrapper">
-        <div className="chat-mode-toggle">
-          <button
-            className={`mode-btn ${!simMode ? 'mode-btn--active' : ''}`}
-            onClick={() => { setSimMode(false); setSimResult(null); }}
-          >
-            <User size={14} /> Send as Agent
-          </button>
-          <button
-            className={`mode-btn mode-btn--sim ${simMode ? 'mode-btn--active' : ''}`}
-            onClick={() => { setSimMode(true); setSimResult(null); }}
-          >
-            <TestTube size={14} /> Simulate Customer
-          </button>
+      {/* Reply window warnings */}
+      {!serviceWindow.window_open && (
+        <div className="window-warning-banner">
+          <Clock size={14} />
+          <div className="window-warning-text">
+            <strong>Reply window closed</strong> — Free-form messages may be rejected by WhatsApp.
+            Use an <strong>approved template</strong> to re-start the conversation, or wait for the customer to message you.
+          </div>
         </div>
+      )}
+      {serviceWindow.window_open && serviceWindow.hours_remaining <= 2 && (
+        <div className="window-warning-banner window-warning-banner--soon">
+          <Clock size={14} />
+          <span>Reply window closing in <strong>{serviceWindow.hours_remaining}h</strong> — consider sending a template for follow-up.</span>
+        </div>
+      )}
+
+      {/* Send warning/error feedback */}
+      {sendWarning && (
+        <div className={`send-warning-banner send-warning-banner--${sendWarning.type}`}>
+          <AlertTriangle size={14} />
+          <span>{sendWarning.message}</span>
+          <button onClick={() => setSendWarning(null)}>&times;</button>
+        </div>
+      )}
+
+      {/* Message Input */}
+      <div className="chat-input-wrapper">
+        {/* Dev tools toggle — collapsed by default */}
+        {!showDevTools && (
+          <button className="dev-tools-toggle" onClick={() => setShowDevTools(true)}>
+            <Settings2 size={13} />
+            <span>Developer Tools</span>
+          </button>
+        )}
+
+        {showDevTools && (
+          <div className="chat-mode-toggle">
+            <button
+              className={`mode-btn ${!simMode ? 'mode-btn--active' : ''}`}
+              onClick={() => { setSimMode(false); setSimResult(null); }}
+            >
+              <User size={14} /> Send as Agent
+            </button>
+            <button
+              className={`mode-btn mode-btn--sim ${simMode ? 'mode-btn--active' : ''}`}
+              onClick={() => { setSimMode(true); setSimResult(null); }}
+            >
+              <TestTube size={14} /> Test Mode
+            </button>
+            <button className="dev-tools-close" onClick={() => { setShowDevTools(false); setSimMode(false); setSimResult(null); }}>
+              Hide
+            </button>
+          </div>
+        )}
+
         <form className="chat-input" onSubmit={handleSend}>
           <input
             type="text"
-            placeholder={simMode ? 'Type as customer to test AI...' : 'Type a message as agent...'}
+            placeholder={simMode ? 'Type as customer to test AI...' : 'Type a message...'}
             value={message}
             onChange={e => setMessage(e.target.value)}
             disabled={sending || simulating}
@@ -449,16 +477,66 @@ export default function ConversationDetail() {
             loading={sending || simulating}
             disabled={!message.trim()}
           >
-            {simMode ? 'Simulate' : 'Send'}
+            {simMode ? 'Test' : 'Send'}
           </Button>
         </form>
         {simMode && (
           <p className="sim-hint">
-            Messages are processed through the full AI pipeline — memory, signals, handoff detection, reply mode ({replyModeInfo.mode}).
-            {!botOn && <strong> Bot is currently OFF for this contact. Resume it above to test AI replies.</strong>}
+            Messages go through the full AI pipeline — memory, intent detection, escalation, reply mode ({replyModeInfo.mode}).
+            {!botOn && <strong> Bot is currently paused for this contact. Turn it on above to test AI replies.</strong>}
           </p>
         )}
       </div>
     </div>
   );
+}
+
+function MessageContent({ msg }) {
+  const contentType = msg.content_type || 'text';
+  const content = msg.content || '';
+  const mediaPath = msg.media_path || '';
+
+  if (contentType === 'image' && mediaPath) {
+    return (
+      <div className="media-content media-image">
+        <img src={`/api/media/${encodeURIComponent(mediaPath)}`} alt="Image message" loading="lazy" onClick={() => window.open(`/api/media/${encodeURIComponent(mediaPath)}`, '_blank')} />
+        {content && <p className="media-caption">{content}</p>}
+      </div>
+    );
+  }
+
+  if (contentType === 'document' && mediaPath) {
+    const filename = mediaPath.split('/').pop() || 'Document';
+    return (
+      <div className="media-content media-document">
+        <a href={`/api/media/${encodeURIComponent(mediaPath)}`} target="_blank" rel="noopener noreferrer" className="media-doc-link">
+          <FileEdit size={16} />
+          <span>{filename}</span>
+        </a>
+        {content && <p className="media-caption">{content}</p>}
+      </div>
+    );
+  }
+
+  if (contentType === 'audio' && mediaPath) {
+    return (
+      <div className="media-content media-audio">
+        <audio controls preload="none" src={`/api/media/${encodeURIComponent(mediaPath)}`}>
+          Your browser does not support audio.
+        </audio>
+        {content && <p className="media-caption">{content}</p>}
+      </div>
+    );
+  }
+
+  if (contentType === 'template') {
+    return (
+      <div className="media-content media-template">
+        <div className="template-indicator"><Send size={10} /> Template</div>
+        <p>{content}</p>
+      </div>
+    );
+  }
+
+  return <>{content}</>;
 }

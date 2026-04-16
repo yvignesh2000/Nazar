@@ -2,43 +2,16 @@
 Nazar — Contact Segmentation Engine
 
 Build complex audience segments for targeted campaign sends.
-
-Segment definition (JSON-serialisable dict)::
-
-    {
-        "conditions": [
-            {"field": "stage",            "operator": "in",      "value": ["Qualified", "Proposal"]},
-            {"field": "lead_score",       "operator": "gte",     "value": 60},
-            {"field": "tags",             "operator": "contains","value": "enterprise"},
-            {"field": "last_contact_days","operator": "gte",     "value": 7},
-            {"field": "opt_out",          "operator": "eq",      "value": false},
-        ],
-        "logic": "AND"
-    }
-
-Supported operators
--------------------
-eq, neq           equality / inequality
-gt, gte, lt, lte  numeric comparisons
-in, not_in        membership in a list  (field value is IN the provided list)
-contains          list/string contains the value
-not_contains      list/string does NOT contain the value
-starts_with       string starts with value
-exists            field is non-None and non-empty
-not_exists        field is None or empty string
-
-Computed fields
----------------
-last_contact_days   Integer days since last_contacted_at / last_replied_at
-created_days_ago    Integer days since created_at
+Saved segments stored in SQLite via core/database.py.
 """
 
 import json
 import logging
-import fcntl
+import uuid as _uuid
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from database import get_db
 
 logger = logging.getLogger("nazar")
 
@@ -63,52 +36,34 @@ def _op_exists(a, b):   return a is not None and a != "" and a != []
 def _op_not_exists(a, b): return a is None or a == "" or a == []
 
 OPERATORS = {
-    "eq":           _op_eq,
-    "neq":          _op_neq,
-    "gt":           _op_gt,
-    "gte":          _op_gte,
-    "lt":           _op_lt,
-    "lte":          _op_lte,
-    "in":           _op_in,
-    "not_in":       _op_not_in,
-    "contains":     _op_contains,
-    "not_contains": _op_not_contains,
-    "starts_with":  _op_starts_with,
-    "exists":       _op_exists,
-    "not_exists":   _op_not_exists,
-}  # type: Dict[str, Any]
+    "eq": _op_eq, "neq": _op_neq,
+    "gt": _op_gt, "gte": _op_gte, "lt": _op_lt, "lte": _op_lte,
+    "in": _op_in, "not_in": _op_not_in,
+    "contains": _op_contains, "not_contains": _op_not_contains,
+    "starts_with": _op_starts_with,
+    "exists": _op_exists, "not_exists": _op_not_exists,
+}
 
-# Human-readable labels for the UI
 SEGMENTABLE_FIELDS = {
-    "pipeline_stage":     "Pipeline Stage",
-    "lead_score":         "Lead Score",
-    "tags":               "Tags",
-    "source":             "Lead Source",
-    "company":            "Company",
-    "deal_value":         "Deal Value",
-    "last_contact_days":  "Days Since Last Contact",
-    "created_days_ago":   "Days Since Created",
-    "opt_out":            "Opted Out",
-    "reply_mode":         "Reply Mode",
-}  # type: Dict[str, str]
+    "pipeline_stage": "Pipeline Stage",
+    "lead_score": "Lead Score",
+    "tags": "Tags",
+    "source": "Lead Source",
+    "company": "Company",
+    "deal_value": "Deal Value",
+    "last_contact_days": "Days Since Last Contact",
+    "created_days_ago": "Days Since Created",
+    "opt_out": "Opted Out",
+    "reply_mode": "Reply Mode",
+}
 
 
 # ---------------------------------------------------------------------------
 # Core evaluation
 # ---------------------------------------------------------------------------
 
-def evaluate_segment(contacts, segment):
-    # type: (List[dict], dict) -> List[dict]
-    """
-    Filter ``contacts`` to those matching the segment definition.
-
-    Args:
-        contacts: List of contact dicts as returned by ``list_contacts()``.
-        segment:  Segment definition dict (see module docstring).
-
-    Returns:
-        Filtered list — never mutates the input.
-    """
+def evaluate_segment(contacts: List[dict], segment: dict) -> List[dict]:
+    """Filter contacts to those matching the segment definition."""
     conditions = segment.get("conditions", [])
     logic = segment.get("logic", "AND").upper()
 
@@ -117,7 +72,6 @@ def evaluate_segment(contacts, segment):
 
     result = []
     for contact in contacts:
-        # Opted-out contacts are always excluded regardless of segment
         if contact.get("opt_out"):
             continue
 
@@ -126,57 +80,45 @@ def evaluate_segment(contacts, segment):
             try:
                 matches.append(_evaluate_condition(contact, cond))
             except Exception as e:
-                logger.debug("Condition eval error for contact %s: %s", contact.get("contact_id"), e)
+                logger.debug("Condition eval error: %s", e)
                 matches.append(False)
 
         if logic == "OR":
             if any(matches):
                 result.append(contact)
-        else:  # AND (default)
+        else:
             if all(matches):
                 result.append(contact)
 
     return result
 
 
-def _evaluate_condition(contact, condition):
-    # type: (dict, dict) -> bool
-    """Evaluate a single condition dict against a contact."""
+def _evaluate_condition(contact: dict, condition: dict) -> bool:
     field_name = condition.get("field", "")
     operator = condition.get("operator", "eq")
     value = condition.get("value")
 
-    # Resolve computed fields
     actual = _resolve_field(contact, field_name)
-
     op_func = OPERATORS.get(operator)
     if op_func is None:
-        logger.warning("Unknown segment operator: %r", operator)
         return False
 
     try:
         return bool(op_func(actual, value))
-    except (TypeError, ValueError, AttributeError) as e:
-        logger.debug("Operator %r failed on (%r, %r): %s", operator, actual, value, e)
+    except (TypeError, ValueError, AttributeError):
         return False
 
 
-def _resolve_field(contact, field_name):
-    # type: (dict, str) -> Any
-    """Return the contact field value, computing derived fields as needed."""
+def _resolve_field(contact: dict, field_name: str) -> Any:
     if field_name == "last_contact_days":
         ts = contact.get("last_contacted_at") or contact.get("last_replied_at")
         return _days_since(ts)
-
     if field_name == "created_days_ago":
         return _days_since(contact.get("created_at"))
-
     return contact.get(field_name)
 
 
-def _days_since(iso_ts):
-    # type: (Optional[str]) -> Optional[int]
-    """Return integer days since an ISO timestamp, or None if missing."""
+def _days_since(iso_ts: Optional[str]) -> Optional[int]:
     if not iso_ts:
         return None
     try:
@@ -189,22 +131,10 @@ def _days_since(iso_ts):
 
 
 # ---------------------------------------------------------------------------
-# Segment preview helper
+# Segment preview
 # ---------------------------------------------------------------------------
 
-def preview_segment(contacts, segment, sample_size=5):
-    # type: (List[dict], dict, int) -> dict
-    """
-    Return a preview of contacts matching the segment.
-
-    Args:
-        contacts:    Full contact list.
-        segment:     Segment definition.
-        sample_size: How many sample contacts to return.
-
-    Returns:
-        Dict with ``count``, ``sample`` (list of contact stubs), and ``segment``.
-    """
+def preview_segment(contacts: List[dict], segment: dict, sample_size: int = 5) -> dict:
     matched = evaluate_segment(contacts, segment)
     sample = [
         {
@@ -215,72 +145,57 @@ def preview_segment(contacts, segment, sample_size=5):
         }
         for c in matched[:sample_size]
     ]
-    return {
-        "count": len(matched),
-        "sample": sample,
-        "segment": segment,
-    }
+    return {"count": len(matched), "sample": sample, "segment": segment}
 
 
 # ---------------------------------------------------------------------------
-# Saved segments (persisted to data/segments.json)
+# Saved segments (SQLite)
 # ---------------------------------------------------------------------------
 
-_SEGMENTS_PATH = Path(__file__).parent.parent / "data" / "segments.json"
-
-
-def _load_segments():
-    # type: () -> dict
-    if _SEGMENTS_PATH.exists():
-        try:
-            return json.loads(_SEGMENTS_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
-
-
-def _save_segments(data):
-    # type: (dict) -> None
-    _SEGMENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    lock = _SEGMENTS_PATH.with_suffix(".lock")
-    with open(lock, "w") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        _SEGMENTS_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-def save_segment(name, segment):
-    # type: (str, dict) -> dict
-    """Persist a named segment for reuse in future campaigns."""
-    import uuid as _uuid
-    data = _load_segments()
+def save_segment(name: str, segment: dict) -> dict:
     seg_id = "seg_%s" % _uuid.uuid4().hex[:8]
+    now = datetime.now(IST).isoformat()
     record = {
         "id": seg_id,
         "name": name,
         "segment": segment,
-        "created_at": datetime.now(IST).isoformat(),
+        "created_at": now,
     }
-    data[seg_id] = record
-    _save_segments(data)
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO segments (id, name, segment, created_at) VALUES (?, ?, ?, ?)",
+            (seg_id, name, json.dumps(segment), now),
+        )
     return record
 
 
-def list_segments():
-    # type: () -> List[dict]
-    """List all saved segments."""
-    return list(_load_segments().values())
+def list_segments() -> List[dict]:
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM segments ORDER BY created_at DESC").fetchall()
+    return [_row_to_segment(r) for r in rows]
 
 
-def get_segment(segment_id):
-    # type: (str) -> Optional[dict]
-    return _load_segments().get(segment_id)
+def get_segment(segment_id: str) -> Optional[dict]:
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM segments WHERE id = ?", (segment_id,)
+        ).fetchone()
+    return _row_to_segment(row) if row else None
 
 
-def delete_segment(segment_id):
-    # type: (str) -> bool
-    data = _load_segments()
-    if segment_id in data:
-        del data[segment_id]
-        _save_segments(data)
-        return True
-    return False
+def delete_segment(segment_id: str) -> bool:
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM segments WHERE id = ?", (segment_id,)
+        )
+    return cursor.rowcount > 0
+
+
+def _row_to_segment(row) -> dict:
+    d = dict(row)
+    return {
+        "id": d["id"],
+        "name": d["name"],
+        "segment": json.loads(d.get("segment", "{}") or "{}"),
+        "created_at": d.get("created_at", ""),
+    }

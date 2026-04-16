@@ -30,10 +30,17 @@ services:
       # Auth
       - NAZAR_API_KEY=${NAZAR_API_KEY:-nazar_dev_key}
       - NAZAR_TOKEN_SECRET=${NAZAR_TOKEN_SECRET:-}
+      # Admin password (set this or you'll get 'changeme123')
+      - NAZAR_ADMIN_PASSWORD=${NAZAR_ADMIN_PASSWORD:-}
+      # Razorpay
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
+      - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
       # Server
       - PORT=8001
     volumes:
       # Persistent data outside the container
+      # IMPORTANT: data/ contains DB, encryption keys, auth, billing, etc.
       - nazar_data:/app/data
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]

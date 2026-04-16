@@ -415,6 +415,89 @@
   font-weight: 600;
 }
 
+/* Audience mode selector */
+.cw-audience-mode {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.cw-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--bg-primary);
+}
+
+.cw-mode-btn:hover { border-color: var(--color-primary-300); }
+
+.cw-mode-btn--active {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
+  font-weight: 500;
+}
+
+/* Groups grid */
+.cw-groups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.cw-group-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: var(--bg-primary);
+}
+
+.cw-group-card:hover { border-color: var(--color-primary-300); }
+
+.cw-group-card--selected {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+}
+
+.cw-group-card input[type="checkbox"] {
+  accent-color: var(--color-primary-500);
+}
+
+.cw-group-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cw-group-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cw-group-name {
+  font-weight: 500;
+  font-size: var(--font-size-sm);
+}
+
+.cw-group-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
 .cw-audience-filters {
   display: flex;
   gap: var(--space-3);
@@ -892,4 +975,24 @@
   .cw-review-summary {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Campaign Template Info Banner ─────────────────────── */
+.cw-template-info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-200);
+  border-radius: 0.5rem;
+  color: var(--color-primary-700);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+.cw-template-info-banner svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--color-primary-500);
 }

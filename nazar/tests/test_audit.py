@@ -14,9 +14,15 @@ import audit
 
 @pytest.fixture(autouse=True)
 def tmp_audit_dir(tmp_path, monkeypatch):
-    """Redirect audit log directory to a temp path."""
-    monkeypatch.setattr(audit, "DATA_DIR", tmp_path)
+    """Set up an isolated SQLite database for each test."""
+    import database
+    db_path = tmp_path / "nazar.db"
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database._local.connection = None
+    database.init_db(db_path)
     yield tmp_path
+    database.close_connection()
 
 
 class TestLogAudit:
@@ -49,22 +55,18 @@ class TestLogAudit:
         assert entry["details"]["from"] == "New"
         assert entry["details"]["to"] == "Qualified"
 
-    def test_entry_written_to_file(self, tmp_path):
+    def test_entry_written_to_db(self):
         audit.log_audit("campaign.sent", "campaign", "cmp_001")
-        files = list(tmp_path.glob("*.jsonl"))
-        assert len(files) == 1
-        lines = files[0].read_text().splitlines()
-        assert len(lines) == 1
-        data = json.loads(lines[0])
-        assert data["action"] == "campaign.sent"
+        entries = audit.get_audit_log(days=1, action="campaign.sent")
+        assert len(entries) == 1
+        assert entries[0]["action"] == "campaign.sent"
 
-    def test_multiple_entries_append(self, tmp_path):
+    def test_multiple_entries_append(self):
         audit.log_audit("a.1", "test", "r1")
         audit.log_audit("a.2", "test", "r2")
         audit.log_audit("a.3", "test", "r3")
-        files = list(tmp_path.glob("*.jsonl"))
-        total_lines = sum(len(f.read_text().splitlines()) for f in files)
-        assert total_lines == 3
+        entries = audit.get_audit_log(days=1)
+        assert len(entries) == 3
 
 
 class TestGetAuditLog:

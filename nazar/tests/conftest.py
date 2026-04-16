@@ -2,7 +2,7 @@
 Nazar — Test Configuration & Shared Fixtures
 
 Provides:
-- Isolated temp data directories per test
+- Isolated temp SQLite database per test
 - FastAPI test client
 - Seeded contacts and conversations
 - Mock LLM responses
@@ -10,11 +10,9 @@ Provides:
 
 import json
 import os
-import shutil
 import sys
 import pytest
 import pytest_asyncio
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -33,26 +31,34 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 @pytest.fixture(scope="function")
 def tmp_data_dir(tmp_path, monkeypatch):
     """
-    Provide a fresh, isolated data directory for each test.
-    Patches DATA_DIR in all modules that use it.
+    Provide a fresh, isolated data directory and SQLite database for each test.
+    Patches DATA_DIR in all modules that use it and initializes the database.
     """
     data_dir = tmp_path / "data"
     data_dir.mkdir()
 
-    # Patch DATA_DIR in each module
-    import contact_manager
-    import customer_memory
-    import handoff_manager
-    import auth_manager
+    # Set up the SQLite database in the temp directory
+    import database
+    db_path = data_dir / "nazar.db"
+
+    # Patch DATA_DIR in database module BEFORE init
+    monkeypatch.setattr(database, "DATA_DIR", data_dir)
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+
+    # Reset thread-local connection so it picks up the new path
+    database._local.connection = None
+    database.init_db(db_path)
+
+    # Patch DATA_DIR in modules that still use it for file-based stuff
+    import reply_mode
     import billing
     import onboarding
     import analytics
     import usage_tracker
     import template_manager
+    import auth_manager
 
-    monkeypatch.setattr(contact_manager, "DATA_DIR", data_dir / "contacts")
-    monkeypatch.setattr(customer_memory, "DATA_DIR", data_dir / "contacts")
-    monkeypatch.setattr(handoff_manager, "DATA_DIR", data_dir / "handoffs")
+    monkeypatch.setattr(reply_mode, "DATA_DIR", data_dir)
     monkeypatch.setattr(auth_manager, "DATA_DIR", data_dir / "auth")
     monkeypatch.setattr(billing, "DATA_DIR", data_dir / "billing")
     monkeypatch.setattr(onboarding, "DATA_DIR", data_dir / "onboarding")
@@ -60,19 +66,24 @@ def tmp_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(usage_tracker, "DATA_DIR", data_dir / "usage")
     monkeypatch.setattr(template_manager, "DATA_DIR", data_dir)
 
-    # Create subdirectories
-    (data_dir / "contacts").mkdir()
-    (data_dir / "handoffs").mkdir()
-    (data_dir / "auth").mkdir()
-    (data_dir / "billing").mkdir()
-    (data_dir / "onboarding").mkdir()
-    (data_dir / "analytics").mkdir()
-    (data_dir / "usage").mkdir()
+    # Also patch the revoked tokens path in auth_manager
+    monkeypatch.setattr(auth_manager, "_REVOKED_PATH", data_dir / ".revoked_tokens.json")
 
-    # Reset template_manager's module-level cache so it doesn't read stale templates.json
-    template_manager._load_templates.cache_clear() if hasattr(template_manager._load_templates, 'cache_clear') else None
+    # Create subdirectories used by modules that still use files
+    (data_dir / "auth").mkdir(exist_ok=True)
+    (data_dir / "billing").mkdir(exist_ok=True)
+    (data_dir / "onboarding").mkdir(exist_ok=True)
+    (data_dir / "analytics").mkdir(exist_ok=True)
+    (data_dir / "usage").mkdir(exist_ok=True)
+
+    # Reset template_manager's cache
+    if hasattr(template_manager, '_load_templates') and hasattr(template_manager._load_templates, 'cache_clear'):
+        template_manager._load_templates.cache_clear()
 
     yield data_dir
+
+    # Clean up thread-local connection
+    database.close_connection()
 
 
 @pytest.fixture
@@ -145,12 +156,9 @@ def sample_subscription(tmp_data_dir, sample_workspace):
 
 @pytest.fixture
 def api_client(tmp_data_dir, monkeypatch, tmp_path):
-    """
-    Provide a FastAPI test client with mocked data paths and LLM.
-    """
+    """Provide a FastAPI test client with mocked data paths and LLM."""
     from fastapi.testclient import TestClient
 
-    # Patch knowledge base and config paths in server module context
     kb_file = tmp_path / "knowledge_base.txt"
     kb_file.write_text("Test product info: Nazar is a WhatsApp sales tool.")
     config_file = tmp_path / "config.json"
@@ -164,9 +172,12 @@ def api_client(tmp_data_dir, monkeypatch, tmp_path):
     monkeypatch.setattr(server, "DATA_DIR", tmp_path)
     monkeypatch.setattr(server, "API_KEY", "test_key_abc123")
 
+    # Create a default subscription so billing enforcement doesn't block tests
+    from billing import create_subscription
+    create_subscription("default", "growth", trial=True)
+
     with patch("llm_router.call_llm_safe", new_callable=AsyncMock) as mock_llm:
         mock_llm.return_value = "Hello! This is a test AI response."
-
         client = TestClient(server.app, raise_server_exceptions=False)
         client.mock_llm = mock_llm
         yield client

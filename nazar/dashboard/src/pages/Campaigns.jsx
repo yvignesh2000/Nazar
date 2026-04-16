@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Send, Plus, RotateCcw, Search, X, CheckCircle, Clock, Users, ChevronRight, ChevronLeft, Mail, MailOpen, MessageCircle, AlertCircle, Megaphone, FileText, Bot, User, FileEdit, BookOpen, Upload, Sparkles, Shield, Eye } from 'lucide-react';
+import { Send, Plus, RotateCcw, Search, X, CheckCircle, Clock, Users, ChevronRight, ChevronLeft, Mail, MailOpen, MessageCircle, AlertCircle, Megaphone, FileText, Bot, User, FileEdit, BookOpen, Upload, Sparkles, Shield, Eye, FolderOpen } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
-import { campaigns as campaignApi, templates as templateApi, contacts as contactApi } from '../api/client';
+import { campaigns as campaignApi, templates as templateApi, contacts as contactApi, groups as groupsApi } from '../api/client';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -17,26 +17,26 @@ const REPLY_MODES = [
     id: 'auto_ai',
     icon: Bot,
     label: 'AI Auto-Reply',
-    description: 'AI responds to campaign replies automatically using campaign knowledge base and business context.',
+    description: 'AI responds to campaign replies automatically using your knowledge base and business context.',
     color: 'var(--color-success-500)',
     bgColor: 'var(--color-success-50)',
     borderColor: 'var(--color-success-200)',
+    recommended: true,
   },
   {
     id: 'ai_draft',
     icon: FileEdit,
-    label: 'AI Draft + Human Approval',
-    description: 'AI generates a draft reply. A human agent reviews, edits if needed, and approves before sending.',
+    label: 'AI Draft + You Approve',
+    description: 'AI generates a draft reply. You review, edit if needed, and approve before sending.',
     color: 'var(--color-primary-500)',
     bgColor: 'var(--color-primary-50)',
     borderColor: 'var(--color-primary-200)',
-    recommended: true,
   },
   {
     id: 'human_only',
     icon: User,
     label: 'Human Only',
-    description: 'Only human agents reply. AI stays silent. Best for sensitive campaigns or VIP contacts.',
+    description: 'Only you reply. AI stays silent. Best for sensitive campaigns or VIP contacts.',
     color: 'var(--color-orange-500)',
     bgColor: 'var(--color-orange-50)',
     borderColor: 'var(--color-orange-200)',
@@ -55,10 +55,13 @@ function CampaignWizard({ onClose, onCreated }) {
 
   // Step 2: Audience
   const { data: contactData, loading: contactsLoading } = useApi(() => contactApi.list(), []);
+  const { data: groupsData } = useApi(() => groupsApi.list(), []);
   const [filterStage, setFilterStage] = useState('');
   const [filterTag, setFilterTag] = useState('');
   const [selectedContactIds, setSelectedContactIds] = useState([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState([]);
   const [selectAll, setSelectAll] = useState(true);
+  const [audienceMode, setAudienceMode] = useState('all'); // 'all' | 'groups' | 'manual'
 
   // Step 3: Reply Configuration
   const [replyMode, setReplyMode] = useState('ai_draft');
@@ -83,8 +86,18 @@ function CampaignWizard({ onClose, onCreated }) {
     return list;
   }, [allContacts, filterStage, filterTag]);
 
-  const targetContacts = selectAll ? filteredContacts : filteredContacts.filter(c => selectedContactIds.includes(c.contact_id));
-  const targetCount = targetContacts.length;
+  const availableGroups = groupsData?.groups || [];
+
+  const targetContacts = audienceMode === 'groups'
+    ? [] // Group targeting is server-side — we just show the group member count
+    : selectAll ? filteredContacts : filteredContacts.filter(c => selectedContactIds.includes(c.contact_id));
+
+  const groupMemberCount = selectedGroupIds.reduce((sum, gid) => {
+    const g = availableGroups.find(grp => grp.id === gid);
+    return sum + (g?.member_count || 0);
+  }, 0);
+
+  const targetCount = audienceMode === 'groups' ? groupMemberCount : targetContacts.length;
 
   function toggleContact(id) {
     setSelectAll(false);
@@ -114,8 +127,11 @@ function CampaignWizard({ onClose, onCreated }) {
         filter_tag: filterTag || undefined,
         reply_mode: replyMode,
         campaign_kb: campaignKb || undefined,
+        header_image_url: selectedTemplate?.header?.image_url || undefined,
       };
-      if (!selectAll && selectedContactIds.length > 0) {
+      if (audienceMode === 'groups' && selectedGroupIds.length > 0) {
+        payload.group_ids = selectedGroupIds;
+      } else if (!selectAll && selectedContactIds.length > 0) {
         payload.contact_ids = selectedContactIds;
       }
       await campaignApi.create(payload);
@@ -168,7 +184,7 @@ function CampaignWizard({ onClose, onCreated }) {
               {tplLoading ? <Spinner /> : (
                 <div className="cw-template-grid">
                   {filteredTemplates.length === 0 ? (
-                    <EmptyState icon={FileText} title="No approved templates" description="Create and get templates approved before sending campaigns." />
+                    <EmptyState icon={FileText} title="No approved templates" description="You need at least one approved template to send a campaign." action={<Button icon={Plus} onClick={() => { onClose(); window.location.href = '/templates'; }}>Create a Template</Button>} />
                   ) : filteredTemplates.map(t => (
                     <div
                       key={t.id}
@@ -213,18 +229,70 @@ function CampaignWizard({ onClose, onCreated }) {
                 <h3>Select Audience</h3>
                 <span className="cw-audience-count">{targetCount} contact{targetCount !== 1 ? 's' : ''} selected</span>
               </div>
+
+              {/* WhatsApp template info banner */}
+              <div className="cw-template-info-banner">
+                <Shield size={14} />
+                <div>
+                  <strong>Campaigns use Meta-approved templates</strong> — they can reach all contacts regardless of the 24h messaging window.
+                  Your selected template "{selectedTemplate?.name}" will be sent via WhatsApp's Template API.
+                </div>
+              </div>
+
+              {/* Audience mode selector */}
+              <div className="cw-audience-mode">
+                <button className={`cw-mode-btn ${audienceMode === 'all' ? 'cw-mode-btn--active' : ''}`} onClick={() => { setAudienceMode('all'); setSelectAll(true); }}>
+                  <Users size={14} /> All / Filters
+                </button>
+                {availableGroups.length > 0 && (
+                  <button className={`cw-mode-btn ${audienceMode === 'groups' ? 'cw-mode-btn--active' : ''}`} onClick={() => setAudienceMode('groups')}>
+                    <FolderOpen size={14} /> Groups
+                  </button>
+                )}
+                <button className={`cw-mode-btn ${audienceMode === 'manual' ? 'cw-mode-btn--active' : ''}`} onClick={() => { setAudienceMode('manual'); setSelectAll(false); }}>
+                  <CheckCircle size={14} /> Manual Pick
+                </button>
+              </div>
+
+              {/* Groups mode */}
+              {audienceMode === 'groups' && (
+                <div className="cw-groups-grid">
+                  {availableGroups.map(g => (
+                    <label key={g.id} className={`cw-group-card ${selectedGroupIds.includes(g.id) ? 'cw-group-card--selected' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedGroupIds.includes(g.id)}
+                        onChange={() => setSelectedGroupIds(prev =>
+                          prev.includes(g.id) ? prev.filter(x => x !== g.id) : [...prev, g.id]
+                        )}
+                      />
+                      <div className="cw-group-dot" style={{ background: g.color }} />
+                      <div className="cw-group-info">
+                        <span className="cw-group-name">{g.name}</span>
+                        <span className="cw-group-count">{g.member_count} contacts</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* Filters mode (all / manual) */}
+              {audienceMode !== 'groups' && (
               <div className="cw-audience-filters">
                 <select value={filterStage} onChange={e => setFilterStage(e.target.value)}>
                   <option value="">All Stages</option>
                   {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
                 <input placeholder="Filter by tag..." value={filterTag} onChange={e => setFilterTag(e.target.value)} />
+                {audienceMode === 'all' && (
                 <label className="cw-select-all">
                   <input type="checkbox" checked={selectAll} onChange={toggleAllContacts} />
                   <span>Select All ({filteredContacts.length})</span>
                 </label>
+                )}
               </div>
-              {contactsLoading ? <Spinner /> : (
+              )}
+              {audienceMode !== 'groups' && (contactsLoading ? <Spinner /> : (
                 <div className="cw-contacts-table-wrap">
                   <table className="cw-contacts-table">
                     <thead>
@@ -261,7 +329,7 @@ function CampaignWizard({ onClose, onCreated }) {
                     </tbody>
                   </table>
                 </div>
-              )}
+              ))}
             </div>
           )}
 
@@ -375,7 +443,7 @@ function CampaignWizard({ onClose, onCreated }) {
                     ₹{(targetCount * (selectedTemplate?.category === 'marketing' ? 0.70 : 0.15)).toFixed(2)}
                   </div>
                   <span className="cw-review-card-sub">
-                    {selectedTemplate?.category === 'marketing' ? '~₹0.70' : '~₹0.15'} per message
+                    Meta's fee: {selectedTemplate?.category === 'marketing' ? '~₹0.70' : '~₹0.15'}/msg · Nazar adds no markup
                   </span>
                 </div>
               </div>
@@ -501,7 +569,7 @@ export default function Campaigns() {
     <div className="page-content">
       <PageHeader
         title="Campaigns"
-        description="Send targeted WhatsApp template messages to your contacts"
+        description="Reach your contacts at scale using WhatsApp templates"
         actions={
           <Button icon={Plus} onClick={() => setShowWizard(true)}>
             New Campaign

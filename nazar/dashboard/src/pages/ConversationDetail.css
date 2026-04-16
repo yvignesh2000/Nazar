@@ -223,6 +223,42 @@
   color: var(--color-orange-600);
 }
 
+/* ── Developer Tools Toggle ─────────────────── */
+.dev-tools-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  margin: var(--space-2) var(--space-5) 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+  background: none;
+  border: 1px dashed var(--color-gray-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: fit-content;
+}
+
+.dev-tools-toggle:hover {
+  color: var(--color-gray-600);
+  border-color: var(--color-gray-300);
+}
+
+.dev-tools-close {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+  cursor: pointer;
+  background: none;
+  border: none;
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+}
+
+.dev-tools-close:hover {
+  color: var(--color-gray-600);
+}
+
 /* ─── Reply Mode Selector ─────────────────── */
 .reply-mode-selector {
   position: relative;
@@ -459,4 +495,153 @@
 
 .sim-result-body--error {
   color: var(--color-danger-600);
+}
+
+/* Media messages */
+.media-content { max-width: 100%; }
+
+.media-image img {
+  max-width: 280px;
+  max-height: 300px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: opacity 0.15s;
+  display: block;
+}
+.media-image img:hover { opacity: 0.9; }
+
+.media-caption {
+  margin-top: 6px;
+  font-size: var(--font-size-sm);
+  color: inherit;
+  opacity: 0.85;
+}
+
+.media-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.05);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.media-doc-link:hover { background: rgba(0,0,0,0.1); }
+
+.media-audio audio {
+  max-width: 260px;
+  height: 36px;
+}
+
+.template-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-primary-500);
+  margin-bottom: 4px;
+}
+
+.chat-bubble-type {
+  font-size: 10px;
+  opacity: 0.6;
+  text-transform: capitalize;
+}
+
+/* ─── 24h Service Window Indicator ─────────────── */
+.service-window-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 99px;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+.service-window-badge--open {
+  background: var(--color-success-50, #f0fdf4);
+  color: var(--color-success-700, #15803d);
+  border: 1px solid var(--color-success-200, #bbf7d0);
+}
+.service-window-badge--closed {
+  background: var(--color-gray-100, #f3f4f6);
+  color: var(--color-gray-500, #6b7280);
+  border: 1px solid var(--color-gray-200, #e5e7eb);
+}
+
+/* ── 24h Service Window Warning ─────────────────────── */
+.window-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: var(--color-orange-50);
+  border-top: 1px solid var(--color-orange-200);
+  color: var(--color-orange-700);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+.window-warning-banner svg {
+  flex-shrink: 0;
+  color: var(--color-orange-500);
+}
+.window-warning-banner--soon {
+  background: var(--color-amber-50, #fffbeb);
+  border-top-color: var(--color-amber-200, #fde68a);
+  color: var(--color-amber-700, #92400e);
+}
+.window-warning-banner--soon svg {
+  color: var(--color-amber-500, #f59e0b);
+}
+.window-warning-text {
+  flex: 1;
+}
+
+/* ── Send Warning/Error Feedback ─────────────────────── */
+.send-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+.send-warning-banner svg {
+  flex-shrink: 0;
+}
+.send-warning-banner button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.6;
+  color: inherit;
+}
+.send-warning-banner button:hover { opacity: 1; }
+.send-warning-banner--error {
+  background: var(--color-danger-50);
+  border-top: 1px solid var(--color-danger-200);
+  color: var(--color-danger-700);
+}
+.send-warning-banner--error svg {
+  color: var(--color-danger-500);
+}
+.send-warning-banner--warning {
+  background: var(--color-orange-50);
+  border-top: 1px solid var(--color-orange-200);
+  color: var(--color-orange-700);
+}
+.send-warning-banner--warning svg {
+  color: var(--color-orange-500);
 }

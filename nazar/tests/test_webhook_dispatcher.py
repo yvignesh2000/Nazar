@@ -15,9 +15,15 @@ import webhook_dispatcher as wd
 
 @pytest.fixture(autouse=True)
 def tmp_data_dir(tmp_path, monkeypatch):
-    """Redirect data directory to temp path."""
-    monkeypatch.setattr(wd, "DATA_DIR", tmp_path)
+    """Set up an isolated SQLite database for each test."""
+    import database
+    db_path = tmp_path / "nazar.db"
+    monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database._local.connection = None
+    database.init_db(db_path)
     yield tmp_path
+    database.close_connection()
 
 
 class TestRegisterWebhook:

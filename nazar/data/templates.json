@@ -3,13 +3,17 @@
     "id": "tpl_welcome",
     "name": "welcome_new_lead",
     "category": "utility",
-    "header": {"type": "none"},
+    "header": {
+      "type": "none"
+    },
     "body": "Hi {{1}}! Thanks for your interest in our services. I'm here to help you find the right solution. What are you looking for?",
     "footer": "",
     "buttons": [],
-    "variables": ["name"],
+    "variables": [
+      "name"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 12,
     "reply_rate": 34.5,
     "delivered_count": 12,
@@ -18,19 +22,33 @@
     "failed_count": 0,
     "description": "Welcome message for new leads",
     "created_at": "2026-01-15T10:00:00+05:30",
-    "updated_at": "2026-01-15T10:00:00+05:30"
+    "updated_at": "2026-04-16T17:53:18.852347+05:30"
   },
   {
     "id": "tpl_followup",
     "name": "gentle_followup",
     "category": "utility",
-    "header": {"type": "none"},
+    "header": {
+      "type": "none"
+    },
     "body": "Hi {{1}}, just checking in! We discussed {{2}} recently. Do you have any questions or would you like to proceed?",
     "footer": "",
-    "buttons": [{"type": "quick_reply", "text": "Yes, let's proceed"}, {"type": "quick_reply", "text": "Not now"}],
-    "variables": ["name", "topic"],
+    "buttons": [
+      {
+        "type": "quick_reply",
+        "text": "Yes, let's proceed"
+      },
+      {
+        "type": "quick_reply",
+        "text": "Not now"
+      }
+    ],
+    "variables": [
+      "name",
+      "topic"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 8,
     "reply_rate": 25.0,
     "delivered_count": 8,
@@ -45,13 +63,27 @@
     "id": "tpl_demo_invite",
     "name": "demo_invitation",
     "category": "utility",
-    "header": {"type": "text", "text": "Demo Invitation 🎯"},
+    "header": {
+      "type": "text",
+      "text": "Demo Invitation 🎯"
+    },
     "body": "Hi {{1}}! Based on our conversation, I think a quick demo would help. Would you like to schedule a 15-minute walkthrough? I'm available this week.",
     "footer": "Reply STOP to opt out",
-    "buttons": [{"type": "quick_reply", "text": "Schedule Demo"}, {"type": "quick_reply", "text": "Maybe Later"}],
-    "variables": ["name"],
+    "buttons": [
+      {
+        "type": "quick_reply",
+        "text": "Schedule Demo"
+      },
+      {
+        "type": "quick_reply",
+        "text": "Maybe Later"
+      }
+    ],
+    "variables": [
+      "name"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 5,
     "reply_rate": 40.0,
     "delivered_count": 5,
@@ -66,13 +98,28 @@
     "id": "tpl_proposal",
     "name": "proposal_sent",
     "category": "utility",
-    "header": {"type": "text", "text": "Your Proposal is Ready! 📋"},
+    "header": {
+      "type": "text",
+      "text": "Your Proposal is Ready! 📋"
+    },
     "body": "Hi {{1}}, I've prepared a proposal for {{2}} based on your requirements. Would you like me to walk you through it or shall I send it over?",
     "footer": "",
-    "buttons": [{"type": "quick_reply", "text": "Walk me through"}, {"type": "quick_reply", "text": "Send it over"}],
-    "variables": ["name", "company"],
+    "buttons": [
+      {
+        "type": "quick_reply",
+        "text": "Walk me through"
+      },
+      {
+        "type": "quick_reply",
+        "text": "Send it over"
+      }
+    ],
+    "variables": [
+      "name",
+      "company"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 3,
     "reply_rate": 66.7,
     "delivered_count": 3,
@@ -87,13 +134,27 @@
     "id": "tpl_seasonal",
     "name": "seasonal_greeting",
     "category": "marketing",
-    "header": {"type": "text", "text": "🎉 Season's Greetings!"},
+    "header": {
+      "type": "text",
+      "text": "🎉 Season's Greetings!"
+    },
     "body": "Hi {{1}}! Wishing you a wonderful season ahead. We have some exciting updates we'd love to share. Can I tell you more?",
     "footer": "Reply STOP to unsubscribe",
-    "buttons": [{"type": "quick_reply", "text": "Tell me more!"}, {"type": "quick_reply", "text": "Not interested"}],
-    "variables": ["name"],
+    "buttons": [
+      {
+        "type": "quick_reply",
+        "text": "Tell me more!"
+      },
+      {
+        "type": "quick_reply",
+        "text": "Not interested"
+      }
+    ],
+    "variables": [
+      "name"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 45,
     "reply_rate": 12.0,
     "delivered_count": 42,
@@ -108,13 +169,17 @@
     "id": "tpl_feedback",
     "name": "feedback_request",
     "category": "utility",
-    "header": {"type": "none"},
+    "header": {
+      "type": "none"
+    },
     "body": "Hi {{1}}! It's been a while since we connected. How's everything going? We'd love to hear your feedback and see if there's anything we can help with.",
     "footer": "",
     "buttons": [],
-    "variables": ["name"],
+    "variables": [
+      "name"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 6,
     "reply_rate": 33.3,
     "delivered_count": 6,
@@ -129,13 +194,17 @@
     "id": "tpl_hindi_welcome",
     "name": "welcome_hindi",
     "category": "utility",
-    "header": {"type": "none"},
+    "header": {
+      "type": "none"
+    },
     "body": "नमस्ते {{1}}! हमारी सर्विसेज में आपकी रुचि के लिए धन्यवाद। मैं आपकी सही समाधान खोजने में मदद करने के लिए यहाँ हूँ। आपको क्या चाहिए?",
     "footer": "",
     "buttons": [],
-    "variables": ["name"],
+    "variables": [
+      "name"
+    ],
     "language": "hi",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 3,
     "reply_rate": 33.3,
     "delivered_count": 3,
@@ -150,13 +219,28 @@
     "id": "tpl_reengagement",
     "name": "win_back",
     "category": "marketing",
-    "header": {"type": "text", "text": "We miss you! 💙"},
+    "header": {
+      "type": "text",
+      "text": "We miss you! 💙"
+    },
     "body": "Hi {{1}}, we haven't heard from you in a while! We've made some improvements since we last spoke. Would you be open to a quick catch-up?",
     "footer": "Reply STOP to unsubscribe",
-    "buttons": [{"type": "quick_reply", "text": "Sure, let's chat"}, {"type": "url", "text": "Visit Website", "url": "https://example.com"}],
-    "variables": ["name"],
+    "buttons": [
+      {
+        "type": "quick_reply",
+        "text": "Sure, let's chat"
+      },
+      {
+        "type": "url",
+        "text": "Visit Website",
+        "url": "https://example.com"
+      }
+    ],
+    "variables": [
+      "name"
+    ],
     "language": "en",
-    "approval_status": "approved",
+    "approval_status": "draft",
     "usage_count": 22,
     "reply_rate": 18.0,
     "delivered_count": 20,
@@ -171,11 +255,23 @@
     "id": "tpl_order_update",
     "name": "order_status_update",
     "category": "utility",
-    "header": {"type": "text", "text": "📦 Order Update"},
+    "header": {
+      "type": "text",
+      "text": "📦 Order Update"
+    },
     "body": "Hi {{1}}, your order #{{2}} has been shipped! Track your delivery here. Estimated delivery: 2-3 business days.",
     "footer": "Reply HELP for support",
-    "buttons": [{"type": "url", "text": "Track Order", "url": "https://example.com/track"}],
-    "variables": ["name", "order_id"],
+    "buttons": [
+      {
+        "type": "url",
+        "text": "Track Order",
+        "url": "https://example.com/track"
+      }
+    ],
+    "variables": [
+      "name",
+      "order_id"
+    ],
     "language": "en",
     "approval_status": "pending",
     "usage_count": 0,

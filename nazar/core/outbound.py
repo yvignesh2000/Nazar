@@ -1,16 +1,8 @@
 """
 Nazar — Outbound Messaging Module
 
-Handles sending messages from the dashboard:
-1. Single message send (human agent → customer via WhatsApp)
-2. Campaign send (to segments with personalization via templates)
-3. Template-based sends (pre-approved WhatsApp templates)
-4. Rate limiting & delivery tracking
-
-This module is called by server.py's API endpoints.
-The actual WhatsApp API calls are in server.py — this module
-handles the business logic layer: personalization, batching,
-rate limiting, logging.
+Handles campaign CRUD, personalization, and execution logic.
+Storage: SQLite via core/database.py
 """
 
 import asyncio
@@ -21,35 +13,16 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Callable, List
 
+from database import get_db, row_to_dict, rows_to_list
+
 logger = logging.getLogger("nazar")
 
 IST = timezone(timedelta(hours=5, minutes=30))
-DATA_DIR = Path(__file__).parent.parent / "data"
 
 
-
-def _campaigns_path() -> Path:
-    """Path to the campaigns log file."""
-    return DATA_DIR / "campaigns.json"
-
-
-def _load_campaigns() -> list:
-    """Load campaign history."""
-    path = _campaigns_path()
-    if path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return []
-    return []
-
-
-def _save_campaigns(campaigns: list):
-    """Save campaign history."""
-    path = _campaigns_path()
-    path.write_text(json.dumps(campaigns, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
+# ---------------------------------------------------------------------------
+# Campaign CRUD
+# ---------------------------------------------------------------------------
 
 def create_campaign(
     name: str,
@@ -68,21 +41,12 @@ def create_campaign(
     reply_mode: str = "auto_ai",
     campaign_kb: str = "",
 ) -> dict:
-    """
-    Create a campaign record with full analytics tracking.
-
-    Args:
-        reply_mode: How replies to this campaign are handled.
-            "auto_ai"    - AI replies automatically
-            "human_only" - Only human agents reply
-            "ai_draft"   - AI drafts reply, human approves
-        campaign_kb: Campaign-specific knowledge base text.
-
-    Returns the campaign record.
-    """
+    """Create a campaign record with full analytics tracking."""
     now = datetime.now(IST).isoformat()
+    campaign_id = f"cmp_{uuid.uuid4().hex[:8]}"
+
     record = {
-        "id": f"cmp_{uuid.uuid4().hex[:8]}",
+        "id": campaign_id,
         "name": name,
         "template_id": template_id,
         "template_name": template_name,
@@ -104,68 +68,120 @@ def create_campaign(
         "completed_at": now if not scheduled_at else "",
     }
 
-    campaigns = _load_campaigns()
-    campaigns.insert(0, record)
-    campaigns = campaigns[:200]
-    _save_campaigns(campaigns)
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO campaigns
+               (id, name, template_id, template_name, target_count,
+                sent, failed, delivered, read_count, replied, not_on_whatsapp,
+                filter_stage, filter_tag, contact_ids, reply_mode, campaign_kb,
+                status, scheduled_at, created_at, completed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                campaign_id, name, template_id, template_name, target_count,
+                sent, failed, delivered, read, replied, 0,
+                filter_stage or "", filter_tag or "",
+                json.dumps(contact_ids or []), reply_mode,
+                1 if campaign_kb else 0,
+                "completed" if not scheduled_at else "scheduled",
+                scheduled_at or "", now, now if not scheduled_at else "",
+            ),
+        )
 
     logger.info(
-        f"Campaign created: {name} — {sent}/{target_count} sent, "
-        f"template={template_name}"
+        "Campaign created: %s — %d/%d sent, template=%s",
+        name, sent, target_count, template_name,
     )
     return record
 
 
 def get_campaign(campaign_id: str) -> Optional[dict]:
     """Get a campaign by ID."""
-    campaigns = _load_campaigns()
-    for c in campaigns:
-        if c["id"] == campaign_id:
-            return c
-    return None
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM campaigns WHERE id = ?", (campaign_id,)
+        ).fetchone()
+    if not row:
+        return None
+    return _row_to_campaign(row)
 
 
-def update_campaign(campaign_id: str, **fields) -> Optional[dict]:
-    """Update a campaign record."""
-    campaigns = _load_campaigns()
-    for i, c in enumerate(campaigns):
-        if c["id"] == campaign_id:
-            c.update(fields)
-            campaigns[i] = c
-            _save_campaigns(campaigns)
-            return c
-    return None
+def update_campaign(campaign_id: str, updates=None, **fields) -> Optional[dict]:
+    """Update a campaign record. Accepts a dict or kwargs."""
+    if updates and isinstance(updates, dict):
+        fields.update(updates)
+
+    col_map = {
+        "name": "name", "status": "status", "sent": "sent",
+        "failed": "failed", "delivered": "delivered",
+        "read": "read_count", "replied": "replied",
+        "scheduled_at": "scheduled_at", "completed_at": "completed_at",
+    }
+
+    sets = []
+    vals = []
+    for k, v in fields.items():
+        col = col_map.get(k, k)
+        # Only update known columns
+        if col in ("name", "status", "sent", "failed", "delivered",
+                    "read_count", "replied", "scheduled_at", "completed_at"):
+            sets.append(f"{col} = ?")
+            vals.append(v)
+
+    if not sets:
+        return get_campaign(campaign_id)
+
+    vals.append(campaign_id)
+
+    with get_db() as conn:
+        conn.execute(
+            f"UPDATE campaigns SET {', '.join(sets)} WHERE id = ?",
+            vals,
+        )
+
+    return get_campaign(campaign_id)
 
 
 def get_campaign_history(limit: int = 50) -> list:
     """Get campaign history, newest first."""
-    campaigns = _load_campaigns()
-    return campaigns[:limit]
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM campaigns ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [_row_to_campaign(r) for r in rows]
 
 
 def get_campaign_stats() -> dict:
     """Get aggregate campaign statistics."""
-    campaigns = _load_campaigns()
-    total_sent = sum(c.get("sent", 0) for c in campaigns)
-    total_delivered = sum(c.get("delivered", 0) for c in campaigns)
-    total_read = sum(c.get("read", 0) for c in campaigns)
-    total_replied = sum(c.get("replied", 0) for c in campaigns)
-    total_failed = sum(c.get("failed", 0) for c in campaigns)
-    total_targeted = sum(c.get("target_count", 0) for c in campaigns)
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT
+                 COUNT(*) as total_campaigns,
+                 COALESCE(SUM(target_count), 0) as total_recipients,
+                 COALESCE(SUM(sent), 0) as total_sent,
+                 COALESCE(SUM(delivered), 0) as total_delivered,
+                 COALESCE(SUM(read_count), 0) as total_read,
+                 COALESCE(SUM(replied), 0) as total_replied,
+                 COALESCE(SUM(failed), 0) as total_failed
+               FROM campaigns"""
+        ).fetchone()
+
+    d = dict(row)
+    total_sent = d["total_sent"] or 1
+    total_delivered = d["total_delivered"] or 1
 
     return {
-        "total_campaigns": len(campaigns),
-        "total_recipients": total_targeted,
-        "total_sent": total_sent,
-        "total_delivered": total_delivered,
-        "total_read": total_read,
-        "total_replied": total_replied,
-        "total_failed": total_failed,
-        "delivery_rate": round(total_delivered / max(total_sent, 1) * 100, 1),
-        "read_rate": round(total_read / max(total_delivered, 1) * 100, 1),
-        "reply_rate": round(total_replied / max(total_delivered, 1) * 100, 1),
+        "total_campaigns": d["total_campaigns"],
+        "total_recipients": d["total_recipients"],
+        "total_sent": d["total_sent"],
+        "total_delivered": d["total_delivered"],
+        "total_read": d["total_read"],
+        "total_replied": d["total_replied"],
+        "total_failed": d["total_failed"],
+        "delivery_rate": round((d["total_delivered"] or 0) / max(total_sent, 1) * 100, 1),
+        "read_rate": round((d["total_read"] or 0) / max(total_delivered, 1) * 100, 1),
+        "reply_rate": round((d["total_replied"] or 0) / max(total_delivered, 1) * 100, 1),
     }
-
 
 
 # ---------------------------------------------------------------------------
@@ -177,23 +193,7 @@ def personalize_message(
     contact: dict,
     memory_summary: Optional[dict] = None,
 ) -> str:
-    """
-    Personalize a campaign message template with contact data.
-
-    Supported variables:
-      {name}     — contact name
-      {company}  — company name
-      {stage}    — pipeline stage
-      {phone}    — phone number
-
-    Args:
-        template: Message template with {variables}.
-        contact: Contact profile dict.
-        memory_summary: Optional memory summary for AI personalization.
-
-    Returns:
-        Personalized message string.
-    """
+    """Personalize a campaign message template with contact data."""
     name = contact.get("name", "there")
     if not name or name.strip() == "":
         name = "there"
@@ -220,27 +220,8 @@ async def execute_campaign_send(
     personalize: bool = True,
     rate_limit_ms: int = 100,
 ) -> dict:
-    """
-    Execute a campaign send to a list of contacts.
-
-    Args:
-        contacts: List of contact profile dicts to send to.
-        message: Message text (may contain {variables}).
-        send_fn: Async callable(phone, text) that sends a WhatsApp message.
-        template_name: Optional template name (for logging).
-        filter_stage: Stage filter used (for logging).
-        filter_tag: Tag filter used (for logging).
-        personalize: Whether to apply personalization.
-        rate_limit_ms: Delay between sends in milliseconds.
-
-    Returns:
-        Result dict with sent/failed counts and per-contact details.
-    """
-    results = {
-        "sent": 0,
-        "failed": 0,
-        "details": [],
-    }
+    """Execute a campaign send to a list of contacts."""
+    results = {"sent": 0, "failed": 0, "details": []}
 
     for contact in contacts:
         phone = contact.get("phone", "")
@@ -254,7 +235,6 @@ async def execute_campaign_send(
             })
             continue
 
-        # Personalize message
         text = personalize_message(message, contact) if personalize else message
 
         try:
@@ -275,7 +255,6 @@ async def execute_campaign_send(
                 "error": str(e)[:200],
             })
 
-        # Rate limiting
         if rate_limit_ms > 0:
             await asyncio.sleep(rate_limit_ms / 1000)
 
@@ -283,16 +262,11 @@ async def execute_campaign_send(
 
 
 # ---------------------------------------------------------------------------
-# Follow-up message generation
+# Follow-up context
 # ---------------------------------------------------------------------------
 
 def generate_followup_context(contact: dict, memory_summary: Optional[dict] = None) -> str:
-    """
-    Generate context for an AI-powered follow-up message.
-
-    Returns a prompt string that can be sent to the LLM to generate
-    a personalized follow-up.
-    """
+    """Generate context for an AI-powered follow-up message."""
     name = contact.get("name", "the customer")
     stage = contact.get("pipeline_stage", "New")
     deal_value = contact.get("deal_value", 0)
@@ -324,3 +298,34 @@ def generate_followup_context(contact: dict, memory_summary: Optional[dict] = No
 - End with an open question that invites response"""
 
     return context
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _row_to_campaign(row) -> dict:
+    """Convert a sqlite3.Row to a campaign dict."""
+    d = dict(row)
+    return {
+        "id": d["id"],
+        "name": d["name"],
+        "template_id": d.get("template_id", ""),
+        "template_name": d.get("template_name", ""),
+        "target_count": d.get("target_count", 0),
+        "sent": d.get("sent", 0),
+        "failed": d.get("failed", 0),
+        "delivered": d.get("delivered", 0),
+        "read": d.get("read_count", 0),
+        "replied": d.get("replied", 0),
+        "not_on_whatsapp": d.get("not_on_whatsapp", 0),
+        "filter_stage": d.get("filter_stage", ""),
+        "filter_tag": d.get("filter_tag", ""),
+        "contact_ids": json.loads(d.get("contact_ids", "[]") or "[]"),
+        "reply_mode": d.get("reply_mode", "auto_ai"),
+        "campaign_kb": bool(d.get("campaign_kb", 0)),
+        "status": d.get("status", "completed"),
+        "scheduled_at": d.get("scheduled_at", ""),
+        "created_at": d.get("created_at", ""),
+        "completed_at": d.get("completed_at", ""),
+    }

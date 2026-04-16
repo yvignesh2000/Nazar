@@ -229,7 +229,14 @@ class TestPreviewSegment:
 class TestSavedSegments:
     @pytest.fixture(autouse=True)
     def tmp_segments(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(segmentation, "_SEGMENTS_PATH", tmp_path / "segments.json")
+        import database
+        db_path = tmp_path / "nazar.db"
+        monkeypatch.setattr(database, "DATA_DIR", tmp_path)
+        monkeypatch.setattr(database, "DB_PATH", db_path)
+        database._local.connection = None
+        database.init_db(db_path)
+        yield
+        database.close_connection()
 
     def test_save_and_retrieve_segment(self):
         seg = {"conditions": [{"field": "lead_score", "operator": "gte", "value": 50}]}
