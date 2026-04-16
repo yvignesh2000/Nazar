@@ -1,0 +1,38 @@
+# ── Nazar — Render Blueprint (IaC) ──────────────────────────────────────
+# Deploy: Connect repo on https://dashboard.render.com → New → Blueprint
+# Or just use "New → Web Service" and point to this repo.
+# ────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: nazar
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PORT
+        value: "8001"
+      - key: NAZAR_API_KEY
+        sync: false          # Render will prompt you for this
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: WA_PHONE_NUMBER_ID
+        sync: false
+      - key: WA_ACCESS_TOKEN
+        sync: false
+      - key: WA_APP_SECRET
+        sync: false
+      - key: WA_VERIFY_TOKEN
+        value: "nazar_verify_2026"
+      - key: NAZAR_TOKEN_SECRET
+        generateValue: true
+      - key: NAZAR_ADMIN_PASSWORD
+        sync: false
+    healthCheckPath: /health
