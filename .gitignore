@@ -15,6 +15,9 @@ nazar/data/chromadb/
 nazar/data/*.db
 nazar/data/*.db-shm
 nazar/data/*.db-wal
+nazar/nazar.db
+nazar/nazar.db-shm
+nazar/nazar.db-wal
 
 # Runtime data (generated at runtime — never commit)
 nazar/data/auth/
@@ -28,6 +31,19 @@ nazar/data/campaigns.json
 nazar/data/campaign_contacts.json
 nazar/data/ai_drafts.json
 nazar/data/reply_modes.json
+
+# Knowledge base runtime artefacts (raw docs and folder index are per-tenant data)
+nazar/data/kb/raw/
+nazar/data/kb/folders.json
+nazar/data/kb/docs.json
+nazar/data/kb/vectors/
+nazar/data/.chroma_health/
+
+# Backup files
+*.bak
+
+# Stray pip output files (defensive)
+nazar/=*
 
 # Python
 __pycache__/
