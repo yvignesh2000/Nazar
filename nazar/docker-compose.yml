@@ -1,0 +1,23 @@
+services:
+  nazar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nazar:latest
+    container_name: nazar
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8001}:8001"
+    env_file:
+      - .env
+    volumes:
+      # Persistent data — survives container rebuilds
+      - ./data:/app/data
+      - ./.master_secret:/app/.master_secret:ro
+      - ./.salt:/app/.salt:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/api/health || curl -f http://localhost:8001/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

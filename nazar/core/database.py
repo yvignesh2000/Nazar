@@ -337,6 +337,26 @@ CREATE TABLE IF NOT EXISTS kb_documents (
 );
 CREATE INDEX IF NOT EXISTS ix_kb_docs_ws ON kb_documents(workspace_id);
 CREATE INDEX IF NOT EXISTS ix_kb_docs_scope ON kb_documents(scope);
+
+-- Channels (multi-phone-number support)
+CREATE TABLE IF NOT EXISTS channels (
+    id              TEXT PRIMARY KEY,
+    workspace_id    TEXT NOT NULL,
+    phone_number_id TEXT NOT NULL,
+    waba_id         TEXT DEFAULT '',
+    access_token    TEXT NOT NULL DEFAULT '',
+    display_name    TEXT NOT NULL DEFAULT '',
+    persona_prompt  TEXT DEFAULT '',
+    default_reply_mode TEXT DEFAULT 'auto_ai',
+    kb_scope        TEXT DEFAULT 'global',
+    is_primary      INTEGER DEFAULT 0,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT DEFAULT NULL,
+    UNIQUE(phone_number_id)
+);
+CREATE INDEX IF NOT EXISTS ix_channels_ws ON channels(workspace_id);
+CREATE INDEX IF NOT EXISTS ix_channels_phone ON channels(phone_number_id);
 """
 
 
@@ -363,6 +383,68 @@ def _migrate_add_workspace_id(conn: sqlite3.Connection):
         except Exception as e:
             logger.warning("Migration skip for %s: %s", table, e)
 
+
+
+def _migrate_add_channel_id(conn: sqlite3.Connection):
+    """
+    Migration: add channel_id column to tables that need per-channel scoping.
+    Safe to run multiple times — checks column existence first.
+    """
+    tables_needing_channel = [
+        "contacts", "messages", "handoff_states", "optouts", "reply_modes",
+        "campaigns", "campaign_contacts", "ai_drafts", "assignments",
+    ]
+    for table in tables_needing_channel:
+        try:
+            cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+            if "channel_id" not in cols:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN channel_id TEXT NOT NULL DEFAULT 'default'"
+                )
+                logger.info("Migration: added channel_id to %s", table)
+        except Exception as e:
+            logger.warning("Migration skip for channel_id on %s: %s", table, e)
+
+    # Rebuild unique index on contacts to include channel_id
+    try:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(contacts)").fetchall()]
+        if "channel_id" in cols:
+            # Check if the new unique index already exists
+            indexes = [row[1] for row in conn.execute(
+                "PRAGMA index_list(contacts)"
+            ).fetchall()]
+            if "ix_contacts_ws_ch_phone" not in indexes:
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_contacts_ws_ch_phone "
+                    "ON contacts(workspace_id, channel_id, phone)"
+                )
+                logger.info("Migration: created ix_contacts_ws_ch_phone index")
+    except Exception as e:
+        logger.warning("Migration skip for contacts channel index: %s", e)
+
+    # Rebuild unique index on optouts to include channel_id
+    try:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(optouts)").fetchall()]
+        if "channel_id" in cols:
+            indexes = [row[1] for row in conn.execute(
+                "PRAGMA index_list(optouts)"
+            ).fetchall()]
+            if "ix_optouts_ws_ch_phone" not in indexes:
+                conn.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_optouts_ws_ch_phone "
+                    "ON optouts(workspace_id, channel_id, phone)"
+                )
+                logger.info("Migration: created ix_optouts_ws_ch_phone index")
+    except Exception as e:
+        logger.warning("Migration skip for optouts channel index: %s", e)
+
+    # Add channel index to messages
+    try:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS ix_messages_channel ON messages(channel_id)"
+        )
+    except Exception:
+        pass
 
 
 def _migrate_add_new_columns(conn: sqlite3.Connection):
@@ -419,6 +501,8 @@ def init_db(db_path: Path = None):
         conn.executescript(SCHEMA_SQL)
         # Step 3: run additional column migrations (always safe to run)
         _migrate_add_new_columns(conn)
+        # Step 4: add channel_id columns to existing tables
+        _migrate_add_channel_id(conn)
         conn.commit()
     logger.info("Database initialized at %s", DB_PATH)
 
@@ -432,7 +516,8 @@ def reset_db(workspace_id: str = None):
         "messages", "campaign_contacts", "ai_drafts", "reply_modes",
         "handoff_events", "handoff_states", "optouts", "assignments",
         "segments", "webhooks", "audit_log", "campaigns",
-        "contact_group_members", "contact_groups", "kb_documents", "contacts",
+        "contact_group_members", "contact_groups", "kb_documents",
+        "channels", "contacts",
     ]
     with get_db() as conn:
         for t in tables:

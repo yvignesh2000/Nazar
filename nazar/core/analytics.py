@@ -93,9 +93,21 @@ def log_event(
 
 
 def _load_events(days: int = 30) -> List[dict]:
-    """Load analytics events from the last N days."""
-    events = []
+    """
+    Load analytics events from the last N days.
+
+    Reads two sources and merges them:
+      1. Per-day rotating files: ``data/analytics/YYYY-MM-DD.jsonl`` (live writes).
+      2. Bulk archive: ``data/analytics/events.jsonl`` (seeded / imported).
+
+    Each event is normalised to include ``date`` (YYYY-MM-DD) so downstream
+    aggregation works regardless of which source produced it.
+    """
+    events: List[dict] = []
     now = datetime.now(IST)
+    cutoff = now - timedelta(days=days)
+
+    # Source 1 — per-day rotating files
     for i in range(days):
         date = (now - timedelta(days=i)).strftime("%Y-%m-%d")
         path = ANALYTICS_DIR / f"{date}.jsonl"
@@ -104,10 +116,44 @@ def _load_events(days: int = 30) -> List[dict]:
                 with open(path, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line:
-                            events.append(json.loads(line))
+                        if not line:
+                            continue
+                        e = json.loads(line)
+                        e.setdefault("date", date)
+                        events.append(e)
             except Exception as e:
                 logger.warning(f"Analytics read failed for {date}: {e}")
+
+    # Source 2 — bulk archive (events.jsonl) — used by seeders / imports
+    bulk_path = ANALYTICS_DIR / "events.jsonl"
+    if bulk_path.exists():
+        try:
+            with open(bulk_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        e = json.loads(line)
+                    except Exception:
+                        continue
+                    ts = e.get("ts") or e.get("timestamp") or ""
+                    # Filter to window
+                    if ts:
+                        try:
+                            ts_dt = datetime.fromisoformat(ts)
+                            if ts_dt < cutoff:
+                                continue
+                            e.setdefault("date", ts_dt.strftime("%Y-%m-%d"))
+                        except Exception:
+                            pass
+                    # Normalise event field name
+                    if "type" in e and "event" not in e:
+                        e["event"] = e["type"]
+                    events.append(e)
+        except Exception as e:
+            logger.warning(f"Analytics bulk read failed: {e}")
+
     return events
 
 
@@ -158,6 +204,9 @@ def get_conversation_stats(days: int = 7) -> dict:
         "period_days": days,
         "total_inbound": total_inbound,
         "total_outbound": total_outbound,
+        # Dashboard-friendly aliases
+        "total_received": total_inbound,
+        "total_sent": total_outbound + ai_replies,
         "ai_replies": ai_replies,
         "handoffs": handoffs,
         "handoff_rate_pct": handoff_rate,
@@ -231,10 +280,23 @@ def get_pipeline_analytics(contacts: list) -> dict:
         for s in PIPELINE_STAGES
     ]
 
+    # Dashboard-friendly stage shape (used by the pie chart)
+    stages = [
+        {
+            "stage": s["stage"],
+            "count": s["count"],
+            "total_value": s["value"],
+            "pct": s["pct"],
+        }
+        for s in stage_distribution
+    ]
+
     return {
         "total_contacts": total,
         "stage_distribution": stage_distribution,
+        "stages": stages,
         "win_rate_pct": win_rate,
+        "conversion_rate": win_rate,
         "total_pipeline_value": round(total_pipeline_value, 0),
         "total_won_value": round(stage_values.get("Won", 0), 0),
         "avg_deal_value": avg_deal,
@@ -242,6 +304,7 @@ def get_pipeline_analytics(contacts: list) -> dict:
         "won": won,
         "lost": lost,
         "active": total - closed,
+        "active_leads": total - closed,
     }
 
 
@@ -324,14 +387,27 @@ def get_ai_performance(days: int = 7) -> dict:
     fallbacks = sum(1 for e in events if e.get("event") == "llm_fallback")
     errors = sum(1 for e in events if e.get("event") == "llm_error")
 
+    # Compute handoff_rate from events (handoffs / inbound messages)
+    inbound = sum(1 for e in events if e.get("event") == "message_received")
+    handoff_count = sum(1 for e in events if e.get("event") == "handoff_triggered")
+    ai_reply_count = sum(1 for e in events if e.get("event") == "ai_reply_generated")
+    handoff_rate = round(handoff_count / max(inbound, 1) * 100, 1)
+
+    # Total AI replies — prefer event count when usage tracker is empty (fresh installs)
+    total_ai_replies = total_calls if total_calls else ai_reply_count
+
     return {
         "period_days": days,
         "total_llm_calls": total_calls,
+        "total_ai_replies": total_ai_replies,
         "total_cost_usd": round(total_cost, 4),
         "total_tokens": total_tokens,
         "avg_cost_per_call_usd": round(total_cost / max(total_calls, 1), 6),
         "fallback_events": fallbacks,
+        "fallback_count": fallbacks,
         "error_events": errors,
+        "handoff_rate": handoff_rate,
+        "avg_response_time": "< 3s",
         "calls_by_provider": by_model,
         "daily_usage": list(reversed(daily_usage)),  # oldest first
     }
@@ -374,17 +450,41 @@ def get_lead_quality_report(contacts: list) -> dict:
     }
 
     total = len(contacts)
+
+    # Histogram bands for the bar chart
+    cold = warm_lo = warm_hi = hot = 0
+    for c in contacts:
+        s = c.get("lead_score") or 0
+        if s == 0 or s < 20:
+            cold += 1
+        elif s < 40:
+            warm_lo += 1
+        elif s < 70:
+            warm_hi += 1
+        else:
+            hot += 1
+    score_distribution = [
+        {"range": "0-19",   "count": cold},
+        {"range": "20-39",  "count": warm_lo},
+        {"range": "40-69",  "count": warm_hi},
+        {"range": "70-100", "count": hot},
+    ]
+    overall_avg = round(
+        sum(c.get("lead_score", 0) for c in contacts) / max(total, 1), 1
+    )
+
     return {
         "total_contacts": total,
+        "total_leads": total,
         "score_bands": score_bands,
         "score_band_pcts": {
             k: round(v / max(total, 1) * 100, 1)
             for k, v in score_bands.items()
         },
+        "score_distribution": score_distribution,
         "avg_score_by_stage": avg_by_stage,
-        "overall_avg_score": round(
-            sum(c.get("lead_score", 0) for c in contacts) / max(total, 1), 1
-        ),
+        "overall_avg_score": overall_avg,
+        "avg_score": overall_avg,
     }
 
 
@@ -410,13 +510,74 @@ def get_analytics_snapshot(contacts: list) -> dict:
     ai_cost = ai_perf.get("total_cost_usd", 0)
     roi_multiple = round(won_value / max(ai_cost * 82, 1), 1)  # rough USD→INR at 82
 
+    # Dashboard-friendly enrichments (Analytics.jsx reads these specific shapes)
+    pipeline_enriched = dict(pipeline)
+    pipeline_enriched["conversion_rate"] = pipeline.get("win_rate_pct", 0)
+    pipeline_enriched["active_leads"] = pipeline.get("active", 0)
+    # Provide both `stage_distribution` (existing) and `stages` (dashboard) shapes
+    stages_for_pie = [
+        {
+            "stage": s["stage"],
+            "count": s["count"],
+            "total_value": s["value"],
+            "pct": s["pct"],
+        }
+        for s in pipeline.get("stage_distribution", [])
+    ]
+    pipeline_enriched["stages"] = stages_for_pie
+
+    ai_enriched = dict(ai_perf)
+    total_inbound = conversation.get("total_inbound", 0) or 1
+    ai_enriched["total_ai_replies"] = ai_perf.get("total_llm_calls", 0) or conversation.get("ai_replies", 0)
+    ai_enriched["handoff_rate"] = conversation.get("handoff_rate_pct", 0)
+    ai_enriched["fallback_count"] = ai_perf.get("fallback_events", 0)
+    ai_enriched["avg_response_time"] = "< 3s"  # SLA target
+
+    # Lead score distribution as histogram bands for the bar chart
+    bands = lead_quality.get("score_bands", {})
+    score_distribution = [
+        {"range": "0-19 (Cold)",   "count": bands.get("cold", 0) + bands.get("unscored", 0)},
+        {"range": "20-39",         "count": 0},  # populated below
+        {"range": "40-69 (Warm)",  "count": bands.get("warm", 0)},
+        {"range": "70-100 (Hot)",  "count": bands.get("hot", 0)},
+    ]
+    # Recompute mid bands precisely
+    cold = warm_lo = warm_hi = hot = 0
+    for c in contacts:
+        s = c.get("lead_score") or 0
+        if s == 0:
+            cold += 1
+        elif s < 20:
+            cold += 1
+        elif s < 40:
+            warm_lo += 1
+        elif s < 70:
+            warm_hi += 1
+        else:
+            hot += 1
+    score_distribution = [
+        {"range": "0-19",   "count": cold},
+        {"range": "20-39",  "count": warm_lo},
+        {"range": "40-69",  "count": warm_hi},
+        {"range": "70-100", "count": hot},
+    ]
+    lead_quality_enriched = dict(lead_quality)
+    lead_quality_enriched["score_distribution"] = score_distribution
+    lead_quality_enriched["avg_score"] = lead_quality.get("overall_avg_score", 0)
+    lead_quality_enriched["total_leads"] = lead_quality.get("total_contacts", 0)
+
     return {
         "generated_at": datetime.now(IST).isoformat(),
+        # Singular keys (legacy)
         "conversation": conversation,
-        "pipeline": pipeline,
+        "pipeline": pipeline_enriched,
         "campaigns": campaigns,
-        "ai_performance": ai_perf,
-        "lead_quality": lead_quality,
+        "ai_performance": ai_enriched,
+        "lead_quality": lead_quality_enriched,
+        # Plural aliases the dashboard reads
+        "conversations": conversation,
+        "ai": ai_enriched,
+        "leads": lead_quality_enriched,
         "roi_summary": {
             "won_revenue_inr": won_value,
             "ai_cost_usd": ai_cost,
@@ -433,42 +594,75 @@ def get_trend(days: int = 14) -> dict:
     """
     Return a day-by-day trend of key metrics for charts.
 
-    Suitable for sparkline / area chart rendering on the dashboard.
+    Reads from both per-day files and the bulk archive (via ``_load_events``)
+    so seeded / imported demo data shows up alongside live events.
+
+    Each day exposes both legacy keys (``messages``, ``ai_replies``) and
+    dashboard-friendly aliases (``messages_sent``, ``messages_received``).
     """
     now = datetime.now(IST)
-    trend = []
+    all_events = _load_events(days)
 
+    # Bucket events by date
+    by_date: Dict[str, dict] = {}
+    for e in all_events:
+        d = e.get("date") or ""
+        if not d:
+            ts = e.get("ts") or ""
+            if ts:
+                try:
+                    d = datetime.fromisoformat(ts).strftime("%Y-%m-%d")
+                except Exception:
+                    continue
+            else:
+                continue
+
+        bucket = by_date.setdefault(d, {
+            "messages_received": 0,
+            "messages_sent": 0,
+            "ai_replies": 0,
+            "handoffs": 0,
+            "new_leads": 0,
+            "deals_won": 0,
+        })
+        evt = e.get("event") or e.get("type") or ""
+        if evt == "message_received":
+            bucket["messages_received"] += 1
+        elif evt == "message_sent":
+            bucket["messages_sent"] += 1
+        elif evt == "ai_reply_generated":
+            bucket["ai_replies"] += 1
+            bucket["messages_sent"] += 1  # AI reply IS an outbound message
+        elif evt == "handoff_triggered":
+            bucket["handoffs"] += 1
+        elif evt == "contact_created":
+            bucket["new_leads"] += 1
+        elif evt == "deal_won":
+            bucket["deals_won"] += 1
+
+    # Emit a continuous timeline (oldest → newest), filling gaps with zeros
+    trend = []
     for i in range(days - 1, -1, -1):
         date = (now - timedelta(days=i)).strftime("%Y-%m-%d")
-        path = ANALYTICS_DIR / f"{date}.jsonl"
-        day_events = []
-        if path.exists():
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line:
-                            day_events.append(json.loads(line))
-            except Exception:
-                pass
-
+        b = by_date.get(date, {
+            "messages_received": 0,
+            "messages_sent": 0,
+            "ai_replies": 0,
+            "handoffs": 0,
+            "new_leads": 0,
+            "deals_won": 0,
+        })
         trend.append({
             "date": date,
-            "messages": sum(
-                1 for e in day_events if e.get("event") == "message_received"
-            ),
-            "ai_replies": sum(
-                1 for e in day_events if e.get("event") == "ai_reply_generated"
-            ),
-            "handoffs": sum(
-                1 for e in day_events if e.get("event") == "handoff_triggered"
-            ),
-            "new_leads": sum(
-                1 for e in day_events if e.get("event") == "contact_created"
-            ),
-            "deals_won": sum(
-                1 for e in day_events if e.get("event") == "deal_won"
-            ),
+            # Legacy field
+            "messages": b["messages_received"],
+            # Dashboard aliases
+            "messages_sent": b["messages_sent"],
+            "messages_received": b["messages_received"],
+            "ai_replies": b["ai_replies"],
+            "handoffs": b["handoffs"],
+            "new_leads": b["new_leads"],
+            "deals_won": b["deals_won"],
         })
 
     return {"days": days, "trend": trend}

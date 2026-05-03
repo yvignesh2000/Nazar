@@ -13,7 +13,10 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Callable, List
 
-from database import get_db, row_to_dict, rows_to_list
+try:
+    from database import get_db, row_to_dict, rows_to_list
+except ImportError:
+    from core.database import get_db, row_to_dict, rows_to_list
 
 logger = logging.getLogger("nazar")
 
@@ -40,10 +43,24 @@ def create_campaign(
     scheduled_at: Optional[str] = None,
     reply_mode: str = "auto_ai",
     campaign_kb: str = "",
+    status: Optional[str] = None,
 ) -> dict:
-    """Create a campaign record with full analytics tracking."""
+    """Create a campaign record with full analytics tracking.
+
+    Args:
+        status: Override initial status. If None, auto-determined:
+                'scheduled' when scheduled_at is set, 'draft' otherwise.
+    """
     now = datetime.now(IST).isoformat()
     campaign_id = f"cmp_{uuid.uuid4().hex[:8]}"
+
+    if status is None:
+        if scheduled_at:
+            status = "scheduled"
+        elif sent > 0:
+            status = "completed"
+        else:
+            status = "draft"
 
     record = {
         "id": campaign_id,
@@ -62,10 +79,10 @@ def create_campaign(
         "contact_ids": contact_ids or [],
         "reply_mode": reply_mode,
         "campaign_kb": bool(campaign_kb),
-        "status": "completed" if not scheduled_at else "scheduled",
+        "status": status,
         "scheduled_at": scheduled_at or "",
         "created_at": now,
-        "completed_at": now if not scheduled_at else "",
+        "completed_at": now if status == "completed" else "",
     }
 
     with get_db() as conn:
@@ -82,14 +99,14 @@ def create_campaign(
                 filter_stage or "", filter_tag or "",
                 json.dumps(contact_ids or []), reply_mode,
                 1 if campaign_kb else 0,
-                "completed" if not scheduled_at else "scheduled",
-                scheduled_at or "", now, now if not scheduled_at else "",
+                status,
+                scheduled_at or "", now, now if status == "completed" else "",
             ),
         )
 
     logger.info(
-        "Campaign created: %s — %d/%d sent, template=%s",
-        name, sent, target_count, template_name,
+        "Campaign created: %s — status=%s, %d targets, template=%s",
+        name, status, target_count, template_name,
     )
     return record
 
@@ -106,7 +123,11 @@ def get_campaign(campaign_id: str) -> Optional[dict]:
 
 
 def update_campaign(campaign_id: str, updates=None, **fields) -> Optional[dict]:
-    """Update a campaign record. Accepts a dict or kwargs."""
+    """Update a campaign record. Accepts a dict or kwargs.
+
+    Automatically sets ``completed_at`` when status transitions to
+    'completed' or 'failed'.
+    """
     if updates and isinstance(updates, dict):
         fields.update(updates)
 
@@ -114,8 +135,13 @@ def update_campaign(campaign_id: str, updates=None, **fields) -> Optional[dict]:
         "name": "name", "status": "status", "sent": "sent",
         "failed": "failed", "delivered": "delivered",
         "read": "read_count", "replied": "replied",
+        "not_on_whatsapp": "not_on_whatsapp",
         "scheduled_at": "scheduled_at", "completed_at": "completed_at",
     }
+
+    # Auto-set completed_at when moving to terminal status
+    if "status" in fields and fields["status"] in ("completed", "failed") and "completed_at" not in fields:
+        fields["completed_at"] = datetime.now(IST).isoformat()
 
     sets = []
     vals = []
@@ -123,7 +149,8 @@ def update_campaign(campaign_id: str, updates=None, **fields) -> Optional[dict]:
         col = col_map.get(k, k)
         # Only update known columns
         if col in ("name", "status", "sent", "failed", "delivered",
-                    "read_count", "replied", "scheduled_at", "completed_at"):
+                    "read_count", "replied", "not_on_whatsapp",
+                    "scheduled_at", "completed_at"):
             sets.append(f"{col} = ?")
             vals.append(v)
 
@@ -193,7 +220,14 @@ def personalize_message(
     contact: dict,
     memory_summary: Optional[dict] = None,
 ) -> str:
-    """Personalize a campaign message template with contact data."""
+    """Personalize a campaign message template with contact data.
+
+    Supports both ``{name}`` (simple) and ``{{1}}`` (WhatsApp) style
+    placeholders for backward compatibility.
+    """
+    if not template:
+        return ""
+
     name = contact.get("name", "there")
     if not name or name.strip() == "":
         name = "there"
@@ -307,8 +341,17 @@ def generate_followup_context(contact: dict, memory_summary: Optional[dict] = No
 def _row_to_campaign(row) -> dict:
     """Convert a sqlite3.Row to a campaign dict."""
     d = dict(row)
+
+    # Safely parse contact_ids JSON
+    raw_ids = d.get("contact_ids", "[]") or "[]"
+    try:
+        contact_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
+    except (json.JSONDecodeError, TypeError):
+        contact_ids = []
+
     return {
         "id": d["id"],
+        "workspace_id": d.get("workspace_id", "default"),
         "name": d["name"],
         "template_id": d.get("template_id", ""),
         "template_name": d.get("template_name", ""),
@@ -321,10 +364,10 @@ def _row_to_campaign(row) -> dict:
         "not_on_whatsapp": d.get("not_on_whatsapp", 0),
         "filter_stage": d.get("filter_stage", ""),
         "filter_tag": d.get("filter_tag", ""),
-        "contact_ids": json.loads(d.get("contact_ids", "[]") or "[]"),
+        "contact_ids": contact_ids,
         "reply_mode": d.get("reply_mode", "auto_ai"),
         "campaign_kb": bool(d.get("campaign_kb", 0)),
-        "status": d.get("status", "completed"),
+        "status": d.get("status", "draft"),
         "scheduled_at": d.get("scheduled_at", ""),
         "created_at": d.get("created_at", ""),
         "completed_at": d.get("completed_at", ""),

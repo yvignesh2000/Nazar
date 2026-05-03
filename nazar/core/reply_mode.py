@@ -84,10 +84,19 @@ def _campaign_kb_dir() -> Path:
 
 
 def save_campaign_kb(campaign_id: str, content: str):
-    """Save campaign-specific knowledge base content."""
+    """Save campaign-specific knowledge base content.
+
+    Strips HTML tags to prevent XSS when the content is later injected into
+    AI prompts or rendered in dashboard previews.
+    """
+    import re as _re
+    # Strip HTML tags (defense-in-depth against prompt injection / XSS)
+    sanitized = _re.sub(r"<[^>]+>", "", content)
+    # Limit to 50000 chars (same as schema validation)
+    sanitized = sanitized[:50000]
     path = _campaign_kb_dir() / f"{campaign_id}.txt"
-    path.write_text(content, encoding="utf-8")
-    logger.info("Campaign KB saved for %s: %d chars", campaign_id, len(content))
+    path.write_text(sanitized, encoding="utf-8")
+    logger.info("Campaign KB saved for %s: %d chars", campaign_id, len(sanitized))
 
 
 def get_campaign_kb(campaign_id: str) -> str:

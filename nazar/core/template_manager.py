@@ -428,13 +428,23 @@ def render_template(template: dict, contact: dict) -> str:
 
     Returns:
         Rendered message string.
+
+    Raises:
+        ValueError: If template has no body text.
     """
     body = template.get("body", "")
+    if not body:
+        raise ValueError("Template has no body text")
+
     variables = template.get("variables", [])
 
-    # Map variable names to contact fields
+    # Map variable names to contact fields with sensible fallbacks
+    name_val = contact.get("name") or ""
+    if not name_val.strip():
+        name_val = "there"
+
     var_map = {
-        "name": contact.get("name") or "there",
+        "name": name_val,
         "company": contact.get("company") or "your company",
         "phone": contact.get("phone") or "",
         "stage": contact.get("pipeline_stage") or "",
@@ -444,7 +454,7 @@ def render_template(template: dict, contact: dict) -> str:
 
     for i, var_name in enumerate(variables, start=1):
         placeholder = "{{" + str(i) + "}}"
-        value = var_map.get(var_name, "")
+        value = var_map.get(var_name, str(var_name))
         body = body.replace(placeholder, value)
 
     return body

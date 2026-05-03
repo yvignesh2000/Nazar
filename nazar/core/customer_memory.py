@@ -18,6 +18,14 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
+# Patch sqlite3 with pysqlite3 for ChromaDB compatibility on Python 3.8
+try:
+    __import__("pysqlite3")
+    import sys as _sys
+    _sys.modules["sqlite3"] = _sys.modules.pop("pysqlite3")
+except ImportError:
+    pass
+
 try:
     import chromadb
     from chromadb.config import Settings
@@ -347,8 +355,9 @@ def get_relevant_context(
     """
     Get relevant context for the current message, formatted for LLM prompt injection.
 
-    Searches across all messages, signals, and memory notes. Filters out
-    results that are too distant (cosine distance > 1.5) to be useful.
+    Searches across all messages, signals, and memory notes via ChromaDB.
+    When ChromaDB is unavailable, falls back to SQL-based conversation history
+    so the AI always has *some* memory of past interactions.
 
     Args:
         contact_id: The contact identifier.
@@ -361,8 +370,9 @@ def get_relevant_context(
     """
     hits = search(contact_id, current_message, n_results=n_results)
 
+    # --- Fallback: if ChromaDB returned nothing, build context from SQL ---
     if not hits:
-        return ""
+        return _sql_fallback_context(contact_id, current_message, n_results)
 
     context_parts = []
     context_parts.append("## Relevant customer history:\n")
@@ -400,6 +410,93 @@ def get_relevant_context(
     return "\n".join(context_parts)
 
 
+def _sql_fallback_context(
+    contact_id: str,
+    current_message: str,
+    max_items: int = 8,
+) -> str:
+    """
+    Build memory context from SQL conversation history when ChromaDB is
+    unavailable.  Retrieves older messages (beyond the 7-day window that
+    ``_build_messages`` already injects as chat turns) so the AI still
+    knows about past interactions.
+
+    Strategy:
+      1. Fetch messages from 8–90 days ago (the gap between the 7-day
+         recent window and 3-month horizon).
+      2. Extract signals from those messages.
+      3. Score each message by simple keyword overlap with ``current_message``
+         and return the top ``max_items``.
+    """
+    try:
+        from contact_manager import get_conversation_history
+    except ImportError:
+        return ""
+
+    try:
+        # Get messages from the 8–90 day window (older than what _build_messages uses)
+        history_90 = get_conversation_history(contact_id, days=90)
+        history_7 = get_conversation_history(contact_id, days=7)
+
+        # IDs of recent messages already in the chat turns
+        recent_timestamps = {m.get("timestamp", "") for m in history_7}
+
+        # Filter to only older messages
+        older_messages = [
+            m for m in history_90
+            if m.get("timestamp", "") not in recent_timestamps
+        ]
+
+        if not older_messages:
+            return ""
+
+        # Simple keyword scoring against current message
+        query_words = set(current_message.lower().split())
+        scored = []
+        for msg in older_messages:
+            content = msg.get("content", "")
+            msg_words = set(content.lower().split())
+            overlap = len(query_words & msg_words)
+            scored.append((overlap, msg))
+
+        # Sort by relevance (highest overlap first), then recency
+        scored.sort(key=lambda x: (-x[0], x[1].get("timestamp", "")))
+        top = scored[:max_items]
+
+        # Also extract signals from ALL older messages for a summary
+        signal_counts = {}
+        for _, msg in [(0, m) for m in older_messages if m.get("direction") == "inbound"]:
+            signals = extract_signals_from_message(msg.get("content", ""), "inbound")
+            for sig in signals:
+                st = sig["type"]
+                signal_counts[st] = signal_counts.get(st, 0) + 1
+
+        # Build the context string
+        parts = ["## Relevant customer history (from past conversations):\n"]
+
+        if signal_counts:
+            signal_summary = ", ".join(
+                f"{stype.replace('_', ' ')} ({cnt}x)" for stype, cnt in signal_counts.items()
+            )
+            parts.append(f"- **Detected signals across {len(older_messages)} past messages:** {signal_summary}")
+
+        for _, msg in top:
+            date = msg.get("timestamp", "")[:10]
+            direction = msg.get("direction", "inbound")
+            label = "Customer" if direction == "inbound" else "Sales rep"
+            content = msg.get("content", "")[:300]
+            parts.append(f"- **{date}** {label}: {content}")
+
+        if len(parts) <= 1:
+            return ""
+
+        return "\n".join(parts)
+
+    except Exception as e:
+        logger.error(f"SQL fallback context failed for {contact_id}: {e}")
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Customer summary and stats
 # ---------------------------------------------------------------------------
@@ -415,41 +512,68 @@ def get_customer_summary(contact_id: str) -> dict:
         - last_interaction: ISO timestamp of most recent entry, or ""
     """
     collection = get_collection(contact_id)
-    if collection is None:
+    if collection is not None:
+        try:
+            total = collection.count()
+            if total > 0:
+                all_data = collection.get(include=["metadatas"])
+
+                signal_counts = {}
+                last_ts = ""
+
+                for meta in (all_data.get("metadatas") or []):
+                    if meta.get("type") == "signal":
+                        st = meta.get("signal_type", "unknown")
+                        signal_counts[st] = signal_counts.get(st, 0) + 1
+                    ts = meta.get("timestamp", "")
+                    if ts > last_ts:
+                        last_ts = ts
+
+                return {
+                    "total_embeddings": total,
+                    "signal_counts": signal_counts,
+                    "last_interaction": last_ts,
+                }
+        except Exception as e:
+            logger.error(f"Customer summary (ChromaDB) failed for {contact_id}: {e}")
+
+    # --- Fallback: build summary from SQL messages + signal detection ---
+    return _sql_fallback_summary(contact_id)
+
+
+def _sql_fallback_summary(contact_id: str) -> dict:
+    """Build a customer memory summary from SQL data when ChromaDB is unavailable."""
+    try:
+        from contact_manager import get_conversation_history
+    except ImportError:
         return {"total_embeddings": 0, "signal_counts": {}, "last_interaction": ""}
 
     try:
-        total = collection.count()
-        if total == 0:
+        history = get_conversation_history(contact_id, days=365)
+        if not history:
             return {"total_embeddings": 0, "signal_counts": {}, "last_interaction": ""}
-
-        # Get all entries to compute stats
-        # For large collections this could be expensive; in practice customer
-        # conversations are bounded (hundreds, not millions).
-        all_data = collection.get(include=["metadatas"])
 
         signal_counts = {}
         last_ts = ""
 
-        for meta in (all_data.get("metadatas") or []):
-            # Track signal counts
-            if meta.get("type") == "signal":
-                st = meta.get("signal_type", "unknown")
-                signal_counts[st] = signal_counts.get(st, 0) + 1
-
-            # Track most recent timestamp
-            ts = meta.get("timestamp", "")
+        for msg in history:
+            ts = msg.get("timestamp", "")
             if ts > last_ts:
                 last_ts = ts
 
+            if msg.get("direction") == "inbound":
+                signals = extract_signals_from_message(msg.get("content", ""), "inbound")
+                for sig in signals:
+                    st = sig["type"]
+                    signal_counts[st] = signal_counts.get(st, 0) + 1
+
         return {
-            "total_embeddings": total,
+            "total_embeddings": len(history),
             "signal_counts": signal_counts,
             "last_interaction": last_ts,
         }
-
     except Exception as e:
-        logger.error(f"Customer summary failed for contact {contact_id}: {e}")
+        logger.error(f"SQL fallback summary failed for {contact_id}: {e}")
         return {"total_embeddings": 0, "signal_counts": {}, "last_interaction": ""}
 
 
@@ -594,7 +718,8 @@ def get_relevant_context_with_recency(
     """
     raw_hits = search(contact_id, current_message, n_results=n_results * 2)
     if not raw_hits:
-        return ""
+        # ChromaDB unavailable or empty — fall back to SQL-based context
+        return _sql_fallback_context(contact_id, current_message, n_results)
 
     now = datetime.now(IST)
     scored = []  # list of (score, hit) tuples

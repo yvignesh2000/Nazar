@@ -33,7 +33,7 @@ import sys
 from collections import deque
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import aiohttp
 from fastapi import FastAPI, Request, Response, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect
@@ -121,7 +121,16 @@ from optout_manager import (
 )
 from job_queue import job_queue, JobStatus
 from rate_limiter import wa_rate_limiter, DailyLimitExceeded
-from workspace_context import set_workspace, get_workspace
+from workspace_context import set_workspace, get_workspace, set_channel, get_channel, clear_context
+from channel import (
+    create_channel as create_channel_record,
+    get_channel as get_channel_record,
+    get_channel_by_phone_number_id,
+    list_channels, update_channel as update_channel_record,
+    delete_channel as delete_channel_record,
+    get_primary_channel, get_channel_config, get_channel_credentials,
+    ensure_default_channel, channel_count,
+)
 from assignment_manager import (
     assign_conversation, manual_assign, claim_conversation,
     transfer_conversation, resolve_conversation,
@@ -160,6 +169,7 @@ from schemas import (
     UpgradePlanRequest, CancelSubscriptionRequest,
     CreateInviteRequest, AcceptInviteRequest,
     SaveApiKeysRequest, SimulateMessageRequest, ResumeHandoffRequest,
+    CreateChannelRequest, UpdateChannelRequest,
 )
 
 # --- Logging ---
@@ -182,11 +192,48 @@ DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Nazar", version="1.0.0", docs_url=None, redoc_url=None)
+
+# --- CORS configuration ---
+# Production: set NAZAR_CORS_ORIGINS to a comma-separated allowlist
+#   e.g. NAZAR_CORS_ORIGINS="https://app.nazar.example,https://admin.nazar.example"
+# Dev: defaults to common localhost origins for the React dashboard.
+# Wildcard ("*") is still supported for explicit opt-in but logs a warning
+# and is incompatible with credentialed requests (browsers reject that combo).
+_cors_env = os.environ.get("NAZAR_CORS_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+    ]
+
+_cors_allow_credentials = True
+if "*" in _cors_origins:
+    logger.warning(
+        "CORS: wildcard origin '*' is configured. Disabling credentialed CORS "
+        "(browsers reject '*' with credentials). Set NAZAR_CORS_ORIGINS to an "
+        "explicit allowlist for production."
+    )
+    _cors_allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-API-Key",
+        "X-Requested-With",
+        "X-CSRF-Token",
+    ],
+    max_age=600,
 )
 
 # --- Security middleware: headers + basic rate limiting ---
@@ -248,6 +295,9 @@ async def security_middleware(request: Request, call_next):
                 del _rate_limit_store[k]
 
     response = await call_next(request)
+
+    # Clear thread-local context after each request
+    clear_context()
 
     # Security headers
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -394,16 +444,35 @@ def _build_template_components(template: dict, contact: dict) -> list:
     and per-contact field values.
 
     Returns a list of component dicts compatible with the WhatsApp Cloud API.
+
+    The variable resolution order mirrors ``render_template()`` so the Meta API
+    receives the same values the user sees in preview.
     """
     components = []
+
+    # Shared variable → value map (same logic as template_manager.render_template)
+    name_val = contact.get("name") or ""
+    if not name_val.strip():
+        name_val = "there"
+
+    var_map = {
+        "name": name_val,
+        "company": contact.get("company") or "your company",
+        "phone": contact.get("phone") or "",
+        "stage": contact.get("pipeline_stage") or "",
+        "deal_value": f"₹{contact.get('deal_value', 0):,.0f}",
+        "topic": contact.get("notes") or "our discussion",
+    }
 
     # Body parameters
     variables = template.get("variables", [])
     if variables:
         params = []
         for var in variables:
-            # Look up variable value from contact fields, fall back to var name
-            value = contact.get(var) or contact.get(f"custom_{var}") or str(var)
+            value = var_map.get(var) or contact.get(var) or contact.get(f"custom_{var}") or str(var)
+            # WhatsApp rejects empty parameter text — always send at least a space
+            if not value or not str(value).strip():
+                value = str(var)
             params.append({"type": "text", "text": str(value)})
         if params:
             components.append({"type": "body", "parameters": params})
@@ -699,6 +768,28 @@ async def webhook_receive(request: Request):
             messages = value.get("messages", [])
             statuses = value.get("statuses", [])
 
+            # ── Channel routing ──────────────────────────────────────
+            # Extract phone_number_id from Meta payload metadata to
+            # determine which channel this message belongs to.
+            metadata = value.get("metadata", {})
+            incoming_phone_number_id = metadata.get("phone_number_id", "")
+            if incoming_phone_number_id:
+                channel_record = get_channel_by_phone_number_id(incoming_phone_number_id)
+                if channel_record:
+                    set_workspace(channel_record["workspace_id"])
+                    set_channel(channel_record["id"])
+                else:
+                    # Fall back to default channel (backward compat with env vars)
+                    if incoming_phone_number_id == WHATSAPP_PHONE_NUMBER_ID:
+                        set_channel("default")
+                    else:
+                        logger.warning(
+                            "Webhook received for unknown phone_number_id=%s — skipping",
+                            incoming_phone_number_id,
+                        )
+                        continue
+            # ─────────────────────────────────────────────────────────
+
             # Handle template status update webhooks
             # Meta sends these with field="message_template_status_update"
             if field == "message_template_status_update":
@@ -853,6 +944,10 @@ def _handle_status_update(status: dict):
     Updates:
     1. Message status in the messages table (sent → delivered → read → failed)
     2. Campaign delivered/read/replied counters via campaign_contacts linkage
+
+    Prevents double-counting by checking the existing status before incrementing:
+    statuses follow a strict progression: sent → delivered → read.
+    A 'delivered' update is only counted if the current status is 'sent'.
     """
     wa_msg_id = status.get("id", "")
     new_status = status.get("status", "")  # sent, delivered, read, failed
@@ -867,12 +962,28 @@ def _handle_status_update(status: dict):
         from database import get_db
 
         with get_db() as conn:
-            # 1. Update message status in messages table
+            # 1. Update message status in messages table (only advance, never regress)
+            old_status = None
             if wa_msg_id:
-                conn.execute(
-                    "UPDATE messages SET status = ? WHERE wa_message_id = ?",
-                    (new_status, wa_msg_id),
-                )
+                msg_row = conn.execute(
+                    "SELECT status FROM messages WHERE wa_message_id = ?",
+                    (wa_msg_id,),
+                ).fetchone()
+                old_status = msg_row["status"] if msg_row else None
+
+                # Status progression: sent → delivered → read | failed
+                STATUS_ORDER = {"sent": 1, "delivered": 2, "read": 3, "failed": 0}
+                old_rank = STATUS_ORDER.get(old_status, -1)
+                new_rank = STATUS_ORDER.get(new_status, -1)
+
+                if new_rank > old_rank or new_status == "failed":
+                    conn.execute(
+                        "UPDATE messages SET status = ? WHERE wa_message_id = ?",
+                        (new_status, wa_msg_id),
+                    )
+                else:
+                    # Status already at or past this level — skip to prevent double-count
+                    return
 
             # 2. Update campaign counters via campaign_contacts linkage
             # Find the contact for this recipient phone
@@ -909,10 +1020,21 @@ def _handle_status_update(status: dict):
                     (campaign_id,),
                 )
             elif new_status == "failed":
-                conn.execute(
-                    "UPDATE campaigns SET failed = failed + 1 WHERE id = ?",
-                    (campaign_id,),
-                )
+                # Check for specific error codes
+                errors = status.get("errors", [])
+                error_code = errors[0].get("code", 0) if errors else 0
+                if error_code == 470:
+                    # 470 = contact not on WhatsApp
+                    conn.execute(
+                        "UPDATE campaigns SET not_on_whatsapp = not_on_whatsapp + 1, "
+                        "failed = failed + 1 WHERE id = ?",
+                        (campaign_id,),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE campaigns SET failed = failed + 1 WHERE id = ?",
+                        (campaign_id,),
+                    )
 
             logger.debug(
                 "Campaign %s counter updated: %s for contact %s",
@@ -1083,6 +1205,7 @@ async def _handle_text_message(phone: str, text: str, msg_id: str):
         if effective_mode == "human_only":
             if contact_id:
                 save_message(contact_id, "inbound", text, wa_message_id=msg_id)
+                memory_add_message(contact_id, "inbound", text)
             logger.info(f"[{phone}] Reply mode is human_only -- message saved, no AI reply")
             # Notify team
             if notify_phone:
@@ -1098,6 +1221,7 @@ async def _handle_text_message(phone: str, text: str, msg_id: str):
         if effective_mode == "ai_draft":
             if contact_id:
                 save_message(contact_id, "inbound", text, wa_message_id=msg_id)
+                memory_add_message(contact_id, "inbound", text)
 
             async def draft_llm_call(messages):
                 return await call_llm_safe(messages, tier="sonnet", phone=phone)
@@ -1315,6 +1439,118 @@ async def _handle_media_message(
 # ====================================================================
 #  DASHBOARD API — OVERVIEW
 # ====================================================================
+
+# ─────────────────────────────────────────────────────────────────────
+#  Demo reset — wipes & reseeds the Bloom Interiors demo dataset.
+#  Designed so a salesperson can reset state in one click before each
+#  prospect demo, without touching the terminal.
+#
+#  Auth: requires a valid session token / API key (same as other admin
+#  endpoints) AND the workspace must be the default demo workspace.
+#  Disabled in production unless NAZAR_DEMO_MODE=1 is set in env.
+# ─────────────────────────────────────────────────────────────────────
+@app.post("/api/admin/reset-demo")
+async def api_admin_reset_demo(request: Request):
+    """
+    Wipe and reseed the demo dataset (contacts, conversations, KB,
+    templates, campaigns, analytics) by invoking seed_demo.py and
+    demo_polish.py as subprocesses. Returns the combined log.
+
+    Safety:
+      - Requires a valid auth token (session or API key).
+      - Refuses to run unless NAZAR_DEMO_MODE=1 (set in .env).
+      - Holds a process-wide lock so only one reset runs at a time.
+    """
+    ctx = _check_api_key(request)
+
+    if os.getenv("NAZAR_DEMO_MODE", "0") not in ("1", "true", "yes"):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Demo reset is disabled. Set NAZAR_DEMO_MODE=1 in your .env "
+                "to enable this endpoint."
+            ),
+        )
+
+    # Process-wide lock to prevent concurrent resets.
+    global _demo_reset_lock
+    try:
+        lock = _demo_reset_lock
+    except NameError:
+        lock = asyncio.Lock()
+        globals()["_demo_reset_lock"] = lock
+
+    if lock.locked():
+        raise HTTPException(status_code=409, detail="Reset already in progress.")
+
+    async with lock:
+        import subprocess
+        root = Path(__file__).parent
+        py = sys.executable or "python3"
+        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+
+        steps = [
+            ("seed_demo.py", [py, "seed_demo.py"]),
+            ("demo_polish.py", [py, "demo_polish.py"]),
+        ]
+
+        log_chunks: list[str] = []
+        ok = True
+        for label, cmd in steps:
+            log_chunks.append(f"\n── Running {label} ──")
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    cwd=str(root),
+                    env=env,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT,
+                )
+                # Cap output collection to avoid runaway memory.
+                try:
+                    stdout, _ = await asyncio.wait_for(
+                        proc.communicate(), timeout=180
+                    )
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    log_chunks.append(f"[{label}] TIMEOUT after 180s")
+                    ok = False
+                    break
+                out = (stdout or b"").decode(errors="replace")
+                # Keep last ~6 KB of output per step
+                log_chunks.append(out[-6000:])
+                if proc.returncode != 0:
+                    log_chunks.append(f"[{label}] exited with code {proc.returncode}")
+                    ok = False
+                    # demo_polish failures are non-fatal — keep going.
+                    if label == "seed_demo.py":
+                        break
+            except Exception as e:
+                log_chunks.append(f"[{label}] failed: {e!r}")
+                ok = False
+                break
+
+        full_log = "\n".join(log_chunks)
+        return {
+            "ok": ok,
+            "workspace_id": ctx.get("workspace_id", "default"),
+            "log": full_log,
+            "completed_at": datetime.now(IST).isoformat(),
+        }
+
+
+@app.get("/api/admin/reset-demo/status")
+async def api_admin_reset_demo_status(request: Request):
+    """Lightweight status check for the demo reset endpoint."""
+    _check_api_key(request)
+    enabled = os.getenv("NAZAR_DEMO_MODE", "0") in ("1", "true", "yes")
+    in_progress = False
+    try:
+        in_progress = _demo_reset_lock.locked()  # type: ignore[name-defined]
+    except NameError:
+        in_progress = False
+    return {"enabled": enabled, "in_progress": in_progress}
+
 
 @app.get("/api/billing/trial-status")
 async def api_trial_status(request: Request):
@@ -1729,10 +1965,12 @@ async def api_list_conversations(
                 c.last_contacted_at,
                 m.content AS last_message_content,
                 m.timestamp AS last_message_time,
+                m.direction AS last_message_direction,
+                m.sent_by AS last_message_sender,
                 COALESCE(h.bot_active, 1) AS bot_active
             FROM contacts c
             LEFT JOIN (
-                SELECT contact_id, content, timestamp,
+                SELECT contact_id, content, timestamp, direction, sent_by,
                        ROW_NUMBER() OVER (PARTITION BY contact_id ORDER BY timestamp DESC) AS rn
                 FROM messages
             ) m ON m.contact_id = c.id AND m.rn = 1
@@ -1777,6 +2015,8 @@ async def api_list_conversations(
             "lead_score": d.get("lead_score") or 0,
             "last_message": (d.get("last_message_content") or "")[:100],
             "last_time": d.get("last_message_time") or d.get("last_replied_at") or "",
+            "last_direction": d.get("last_message_direction") or None,
+            "last_sender": d.get("last_message_sender") or None,
             "bot_mode": bool(d.get("bot_active", 1)),
             "message_count": d.get("message_count") or 0,
             "window_open": window_open,
@@ -2492,6 +2732,24 @@ async def api_upload_kb(request: Request):
 
     kb_path = DATA_DIR / "knowledge_base.txt"
     kb_path.write_text(content, encoding="utf-8")
+
+    # Also sync the Quick Edit content into the structured KB so it participates
+    # in RAG queries alongside uploaded documents.
+    try:
+        docs = kb_manager.list_documents(scope="global")
+        legacy_doc = next((d for d in docs if d.get("title") == "__quick_edit__"), None)
+        if legacy_doc:
+            # Delete old and re-add with updated content
+            kb_manager.delete_document(legacy_doc["id"])
+        kb_manager.add_document(
+            title="__quick_edit__",
+            content=content,
+            doc_type="text",
+            scope="global",
+        )
+    except Exception as e:
+        logger.warning("Failed to sync Quick Edit to structured KB: %s", e)
+
     logger.info(f"Knowledge base updated: {len(content)} chars")
     return {"ok": True, "length": len(content)}
 
@@ -2985,6 +3243,7 @@ async def api_create_campaign(request: Request):
         sent = 0
         failed = 0
         delivered = 0
+        not_on_wa = 0
         total_targets = len(p_targets)
 
         for idx, contact in enumerate(p_targets):
@@ -3021,12 +3280,31 @@ async def api_create_campaign(request: Request):
                         # 132000 = template not found on Meta
                         # 132001 = template not approved
                         # 131047 = re-engagement message outside 24h without template
+                        # 470    = contact not on WhatsApp
                         if error_code in (132000, 132001):
                             failed += 1
                             logger.error(
                                 "Campaign %s: Template '%s' not registered/approved on Meta (code=%s). "
                                 "Submit the template to Meta for approval first.",
                                 p_campaign_id, p_template.get("name"), error_code,
+                            )
+                            # Fatal template error — abort remaining sends
+                            failed += (total_targets - idx - 1)
+                            update_campaign(p_campaign_id, sent=sent, failed=failed,
+                                            delivered=delivered, status="failed",
+                                            not_on_whatsapp=not_on_wa)
+                            logger.error(
+                                "Campaign %s ABORTED: template not approved on Meta", p_campaign_id
+                            )
+                            update_progress(job_id, idx + 1, total_targets, failed)
+                            return  # Stop the entire campaign
+                        elif error_code == 470:
+                            # Contact not on WhatsApp
+                            not_on_wa += 1
+                            failed += 1
+                            logger.info(
+                                "Campaign %s: %s not on WhatsApp (code=470)",
+                                p_campaign_id, phone,
                             )
                             update_progress(job_id, idx + 1, total_targets, failed)
                             continue
@@ -3074,7 +3352,8 @@ async def api_create_campaign(request: Request):
         increment_template_usage(template_id)
 
         # Update campaign record with final stats
-        update_campaign(p_campaign_id, sent=sent, failed=failed, delivered=delivered, status="completed")
+        update_campaign(p_campaign_id, sent=sent, failed=failed, delivered=delivered,
+                        not_on_whatsapp=not_on_wa, status="completed")
 
         # Audit + webhook
         log_audit("campaign.sent", "campaign", p_campaign_id, actor_id=p_actor_id,
@@ -3174,6 +3453,7 @@ async def api_retarget_campaign(campaign_id: str, request: Request):
 
         sent = 0
         failed = 0
+        not_on_wa = 0
         total = len(p_targets)
 
         for idx, contact in enumerate(p_targets):
@@ -3200,6 +3480,16 @@ async def api_retarget_campaign(campaign_id: str, request: Request):
                         components=components or None,
                     )
                     if "error" in result:
+                        error_code = result["error"].get("code", 0)
+                        if error_code == 470:
+                            not_on_wa += 1
+                        if error_code in (132000, 132001):
+                            # Fatal: template not registered on Meta
+                            failed += (total - idx)
+                            update_campaign(p_campaign_id, sent=sent, failed=failed,
+                                            delivered=sent, not_on_whatsapp=not_on_wa,
+                                            status="failed")
+                            return
                         failed += 1
                         update_progress(job_id, idx + 1, total, failed)
                         continue
@@ -3208,8 +3498,9 @@ async def api_retarget_campaign(campaign_id: str, request: Request):
             except DailyLimitExceeded:
                 failed += (total - idx)
                 break
-            except Exception:
+            except Exception as exc:
                 failed += 1
+                logger.warning("Retarget %s send failed for %s: %s", p_campaign_id, phone, exc)
 
             update_progress(job_id, idx + 1, total, failed)
 
@@ -3227,12 +3518,14 @@ async def api_retarget_campaign(campaign_id: str, request: Request):
 
             await asyncio.sleep(0.1)
 
-        update_campaign(p_campaign_id, sent=sent, failed=failed, delivered=sent, status="completed")
+        update_campaign(p_campaign_id, sent=sent, failed=failed, delivered=sent,
+                        not_on_whatsapp=not_on_wa, status="completed")
         await ws_manager.send_to_workspace(p_workspace_id, {
             "type": "campaign_completed",
             "campaign_id": p_campaign_id,
             "sent": sent,
             "failed": failed,
+            "not_on_whatsapp": not_on_wa,
             "total": total,
         })
 
@@ -4219,10 +4512,10 @@ async def api_contact_groups(contact_id: str, request: Request):
 # ====================================================================
 
 @app.get("/api/kb/documents")
-async def api_list_kb_documents(request: Request, scope: str = "global", campaign_id: str = None):
-    """List all knowledge base documents."""
+async def api_list_kb_documents(request: Request, scope: str = "global", campaign_id: str = None, folder_id: str = None):
+    """List all knowledge base documents, optionally filtered by folder."""
     _check_api_key(request)
-    docs = kb_manager.list_documents(scope=scope, campaign_id=campaign_id)
+    docs = kb_manager.list_documents(scope=scope, campaign_id=campaign_id, folder_id=folder_id)
     return {"documents": docs, "count": len(docs)}
 
 
@@ -4236,12 +4529,16 @@ async def api_add_kb_document(request: Request):
     scope = body.get("scope", "global")
     campaign_id = body.get("campaign_id")
     doc_type = body.get("type", "text")
+    folder_id = body.get("folder_id") or None
     if not title:
         raise HTTPException(400, "title is required")
     if not content:
         raise HTTPException(400, "content is required")
-    doc = kb_manager.add_document(title=title, content=content, doc_type=doc_type,
-                                   scope=scope, campaign_id=campaign_id)
+    try:
+        doc = kb_manager.add_document(title=title, content=content, doc_type=doc_type,
+                                       scope=scope, campaign_id=campaign_id, folder_id=folder_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     log_audit("kb.updated", "kb", scope, details={"doc_id": doc["id"], "title": title})
     return {"document": doc}
 
@@ -4257,15 +4554,49 @@ async def api_delete_kb_document(doc_id: str, request: Request):
 
 
 @app.post("/api/kb/upload-file")
-async def api_upload_kb_file(request: Request, file: UploadFile = File(...), title: str = Form(""), scope: str = Form("global"), campaign_id: str = Form("")):
-    """Upload a file (.txt, .md, .pdf, .csv) to the knowledge base."""
+async def api_upload_kb_file(request: Request, file: UploadFile = File(...), title: str = Form(""), scope: str = Form("global"), campaign_id: str = Form(""), folder_id: str = Form("")):
+    """Upload a single file to the knowledge base (backward-compatible)."""
     _check_api_key(request)
+    result = await _process_kb_upload(file, title, scope, campaign_id, folder_id)
+    return {"document": result["document"], "filename": result["filename"]}
+
+
+@app.post("/api/kb/upload-files")
+async def api_upload_kb_files(request: Request, files: List[UploadFile] = File(...), scope: str = Form("global"), campaign_id: str = Form(""), folder_id: str = Form("")):
+    """Upload multiple files to the knowledge base in a single request."""
+    _check_api_key(request)
+    if not files:
+        raise HTTPException(400, "No files provided")
+    if len(files) > 20:
+        raise HTTPException(400, "Too many files (max 20 per upload)")
+
+    results = []
+    errors = []
+    for f in files:
+        try:
+            result = await _process_kb_upload(f, "", scope, campaign_id, folder_id)
+            results.append(result)
+        except HTTPException as e:
+            errors.append({"filename": f.filename or "unknown", "error": e.detail})
+        except Exception as e:
+            errors.append({"filename": f.filename or "unknown", "error": str(e)})
+
+    return {
+        "uploaded": len(results),
+        "failed": len(errors),
+        "documents": [r["document"] for r in results],
+        "errors": errors,
+    }
+
+
+async def _process_kb_upload(file: UploadFile, title: str, scope: str, campaign_id: str, folder_id: str = None) -> dict:
+    """Shared logic for processing a single KB file upload."""
     if not file.filename:
         raise HTTPException(400, "No file provided")
 
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if ext not in ("txt", "md", "pdf", "csv"):
-        raise HTTPException(400, f"Unsupported file type '.{ext}'. Allowed: .txt, .md, .pdf, .csv")
+    if ext not in ("txt", "md", "pdf", "csv", "html", "htm"):
+        raise HTTPException(400, f"Unsupported file type '.{ext}'. Allowed: .txt, .md, .pdf, .csv, .html, .htm")
 
     content_bytes = await file.read()
     if len(content_bytes) > 5 * 1024 * 1024:  # 5MB limit
@@ -4290,6 +4621,21 @@ async def api_upload_kb_file(request: Request, file: UploadFile = File(...), tit
         except Exception as e:
             raise HTTPException(400, f"Failed to parse PDF: {e}")
         doc_type = "pdf"
+    elif ext in ("html", "htm"):
+        # Extract readable text from HTML
+        try:
+            from bs4 import BeautifulSoup
+            raw_html = content_bytes.decode("utf-8", errors="replace")
+            soup = BeautifulSoup(raw_html, "html.parser")
+            # Remove script, style, and other non-content tags
+            for tag in soup(["script", "style", "noscript", "iframe", "svg", "head"]):
+                tag.decompose()
+            content = soup.get_text(separator="\n", strip=True)
+        except ImportError:
+            raise HTTPException(500, "HTML support requires 'beautifulsoup4' package")
+        except Exception as e:
+            raise HTTPException(400, f"Failed to parse HTML: {e}")
+        doc_type = "html"
     else:
         content = content_bytes.decode("utf-8", errors="replace")
         doc_type = {"txt": "text", "md": "markdown", "csv": "csv"}.get(ext, "text")
@@ -4297,10 +4643,14 @@ async def api_upload_kb_file(request: Request, file: UploadFile = File(...), tit
     if not content.strip():
         raise HTTPException(400, "File is empty or contains no extractable text")
 
-    doc = kb_manager.add_document(
-        title=doc_title, content=content, doc_type=doc_type,
-        scope=scope, campaign_id=campaign_id or None,
-    )
+    try:
+        doc = kb_manager.add_document(
+            title=doc_title, content=content, doc_type=doc_type,
+            scope=scope, campaign_id=campaign_id or None,
+            folder_id=folder_id or None,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     log_audit("kb.file_uploaded", "kb", scope, details={
         "doc_id": doc["id"], "title": doc_title, "filename": file.filename, "type": doc_type,
     })
@@ -4320,6 +4670,83 @@ async def api_query_kb(request: Request):
         raise HTTPException(400, "question is required")
     result = kb_manager.query(question, scope=scope, campaign_id=campaign_id, n_results=n)
     return {"result": result, "question": question}
+
+
+# ── KB Folders ──────────────────────────────────────────────────────
+
+@app.get("/api/kb/folders")
+async def api_list_kb_folders(request: Request, parent_id: str = None):
+    """List knowledge base folders, optionally filtered by parent."""
+    _check_api_key(request)
+    folders = kb_manager.list_folders(parent_id=parent_id)
+    # Include document counts per folder
+    counts = kb_manager.get_folder_doc_counts()
+    for f in folders:
+        f["doc_count"] = counts.get(f["id"], 0)
+    return {"folders": folders}
+
+
+@app.post("/api/kb/folders")
+async def api_create_kb_folder(request: Request):
+    """Create a new knowledge base folder."""
+    _check_api_key(request)
+    body = await request.json()
+    name = body.get("name", "").strip()
+    parent_id = body.get("parent_id") or None
+    if not name:
+        raise HTTPException(400, "Folder name is required")
+    if len(name) > 100:
+        raise HTTPException(400, "Folder name too long (max 100 characters)")
+    try:
+        folder = kb_manager.create_folder(name=name, parent_id=parent_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    log_audit("kb.folder_created", "kb_folder", folder["id"], details={"name": name})
+    return {"folder": folder}
+
+
+@app.patch("/api/kb/folders/{folder_id}")
+async def api_rename_kb_folder(folder_id: str, request: Request):
+    """Rename a knowledge base folder."""
+    _check_api_key(request)
+    body = await request.json()
+    new_name = body.get("name", "").strip()
+    if not new_name:
+        raise HTTPException(400, "Folder name is required")
+    if len(new_name) > 100:
+        raise HTTPException(400, "Folder name too long (max 100 characters)")
+    folder = kb_manager.rename_folder(folder_id, new_name)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+    log_audit("kb.folder_renamed", "kb_folder", folder_id, details={"name": new_name})
+    return {"folder": folder}
+
+
+@app.delete("/api/kb/folders/{folder_id}")
+async def api_delete_kb_folder(folder_id: str, request: Request, recursive: bool = False):
+    """Delete a knowledge base folder. If recursive=true, deletes all contents."""
+    _check_api_key(request)
+    deleted = kb_manager.delete_folder(folder_id, recursive=recursive)
+    if not deleted:
+        raise HTTPException(404, "Folder not found")
+    log_audit("kb.folder_deleted", "kb_folder", folder_id, details={"recursive": recursive})
+    return {"ok": True}
+
+
+@app.patch("/api/kb/documents/{doc_id}/move")
+async def api_move_kb_document(doc_id: str, request: Request):
+    """Move a document to a different folder (or to root if folder_id is null)."""
+    _check_api_key(request)
+    body = await request.json()
+    folder_id = body.get("folder_id")  # None means move to root
+    try:
+        doc = kb_manager.move_document(doc_id, folder_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    log_audit("kb.document_moved", "kb", doc_id, details={"folder_id": folder_id})
+    return {"document": doc}
 
 
 # ====================================================================
@@ -4535,6 +4962,224 @@ async def api_backup_data(request: Request):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Channels — Multi-phone-number management
+# ──────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/channels")
+async def api_list_channels(request: Request, include_inactive: bool = False):
+    """List all channels (WhatsApp phone numbers) in the current workspace."""
+    _check_api_key(request)
+    channels = list_channels(include_inactive=include_inactive)
+    # Redact access_token from list response
+    for ch in channels:
+        ch["access_token_set"] = bool(ch.get("access_token"))
+        ch.pop("access_token", None)
+    return {"channels": channels, "count": len(channels)}
+
+
+@app.post("/api/channels")
+async def api_create_channel(request: Request):
+    """
+    Register a new WhatsApp phone number as a channel.
+
+    Body (CreateChannelRequest):
+      - phone_number_id: str (required) — Meta phone number ID
+      - access_token: str (required)
+      - display_name: str — e.g., "Sales", "Support"
+      - waba_id: str
+      - persona_prompt: str — system prompt override
+      - default_reply_mode: str — auto_ai | human_only | ai_draft
+      - kb_scope: str — 'global' or custom scope
+      - is_primary: bool
+    """
+    ctx = _check_api_key(request)
+    check_permission(ctx, "admin")
+    body = CreateChannelRequest(**(await request.json()))
+
+    try:
+        ch = create_channel_record(
+            phone_number_id=body.phone_number_id,
+            access_token=body.access_token,
+            display_name=body.display_name,
+            waba_id=body.waba_id,
+            persona_prompt=body.persona_prompt,
+            default_reply_mode=body.default_reply_mode,
+            kb_scope=body.kb_scope,
+            is_primary=body.is_primary,
+        )
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+    log_audit("channel.created", "channel", ch["id"], ctx.get("user_id", "system"),
+              {"display_name": ch["display_name"], "phone_number_id": ch["phone_number_id"]})
+
+    # Redact token from response
+    ch["access_token_set"] = True
+    ch.pop("access_token", None)
+    return ch
+
+
+@app.get("/api/channels/{channel_id}")
+async def api_get_channel(channel_id: str, request: Request):
+    """Get a single channel by ID."""
+    _check_api_key(request)
+    ch = get_channel_record(channel_id)
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+    ch["access_token_set"] = bool(ch.get("access_token"))
+    ch.pop("access_token", None)
+    return ch
+
+
+@app.put("/api/channels/{channel_id}")
+async def api_update_channel(channel_id: str, request: Request):
+    """
+    Update a channel's configuration.
+
+    Body (UpdateChannelRequest): any subset of mutable fields.
+    """
+    ctx = _check_api_key(request)
+    check_permission(ctx, "admin")
+    body = UpdateChannelRequest(**(await request.json()))
+    updates = body.dict(exclude_none=True)
+
+    # Convert bool is_primary/is_active to int for SQLite
+    if "is_primary" in updates:
+        updates["is_primary"] = 1 if updates["is_primary"] else 0
+    if "is_active" in updates:
+        updates["is_active"] = 1 if updates["is_active"] else 0
+
+    try:
+        ch = update_channel_record(channel_id, updates)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+
+    log_audit("channel.updated", "channel", channel_id, ctx.get("user_id", "system"),
+              {"updates": list(updates.keys())})
+
+    ch["access_token_set"] = bool(ch.get("access_token"))
+    ch.pop("access_token", None)
+    return ch
+
+
+@app.delete("/api/channels/{channel_id}")
+async def api_delete_channel(channel_id: str, request: Request, hard: bool = False):
+    """
+    Deactivate (soft-delete) a channel.
+    Pass ?hard=true to permanently remove (admin only).
+    """
+    ctx = _check_api_key(request)
+    check_permission(ctx, "admin")
+
+    if channel_id == "default":
+        raise HTTPException(400, "Cannot delete the default channel")
+
+    deleted = delete_channel_record(channel_id, hard=hard)
+    if not deleted:
+        raise HTTPException(404, "Channel not found")
+
+    log_audit("channel.deleted", "channel", channel_id, ctx.get("user_id", "system"),
+              {"hard": hard})
+    return {"ok": True, "hard": hard}
+
+
+@app.post("/api/channels/{channel_id}/verify")
+async def api_verify_channel(channel_id: str, request: Request):
+    """
+    Test connectivity for a channel by sending a lightweight API call to Meta.
+    Returns success/failure + Meta response.
+    """
+    ctx = _check_api_key(request)
+    creds = get_channel_credentials(channel_id)
+    if not creds:
+        raise HTTPException(404, "Channel not found or inactive")
+
+    test_url = f"https://graph.facebook.com/v21.0/{creds['phone_number_id']}"
+    headers = {"Authorization": f"Bearer {creds['access_token']}"}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(test_url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                status = resp.status
+                data = await resp.json()
+                return {
+                    "ok": status == 200,
+                    "status_code": status,
+                    "phone_number_id": creds["phone_number_id"],
+                    "meta_response": data,
+                }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/channels/{channel_id}/stats")
+async def api_channel_stats(channel_id: str, request: Request):
+    """Get basic statistics for a channel (contact/message counts)."""
+    _check_api_key(request)
+    ch = get_channel_record(channel_id)
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+
+    from database import get_db
+    with get_db() as conn:
+        contact_count = conn.execute(
+            "SELECT COUNT(*) FROM contacts WHERE channel_id = ? AND workspace_id = ?",
+            (channel_id, get_workspace()),
+        ).fetchone()[0]
+        message_count = conn.execute(
+            "SELECT COUNT(*) FROM messages WHERE channel_id = ? AND workspace_id = ?",
+            (channel_id, get_workspace()),
+        ).fetchone()[0]
+        active_handoffs = conn.execute(
+            "SELECT COUNT(*) FROM handoff_states WHERE channel_id = ? AND workspace_id = ? AND bot_active = 0",
+            (channel_id, get_workspace()),
+        ).fetchone()[0]
+
+    return {
+        "channel_id": channel_id,
+        "display_name": ch["display_name"],
+        "contacts": contact_count,
+        "messages": message_count,
+        "active_handoffs": active_handoffs,
+    }
+
+
+@app.get("/api/contacts/{phone}/unified")
+async def api_unified_contact_view(phone: str, request: Request):
+    """
+    Cross-channel contact view: show all channel interactions for a phone number
+    within the current workspace.
+    """
+    _check_api_key(request)
+    ws = get_workspace()
+
+    from database import get_db, rows_to_list as db_rows_to_list
+    with get_db() as conn:
+        rows = conn.execute(
+            """SELECT c.*, ch.display_name AS channel_name,
+                      (SELECT COUNT(*) FROM messages m WHERE m.contact_id = c.id) AS message_count
+               FROM contacts c
+               LEFT JOIN channels ch ON c.channel_id = ch.id
+               WHERE c.workspace_id = ? AND c.phone = ?
+               ORDER BY c.last_replied_at DESC""",
+            (ws, phone),
+        ).fetchall()
+
+    if not rows:
+        raise HTTPException(404, "No contacts found with this phone number")
+
+    contacts = db_rows_to_list(rows)
+    return {
+        "phone": phone,
+        "channels": contacts,
+        "total_channels": len(contacts),
+    }
 
 
 @app.get("/api/whatsapp/numbers")
@@ -4785,7 +5430,7 @@ async def _campaign_scheduler_loop():
                                 logger.error(f"Scheduled campaign send error: {exc}")
                             await asyncio.sleep(0.1)
                         update_campaign(campaign["id"], {
-                            "status": "sent",
+                            "status": "completed",
                             "sent": sent,
                             "failed": failed,
                         })
@@ -4886,6 +5531,18 @@ async def startup_event():
             set_usage(ws_id, "contacts", contacts_count)
         except Exception:
             pass
+
+        # Ensure default channel exists (backward compatibility)
+        if WHATSAPP_PHONE_NUMBER_ID:
+            try:
+                ensure_default_channel(
+                    phone_number_id=WHATSAPP_PHONE_NUMBER_ID,
+                    access_token=WHATSAPP_ACCESS_TOKEN,
+                    workspace_id=ws_id,
+                )
+                logger.info("Default channel ensured for phone_number_id=%s", WHATSAPP_PHONE_NUMBER_ID)
+            except Exception as e:
+                logger.warning("Default channel setup warning: %s", e)
 
     except Exception as e:
         logger.warning(f"Bootstrap warning (non-fatal): {e}")
@@ -5006,9 +5663,9 @@ async def api_simulate(request: Request):
     phone = contact.get("phone", "+910000000000")
     config = _load_config()
 
-    # Save inbound message
-    save_message(contact_id, "inbound", message)
-    memory_add_message(contact_id, "inbound", message)
+    # NOTE: Do NOT save_message or memory_add_message here — handle_inbound
+    # already does both (steps 2 and 8).  Previously this caused duplicate
+    # entries in the messages table and double vector upserts.
 
     # Run full AI conversation pipeline
     async def llm_call(messages):

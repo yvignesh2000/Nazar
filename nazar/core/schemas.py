@@ -363,3 +363,57 @@ class SimulateMessageRequest(BaseModel):
 
 class ResumeHandoffRequest(BaseModel):
     reason: Optional[str] = Field("Resumed from dashboard", max_length=500)
+
+
+# ---------------------------------------------------------------------------
+# Channels (multi-phone-number)
+# ---------------------------------------------------------------------------
+
+class CreateChannelRequest(BaseModel):
+    phone_number_id: str = Field(..., min_length=1, max_length=100)
+    access_token: str = Field(..., min_length=1, max_length=1000)
+    display_name: str = Field("", max_length=100)
+    waba_id: str = Field("", max_length=100)
+    persona_prompt: str = Field("", max_length=10000)
+    default_reply_mode: str = Field("auto_ai")
+    kb_scope: str = Field("global", max_length=100)
+    is_primary: bool = False
+
+    @field_validator("default_reply_mode")
+    @classmethod
+    def validate_reply_mode(cls, v: str) -> str:
+        valid = ("auto_ai", "human_only", "ai_draft")
+        if v not in valid:
+            raise ValueError(f"Invalid reply mode. Must be one of: {', '.join(valid)}")
+        return v
+
+    @field_validator("phone_number_id")
+    @classmethod
+    def validate_phone_number_id(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("phone_number_id is required")
+        return cleaned
+
+
+class UpdateChannelRequest(BaseModel):
+    display_name: Optional[str] = Field(None, max_length=100)
+    persona_prompt: Optional[str] = Field(None, max_length=10000)
+    default_reply_mode: Optional[str] = None
+    kb_scope: Optional[str] = Field(None, max_length=100)
+    is_primary: Optional[bool] = None
+    is_active: Optional[bool] = None
+    access_token: Optional[str] = Field(None, max_length=1000)
+    waba_id: Optional[str] = Field(None, max_length=100)
+
+    @field_validator("default_reply_mode")
+    @classmethod
+    def validate_reply_mode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            valid = ("auto_ai", "human_only", "ai_draft")
+            if v not in valid:
+                raise ValueError(f"Invalid reply mode. Must be one of: {', '.join(valid)}")
+        return v
+
+    class Config:
+        extra = "allow"

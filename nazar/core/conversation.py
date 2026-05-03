@@ -130,7 +130,8 @@ async def handle_inbound(
         get_conversation_history, update_contact,
     )
     from customer_memory import (
-        get_relevant_context, add_message as add_to_memory,
+        get_relevant_context, get_relevant_context_with_recency,
+        add_message as add_to_memory,
         extract_signals_from_message, add_signal,
     )
 
@@ -150,14 +151,15 @@ async def handle_inbound(
     # 2. Save inbound message
     save_message(contact_id, "inbound", message)
 
-    # 3. Get memory context
-    memory_context = get_relevant_context(contact_id, message)
+    # 3. Get memory context (recency-weighted when ChromaDB is available,
+    #    falls back to SQL-based context automatically via get_relevant_context)
+    memory_context = get_relevant_context_with_recency(contact_id, message)
 
     # 4. Get recent conversation history
     recent = get_conversation_history(contact_id, days=7)
 
-    # 5. Load knowledge base
-    knowledge_base = _load_knowledge_base()
+    # 5. Load knowledge base (RAG: retrieve chunks relevant to this message)
+    knowledge_base = _load_knowledge_base(query=message)
 
     # 6. Build prompt and call LLM (with campaign KB if available)
     system_prompt = _build_system_prompt(
@@ -254,11 +256,47 @@ async def _auto_classify_stage(
         )
 
 
-def _load_knowledge_base() -> str:
-    """Load the business knowledge base."""
+def _load_knowledge_base(query: str = "", n_results: int = 5) -> str:
+    """Load business knowledge base context for the AI prompt.
+
+    Uses the structured KB manager which merges ALL sources:
+      * Uploaded files (PDF, CSV, HTML, TXT, MD)
+      * Text documents added via the dashboard
+      * The legacy ``knowledge_base.txt`` (Quick Edit tab)
+
+    When ``query`` is provided and ChromaDB is available, performs semantic
+    vector retrieval (RAG) so only the most relevant chunks are injected.
+    When ChromaDB is unavailable, falls back to keyword-ranked concatenation
+    of all sources.
+
+    Args:
+        query:     The customer's message to retrieve relevant context for.
+        n_results: Max chunks to retrieve from the vector store.
+
+    Returns:
+        Knowledge base text, capped at 8000 chars.
+    """
+    try:
+        import knowledge_base as kb_manager  # local import keeps module load light
+
+        if query:
+            # Semantic or keyword-ranked retrieval across all KB sources
+            rag_text = kb_manager.query(query, scope="global", n_results=n_results)
+            if rag_text:
+                return rag_text[:8000]
+
+        # No query or no results — return full fallback (merges all sources)
+        from knowledge_base import _fallback_text
+        fallback = _fallback_text("global", None, question=query)
+        if fallback:
+            return fallback[:8000]
+    except Exception as exc:
+        logger.debug("KB query failed, falling back to flat file: %s", exc)
+
+    # Last-resort fallback: legacy flat file only (if KB module itself fails)
     kb_path = Path(__file__).parent.parent / "data" / "knowledge_base.txt"
     if kb_path.exists():
-        return kb_path.read_text(encoding="utf-8")[:8000]  # Cap at 8K chars
+        return kb_path.read_text(encoding="utf-8")[:8000]
     return ""
 
 
@@ -288,7 +326,7 @@ async def generate_ai_reply(
         campaign_kb: Optional campaign-specific knowledge base content.
     """
     from contact_manager import get_contact, get_conversation_history
-    from customer_memory import get_relevant_context
+    from customer_memory import get_relevant_context_with_recency
 
     if config is None:
         config = _load_config()
@@ -297,9 +335,9 @@ async def generate_ai_reply(
     if not contact:
         return "Contact not found."
 
-    memory_context = get_relevant_context(contact_id, message)
+    memory_context = get_relevant_context_with_recency(contact_id, message)
     recent = get_conversation_history(contact_id, days=7)
-    knowledge_base = _load_knowledge_base()
+    knowledge_base = _load_knowledge_base(query=message)
 
     system_prompt = _build_system_prompt(
         contact, memory_context, knowledge_base, config, campaign_kb=campaign_kb
