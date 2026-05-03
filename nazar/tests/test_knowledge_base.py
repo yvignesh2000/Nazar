@@ -153,3 +153,87 @@ class TestImportLegacyKB:
     def test_import_missing_file_returns_none(self, tmp_path):
         result = kb.import_legacy_kb()
         assert result is None
+
+
+class TestFolders:
+    def test_create_folder_returns_id(self, tmp_path):
+        f = kb.create_folder("Pricing")
+        assert f["id"].startswith("fld_")
+        assert f["name"] == "Pricing"
+        assert f.get("parent_id") in (None, "")
+
+    def test_create_nested_folder(self, tmp_path):
+        parent = kb.create_folder("Sales")
+        child = kb.create_folder("Discounts", parent_id=parent["id"])
+        assert child["parent_id"] == parent["id"]
+
+    def test_create_folder_rejects_invalid_parent(self, tmp_path):
+        with pytest.raises(ValueError):
+            kb.create_folder("Bad", parent_id="fld_does_not_exist")
+
+    def test_add_document_into_folder(self, tmp_path):
+        folder = kb.create_folder("FAQ")
+        doc = kb.add_document("Pricing FAQ", "We charge $99.", folder_id=folder["id"])
+        assert doc["folder_id"] == folder["id"]
+
+    def test_add_document_rejects_unknown_folder(self, tmp_path):
+        with pytest.raises(ValueError):
+            kb.add_document("Bad", "x", folder_id="fld_missing")
+
+    def test_list_documents_filtered_by_folder(self, tmp_path):
+        f = kb.create_folder("Bucket")
+        kb.add_document("In Folder", "inside", folder_id=f["id"])
+        kb.add_document("At Root", "outside")
+        in_folder = kb.list_documents(folder_id=f["id"])
+        at_root = kb.list_documents(folder_id="")
+        assert [d["title"] for d in in_folder] == ["In Folder"]
+        assert "At Root" in [d["title"] for d in at_root]
+        assert "In Folder" not in [d["title"] for d in at_root]
+
+    def test_delete_folder_non_recursive_unfiles_docs(self, tmp_path):
+        f = kb.create_folder("Tmp")
+        d = kb.add_document("Doc", "content", folder_id=f["id"])
+        kb.delete_folder(f["id"], recursive=False)
+        assert kb.get_folder(f["id"]) is None
+        moved = kb.get_document(d["id"])
+        assert moved is not None
+        assert not moved.get("folder_id")
+
+    def test_delete_folder_recursive_removes_children(self, tmp_path):
+        parent = kb.create_folder("P")
+        child = kb.create_folder("C", parent_id=parent["id"])
+        d = kb.add_document("Doc", "content", folder_id=child["id"])
+        kb.delete_folder(parent["id"], recursive=True)
+        assert kb.get_folder(parent["id"]) is None
+        assert kb.get_folder(child["id"]) is None
+        assert kb.get_document(d["id"]) is None
+
+    def test_move_document_between_folders(self, tmp_path):
+        a = kb.create_folder("A")
+        b = kb.create_folder("B")
+        doc = kb.add_document("Mover", "x", folder_id=a["id"])
+        kb.move_document(doc["id"], b["id"])
+        assert kb.get_document(doc["id"])["folder_id"] == b["id"]
+
+    def test_move_document_to_root(self, tmp_path):
+        a = kb.create_folder("A")
+        doc = kb.add_document("Mover", "x", folder_id=a["id"])
+        kb.move_document(doc["id"], None)
+        assert not kb.get_document(doc["id"]).get("folder_id")
+
+
+class TestQuerySignatures:
+    """The vector RAG path is exercised in integration; here we verify the
+    fallback code path accepts the new `folder_ids` / `include_root` kwargs
+    without raising, which keeps callers safe even when ChromaDB is off."""
+
+    def test_query_accepts_folder_ids(self, tmp_path):
+        f = kb.create_folder("F")
+        kb.add_document("In F", "Folder content.", folder_id=f["id"])
+        # Should not raise even though the fallback path ignores folder_ids
+        result = kb.query("anything", folder_ids=[f["id"]])
+        assert isinstance(result, str)
+
+    def test_query_accepts_empty_question(self, tmp_path):
+        assert kb.query("") == ""
+        assert kb.query(None) == ""  # type: ignore[arg-type]

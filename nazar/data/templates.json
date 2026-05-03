@@ -13,16 +13,16 @@
       "name"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 12,
-    "reply_rate": 34.5,
-    "delivered_count": 12,
-    "read_count": 9,
-    "replied_count": 4,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
     "failed_count": 0,
     "description": "Welcome message for new leads",
     "created_at": "2026-01-15T10:00:00+05:30",
-    "updated_at": "2026-04-16T17:53:18.852347+05:30"
+    "updated_at": "2026-01-15T10:00:00+05:30"
   },
   {
     "id": "tpl_followup",
@@ -48,12 +48,12 @@
       "topic"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 8,
-    "reply_rate": 25.0,
-    "delivered_count": 8,
-    "read_count": 6,
-    "replied_count": 2,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
     "failed_count": 0,
     "description": "Gentle follow-up for warm leads",
     "created_at": "2026-01-15T10:00:00+05:30",
@@ -83,12 +83,12 @@
       "name"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 5,
-    "reply_rate": 40.0,
-    "delivered_count": 5,
-    "read_count": 4,
-    "replied_count": 2,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
     "failed_count": 0,
     "description": "Demo invitation for interested leads",
     "created_at": "2026-01-15T10:00:00+05:30",
@@ -119,12 +119,12 @@
       "company"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 3,
-    "reply_rate": 66.7,
-    "delivered_count": 3,
-    "read_count": 3,
-    "replied_count": 2,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
     "failed_count": 0,
     "description": "Notify about proposal readiness",
     "created_at": "2026-01-15T10:00:00+05:30",
@@ -154,13 +154,13 @@
       "name"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 45,
-    "reply_rate": 12.0,
-    "delivered_count": 42,
-    "read_count": 28,
-    "replied_count": 5,
-    "failed_count": 3,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
+    "failed_count": 0,
     "description": "Seasonal/festive re-engagement",
     "created_at": "2026-01-15T10:00:00+05:30",
     "updated_at": "2026-01-15T10:00:00+05:30"
@@ -179,12 +179,12 @@
       "name"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 6,
-    "reply_rate": 33.3,
-    "delivered_count": 6,
-    "read_count": 5,
-    "replied_count": 2,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
     "failed_count": 0,
     "description": "Feedback request for won customers",
     "created_at": "2026-01-15T10:00:00+05:30",
@@ -204,12 +204,12 @@
       "name"
     ],
     "language": "hi",
-    "approval_status": "draft",
-    "usage_count": 3,
-    "reply_rate": 33.3,
-    "delivered_count": 3,
-    "read_count": 2,
-    "replied_count": 1,
+    "approval_status": "approved",
+    "usage_count": 0,
+    "reply_rate": 0.0,
+    "delivered_count": 0,
+    "read_count": 0,
+    "replied_count": 0,
     "failed_count": 0,
     "description": "Hindi welcome message",
     "created_at": "2026-01-15T10:00:00+05:30",
@@ -240,48 +240,205 @@
       "name"
     ],
     "language": "en",
-    "approval_status": "draft",
-    "usage_count": 22,
-    "reply_rate": 18.0,
-    "delivered_count": 20,
-    "read_count": 14,
-    "replied_count": 4,
-    "failed_count": 2,
-    "description": "Win-back for dormant contacts",
-    "created_at": "2026-01-15T10:00:00+05:30",
-    "updated_at": "2026-01-15T10:00:00+05:30"
-  },
-  {
-    "id": "tpl_order_update",
-    "name": "order_status_update",
-    "category": "utility",
-    "header": {
-      "type": "text",
-      "text": "📦 Order Update"
-    },
-    "body": "Hi {{1}}, your order #{{2}} has been shipped! Track your delivery here. Estimated delivery: 2-3 business days.",
-    "footer": "Reply HELP for support",
-    "buttons": [
-      {
-        "type": "url",
-        "text": "Track Order",
-        "url": "https://example.com/track"
-      }
-    ],
-    "variables": [
-      "name",
-      "order_id"
-    ],
-    "language": "en",
-    "approval_status": "pending",
+    "approval_status": "approved",
     "usage_count": 0,
     "reply_rate": 0.0,
     "delivered_count": 0,
     "read_count": 0,
     "replied_count": 0,
     "failed_count": 0,
-    "description": "Order shipping notification",
-    "created_at": "2026-04-12T15:30:00+05:30",
-    "updated_at": "2026-04-12T15:30:00+05:30"
+    "description": "Win-back for dormant contacts",
+    "created_at": "2026-01-15T10:00:00+05:30",
+    "updated_at": "2026-01-15T10:00:00+05:30"
+  },
+  {
+    "id": "tpl_f5a56c2b",
+    "name": "first_enquiry_welcome",
+    "category": "utility",
+    "header": {
+      "type": "none"
+    },
+    "body": "Hi {{1}}, thanks for reaching out to Bloom Interiors. To send you the most accurate quote, could you share: (1) the property name, (2) carpet area, (3) what you're looking at — kitchen / wardrobes / full-home, and (4) rough possession date?",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "customer_name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 312,
+    "reply_rate": 0.34,
+    "delivered_count": 302,
+    "read_count": 268,
+    "replied_count": 106,
+    "failed_count": 0,
+    "description": "First reply to an inbound WhatsApp lead",
+    "created_at": "2026-05-02T19:07:02.549437+05:30",
+    "updated_at": "2026-05-02T19:07:02.549940+05:30"
+  },
+  {
+    "id": "tpl_ea82543b",
+    "name": "site_visit_confirmation",
+    "category": "utility",
+    "header": {
+      "type": "none"
+    },
+    "body": "Site visit confirmed, {{1}}. {{2}} (Senior Designer) will be at {{3}} on {{4}} at {{5}}. He'll bring our material library and 2 reference projects from your community. Please reply if anything changes.",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "customer_name",
+      "designer_name",
+      "address",
+      "date",
+      "time"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 187,
+    "reply_rate": 0.34,
+    "delivered_count": 181,
+    "read_count": 160,
+    "replied_count": 63,
+    "failed_count": 0,
+    "description": "Confirms a booked design consultation",
+    "created_at": "2026-05-02T19:07:02.550526+05:30",
+    "updated_at": "2026-05-02T19:07:02.550952+05:30"
+  },
+  {
+    "id": "tpl_1752fd37",
+    "name": "quote_sent",
+    "category": "utility",
+    "header": {
+      "type": "none"
+    },
+    "body": "Hi {{1}}, your detailed quote and 3D walkthrough are ready. Total: ₹{{2}} (incl. GST). PDF attached. Two design iterations included — happy to refine. When would be a good time to walk you through it?",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "customer_name",
+      "quote_amount"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 96,
+    "reply_rate": 0.33,
+    "delivered_count": 93,
+    "read_count": 82,
+    "replied_count": 32,
+    "failed_count": 0,
+    "description": "Sent when a quote is shared with the customer",
+    "created_at": "2026-05-02T19:07:02.551434+05:30",
+    "updated_at": "2026-05-02T19:07:02.551869+05:30"
+  },
+  {
+    "id": "tpl_37440700",
+    "name": "weekly_progress_photo",
+    "category": "utility",
+    "header": {
+      "type": "none"
+    },
+    "body": "Week {{1}} update for your {{2}} project: {{3}}. Photos attached. Next milestone: {{4}}. Reply with any questions or change requests.",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "week_number",
+      "project_name",
+      "current_status",
+      "next_milestone"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 421,
+    "reply_rate": 0.34,
+    "delivered_count": 408,
+    "read_count": 362,
+    "replied_count": 143,
+    "failed_count": 0,
+    "description": "Automated weekly project update with photos",
+    "created_at": "2026-05-02T19:07:02.552369+05:30",
+    "updated_at": "2026-05-02T19:07:02.552809+05:30"
+  },
+  {
+    "id": "tpl_fe800c05",
+    "name": "payment_milestone_due",
+    "category": "utility",
+    "header": {
+      "type": "none"
+    },
+    "body": "Hi {{1}}, friendly reminder — milestone {{2}} of {{3}} (₹{{4}}) is due on {{5}}. Pay securely here: {{6}}. Receipt + GST invoice will be sent within 1 hr of payment.",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "customer_name",
+      "milestone_no",
+      "milestone_total",
+      "amount",
+      "due_date",
+      "payment_link"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 58,
+    "reply_rate": 0.33,
+    "delivered_count": 56,
+    "read_count": 49,
+    "replied_count": 19,
+    "failed_count": 0,
+    "description": "Payment milestone reminder",
+    "created_at": "2026-05-02T19:07:02.553362+05:30",
+    "updated_at": "2026-05-02T19:07:02.553820+05:30"
+  },
+  {
+    "id": "tpl_2e5306f0",
+    "name": "festive_kitchen_offer",
+    "category": "marketing",
+    "header": {
+      "type": "none"
+    },
+    "body": "Diwali special, {{1}} — flat ₹{{2}} off all modular kitchens signed before {{3}}. Includes upgrade to soft-close hardware (worth ₹18,000) at no cost. Visit our Indiranagar studio or reply with your floor plan to lock the offer.",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "customer_name",
+      "discount_amount",
+      "expiry_date"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 264,
+    "reply_rate": 0.34,
+    "delivered_count": 256,
+    "read_count": 227,
+    "replied_count": 89,
+    "failed_count": 0,
+    "description": "Seasonal modular kitchen promotion",
+    "created_at": "2026-05-02T19:07:02.554359+05:30",
+    "updated_at": "2026-05-02T19:07:02.554843+05:30"
+  },
+  {
+    "id": "tpl_b2ea96e6",
+    "name": "post_handover_feedback",
+    "category": "utility",
+    "header": {
+      "type": "none"
+    },
+    "body": "Hi {{1}}, we hope you're loving your new home. It's been 30 days since handover — could you take 1 minute to rate your experience (1-5)? Your feedback shapes how we serve the next family.",
+    "footer": "",
+    "buttons": [],
+    "variables": [
+      "customer_name"
+    ],
+    "language": "en",
+    "approval_status": "approved",
+    "usage_count": 71,
+    "reply_rate": 0.34,
+    "delivered_count": 68,
+    "read_count": 61,
+    "replied_count": 24,
+    "failed_count": 0,
+    "description": "30-day post-handover feedback request",
+    "created_at": "2026-05-02T19:07:02.555397+05:30",
+    "updated_at": "2026-05-02T19:07:02.555894+05:30"
   }
 ]
