@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Inbox, Search, Bot, User, AlertTriangle, CalendarClock, Play, MessageSquare } from 'lucide-react';
+import { Inbox, Search, AlertTriangle, CalendarClock, Play } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { conversations as convApi, handoffs as handoffApi, followups as followupApi } from '../api/client';
 import PageHeader from '../components/ui/PageHeader';
@@ -9,6 +9,7 @@ import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import Spinner from '../components/ui/Spinner';
 import { formatDistanceToNow } from 'date-fns';
+import { getConversationStatus, statusToBadgeVariant } from '../utils/conversationStatus';
 import './Conversations.css';
 
 const FILTERS = [
@@ -153,23 +154,39 @@ export default function Conversations() {
                     </span>
                   </div>
                   <div className="conv-bottom">
-                    <span className="conv-preview truncate">{c.last_message || 'No messages yet'}</span>
-                    <div className="conv-badges">
-                      {isEscalated && (
-                        <Badge variant="orange" size="sm"><AlertTriangle size={10} /> Needs human</Badge>
+                    <span className="conv-preview truncate">
+                      {c.last_direction === 'outbound' && (
+                        <span className="conv-preview-prefix">
+                          {c.last_sender === 'human' ? 'You: ' : 'AI: '}
+                        </span>
                       )}
+                      {c.last_message || 'No messages yet'}
+                    </span>
+                    <div className="conv-badges">
+                      {isEscalated ? (
+                        <Badge variant="orange" size="sm"><AlertTriangle size={10} /> Needs human</Badge>
+                      ) : (() => {
+                        const s = getConversationStatus({
+                          botOn: c.bot_mode !== false,
+                          lastDir: c.last_direction,
+                          lastSender: c.last_sender,
+                          lastTime: c.last_time,
+                        });
+                        return (
+                          <Badge
+                            variant={statusToBadgeVariant(s.tone)}
+                            size="sm"
+                            dot={s.animated}
+                            title={s.label}
+                          >
+                            {s.label}
+                          </Badge>
+                        );
+                      })()}
                       {isFollowup && !isEscalated && (
                         <Badge variant="warning" size="sm"><CalendarClock size={10} /> Follow-up</Badge>
                       )}
-                      {c.bot_mode === false && !isEscalated && (
-                        <Badge variant="orange" size="sm"><User size={10} /> You're replying</Badge>
-                      )}
                       <Badge variant="default" size="sm">{c.stage}</Badge>
-                      {c.window_open ? (
-                        <Badge variant="success" size="sm" title={`Reply window: ${c.hours_remaining}h remaining`}>● {c.hours_remaining}h</Badge>
-                      ) : (
-                        <Badge variant="gray" size="sm" title="Reply window closed — template messages only">○ Template only</Badge>
-                      )}
                     </div>
                   </div>
                   {/* Escalation reason */}

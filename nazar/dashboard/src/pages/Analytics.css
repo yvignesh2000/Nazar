@@ -268,7 +268,131 @@
   color: var(--color-gray-800);
 }
 
+/* Pipeline value by stage */
+.value-stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5) var(--space-4);
+}
+
+.value-stage-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 80px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.value-stage-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.value-stage-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-gray-800);
+}
+
+.value-stage-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+.value-stage-bar-wrap {
+  height: 8px;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.value-stage-bar {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+
+.value-stage-value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-800);
+  text-align: right;
+}
+
+/* Top open deals */
+.top-deals-list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) 0 var(--space-2);
+}
+
+.top-deal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-gray-100);
+}
+
+.top-deal-row:first-child {
+  border-top: none;
+}
+
+.top-deal-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary-100, #e0e7ff);
+  color: var(--color-primary-700, #4338ca);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+.top-deal-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.top-deal-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-gray-800);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-deal-meta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-400);
+}
+
+.top-deal-stage {
+  color: var(--color-primary-600, #4f46e5);
+  font-weight: 500;
+}
+
+.top-deal-value {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-success-600, #16a34a);
+  white-space: nowrap;
+}
+
+/* Secondary stat grid (smaller spacing) */
+.stat-grid--secondary {
+  margin-top: calc(-1 * var(--space-2));
+}
+
 @media (max-width: 900px) {
   .analytics-grid { grid-template-columns: 1fr; }
   .analytics-panel--wide { grid-column: 1; }
+  .value-stage-row { grid-template-columns: 100px 1fr 70px; }
 }

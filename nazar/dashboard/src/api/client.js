@@ -157,11 +157,13 @@ export const kb = {
   listDocuments: (params) => get('/kb/documents', params),
   addDocument: (data) => post('/kb/documents', data),
   deleteDocument: (id) => del(`/kb/documents/${id}`),
-  uploadFile: (file, title = '', scope = 'global') => {
+  moveDocument: (id, folderId) => patch(`/kb/documents/${id}/move`, { folder_id: folderId }),
+  uploadFile: (file, title = '', scope = 'global', folderId = '') => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', title);
     formData.append('scope', scope);
+    if (folderId) formData.append('folder_id', folderId);
     const token = localStorage.getItem('nazar_token');
     const headers = token ? { 'Authorization': `Bearer ${token}` } : { 'X-Nazar-Key': 'nazar_dev_key' };
     return fetch(`/api/kb/upload-file`, { method: 'POST', headers, body: formData })
@@ -171,6 +173,27 @@ export const kb = {
         return data;
       });
   },
+  uploadFiles: (files, scope = 'global', folderId = '') => {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    formData.append('scope', scope);
+    if (folderId) formData.append('folder_id', folderId);
+    const token = localStorage.getItem('nazar_token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : { 'X-Nazar-Key': 'nazar_dev_key' };
+    return fetch(`/api/kb/upload-files`, { method: 'POST', headers, body: formData })
+      .then(async res => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.detail || res.statusText);
+        return data;
+      });
+  },
+  // Folder operations
+  listFolders: (parentId) => get('/kb/folders', parentId !== undefined ? { parent_id: parentId } : {}),
+  createFolder: (name, parentId) => post('/kb/folders', { name, parent_id: parentId || null }),
+  renameFolder: (id, name) => patch(`/kb/folders/${id}`, { name }),
+  deleteFolder: (id, recursive = false) => del(`/kb/folders/${id}?recursive=${recursive}`),
 };
 
 export const groups = {

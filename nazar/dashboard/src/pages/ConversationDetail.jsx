@@ -14,12 +14,15 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Spinner from '../components/ui/Spinner';
 import { format } from 'date-fns';
+import { getConversationStatus, statusToBadgeVariant } from '../utils/conversationStatus';
 import './ConversationDetail.css';
 
+// "Reply mode" is a SETTING — what should happen when a customer messages?
+// (As opposed to the live STATUS, which is what is actually happening right now.)
 const REPLY_MODE_OPTIONS = [
-  { id: 'auto_ai', icon: Bot, label: 'AI is replying', color: 'var(--color-success-600)', badge: 'success' },
-  { id: 'ai_draft', icon: FileEdit, label: 'AI drafts, you approve', color: 'var(--color-primary-600)', badge: 'primary' },
-  { id: 'human_only', icon: User, label: "You're replying", color: 'var(--color-orange-600)', badge: 'orange' },
+  { id: 'auto_ai',    icon: Bot,      label: 'Auto-reply with AI',  desc: 'AI replies to customers automatically.', color: 'var(--color-success-600)' },
+  { id: 'ai_draft',   icon: FileEdit, label: 'AI drafts, I approve', desc: 'AI writes a draft. You review before sending.', color: 'var(--color-primary-600)' },
+  { id: 'human_only', icon: User,     label: 'I reply manually',     desc: 'AI is paused. You handle this conversation.', color: 'var(--color-orange-600)' },
 ];
 
 export default function ConversationDetail() {
@@ -63,6 +66,17 @@ export default function ConversationDetail() {
   const serviceWindow = data?.service_window || { window_open: false, hours_remaining: 0 };
 
   const currentMode = REPLY_MODE_OPTIONS.find(m => m.id === replyModeInfo.mode) || REPLY_MODE_OPTIONS[0];
+
+  // Live status: what is happening RIGHT NOW (separate from the mode setting).
+  const lastMsg = messages.length ? messages[messages.length - 1] : null;
+  const liveStatus = getConversationStatus({
+    botOn,
+    lastDir: lastMsg?.direction,
+    lastSender: lastMsg?.sent_by,
+    lastTime: lastMsg?.timestamp,
+    hasDraft: !!(pendingDraft && pendingDraft.status === 'pending'),
+    replyMode: replyModeInfo.mode,
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -214,20 +228,32 @@ export default function ConversationDetail() {
           </span>
         </div>
         <div className="chat-header-actions">
+          {/* LIVE STATUS — what is happening right now */}
+          <Badge
+            variant={statusToBadgeVariant(liveStatus.tone)}
+            size="md"
+            dot={liveStatus.animated}
+            title={`Live status: ${liveStatus.label}`}
+          >
+            {liveStatus.label}
+          </Badge>
+
           {!botOn && handoffState?.reason && (
-            <Badge variant="orange" size="sm">
+            <Badge variant="orange" size="sm" title={handoffState.reason}>
               <AlertTriangle size={10} /> {handoffState.reason}
             </Badge>
           )}
 
-          {/* Reply Mode Selector */}
+          {/* MODE SETTING — what SHOULD happen when customers message */}
           <div className="reply-mode-selector" ref={replyModeRef}>
             <button
               className="reply-mode-trigger"
               onClick={() => setShowReplyModeMenu(prev => !prev)}
               disabled={changingMode}
               style={{ '--rm-color': currentMode.color }}
+              title="Change how replies are handled for this contact"
             >
+              <span className="reply-mode-trigger-label">Mode:</span>
               <currentMode.icon size={14} />
               <span>{currentMode.label}</span>
               {replyModeInfo.source === 'campaign' && (
@@ -238,7 +264,7 @@ export default function ConversationDetail() {
 
             {showReplyModeMenu && (
               <div className="reply-mode-dropdown">
-                <div className="rm-dropdown-header">How should replies be handled?</div>
+                <div className="rm-dropdown-header">When this customer messages, who replies?</div>
                 {REPLY_MODE_OPTIONS.map(opt => {
                   const Icon = opt.icon;
                   const isActive = opt.id === replyModeInfo.mode;
@@ -249,7 +275,10 @@ export default function ConversationDetail() {
                       onClick={() => handleChangeReplyMode(opt.id)}
                     >
                       <Icon size={16} style={{ color: opt.color }} />
-                      <span>{opt.label}</span>
+                      <div className="rm-dropdown-item-text">
+                        <span className="rm-dropdown-item-label">{opt.label}</span>
+                        <span className="rm-dropdown-item-desc">{opt.desc}</span>
+                      </div>
                       {isActive && <CheckCircle size={14} style={{ color: opt.color }} />}
                     </button>
                   );
@@ -258,18 +287,17 @@ export default function ConversationDetail() {
             )}
           </div>
 
+          {/* Quick toggle — pause/resume the AI for this conversation */}
           <Button
             size="sm"
             variant={botOn ? 'secondary' : 'success'}
             icon={botOn ? User : Play}
             loading={toggling}
             onClick={handleToggleBot}
+            title={botOn ? 'Pause AI — you take over this chat' : 'Resume AI — let it reply automatically'}
           >
-            {botOn ? 'Pause Bot' : 'Turn Bot On'}
+            {botOn ? 'Take over' : 'Resume AI'}
           </Button>
-          <Badge variant={botOn ? 'success' : 'orange'} size="md" dot>
-            {botOn ? 'AI is replying' : "You're replying"}
-          </Badge>
         </div>
       </div>
 

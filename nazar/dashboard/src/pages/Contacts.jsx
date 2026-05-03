@@ -620,7 +620,7 @@ export default function Contacts() {
     <div className="page-content">
       <PageHeader
         title="Contacts"
-        description={`${data?.total || 0} contacts`}
+        description={`${data?.total || 0} contact${(data?.total || 0) === 1 ? '' : 's'}`}
         actions={
           <div style={{ display: 'flex', gap: '8px' }}>
             <Button variant="secondary" icon={Upload} onClick={() => setShowImport(true)}>Import CSV</Button>
@@ -650,19 +650,45 @@ export default function Contacts() {
       {/* Groups tab */}
       {tab === 'groups' && <GroupsPanel allContacts={allContacts} />}
 
-      {/* Create form — enhanced with more fields */}
+      {/* Create form — structured card layout */}
       {tab === 'contacts' && showCreate && (
         <form className="contact-create-form" onSubmit={handleCreate}>
-          <input placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <input placeholder="Phone *" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
-          <input placeholder="Company" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
-          <input placeholder="Source" value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} />
-          <select value={form.pipeline_stage} onChange={e => setForm({ ...form, pipeline_stage: e.target.value })}>
-            {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <input placeholder="Tags (comma separated)" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} />
-          <Button type="submit" loading={creating}>Create</Button>
-          <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+          <div className="contact-form-title">
+            <UserPlus size={18} />
+            <span>New Contact</span>
+          </div>
+          <div className="contact-form-grid">
+            <div className="contact-form-field">
+              <label className="contact-form-label">Name</label>
+              <input placeholder="e.g. Rahul Sharma" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div className="contact-form-field contact-form-field--required">
+              <label className="contact-form-label">Phone <span className="contact-form-req">*</span></label>
+              <input placeholder="e.g. +919876543210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
+            </div>
+            <div className="contact-form-field">
+              <label className="contact-form-label">Company</label>
+              <input placeholder="e.g. Acme Corp" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
+            </div>
+            <div className="contact-form-field">
+              <label className="contact-form-label">Source</label>
+              <input placeholder="e.g. Website, Referral" value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} />
+            </div>
+            <div className="contact-form-field">
+              <label className="contact-form-label">Status</label>
+              <select value={form.pipeline_stage} onChange={e => setForm({ ...form, pipeline_stage: e.target.value })}>
+                {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="contact-form-field">
+              <label className="contact-form-label">Tags</label>
+              <input placeholder="e.g. vip, interested, demo" value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} />
+            </div>
+          </div>
+          <div className="contact-form-actions">
+            <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button type="submit" icon={Plus} loading={creating}>Create Contact</Button>
+          </div>
         </form>
       )}
 

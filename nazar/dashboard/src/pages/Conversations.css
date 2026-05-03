@@ -161,6 +161,11 @@
   min-width: 0;
 }
 
+.conv-preview-prefix {
+  font-weight: 600;
+  color: var(--color-gray-600);
+}
+
 .conv-badges {
   display: flex;
   gap: 4px;

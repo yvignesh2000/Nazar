@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NotificationProvider from './components/NotificationProvider';
 import Sidebar from './components/Sidebar';
 import Spinner from './components/ui/Spinner';
+import Walkthrough from './components/Walkthrough/Walkthrough';
 
 // Route-based code splitting — each page loads only when navigated to.
 const Login = lazy(() => import('./pages/Login'));
@@ -54,6 +55,7 @@ function AppRoutes() {
           <NotificationProvider>
           <div className="app-layout">
             <Sidebar />
+            <Walkthrough />
             <main className="app-main">
               <Suspense fallback={<Spinner />}>
               <Routes>
