@@ -33,9 +33,10 @@
 23. [P3 — Branding Cleanup & i18n Prep](#23-p3--branding-cleanup--i18n-prep)
 24. [P3 — Health Check Enhancements](#24-p3--health-check-enhancements)
 25. [P3 — Currency Configuration](#25-p3--currency-configuration)
-26. [Test Plan](#26-test-plan)
-27. [Migration Strategy](#27-migration-strategy)
-28. [Rollout Sequence](#28-rollout-sequence)
+26. [P1 — Multi-Channel Support (Multiple Phone Numbers)](#26-p1--multi-channel-support-multiple-phone-numbers)
+27. [Test Plan](#27-test-plan)
+28. [Migration Strategy](#28-migration-strategy)
+29. [Rollout Sequence](#29-rollout-sequence)
 
 ---
 
@@ -2595,7 +2596,178 @@ Revenue, deal values, and pipeline values are hardcoded as `₹` (Indian Rupees)
 
 ---
 
-## 26. Test Plan
+## 26. P1 — Multi-Channel Support (Multiple Phone Numbers)
+
+### Why This Is Critical
+
+Today **one workspace = one WhatsApp phone number**. Many businesses need separate numbers for Sales, Support, and Marketing — each with its own persona, knowledge base, and conversation queue. Without this, businesses must create entirely separate workspaces per number, losing shared team/billing.
+
+See `docs/channels.md` for the full design specification.
+
+### Current State → Target
+
+| Aspect | Current | Target |
+|--------|---------|--------|
+| Phone numbers per workspace | 1 (env var) | Multiple (DB table) |
+| Webhook routing | Global `WA_PHONE_NUMBER_ID` | Extract `metadata.phone_number_id` → channel lookup |
+| Contact uniqueness | `UNIQUE(workspace_id, phone)` | `UNIQUE(workspace_id, channel_id, phone)` |
+| Messages | Workspace-scoped | Channel-scoped |
+| Reply mode | Per-contact only | Channel default + per-contact override |
+| Persona (SOUL.md) | Global | Per-channel `persona_prompt` override |
+| Knowledge base | Global or campaign-scoped | + Channel-scoped |
+| Opt-out | `(workspace_id, phone)` | `(workspace_id, channel_id, phone)` |
+| Rate limiting | Global daily counter | Per-channel daily quota |
+| Analytics | No channel dimension | Per-channel + aggregated |
+
+### Implementation — ✅ Phase 1: Foundation (DONE)
+
+#### 26.1 `core/workspace_context.py` — Channel Thread-Local
+
+Added `set_channel()`, `get_channel()`, `clear_channel()`, and `clear_context()` following the same thread-local pattern used for workspace scoping.
+
+#### 26.2 `core/database.py` — Schema & Migration
+
+**New table: `channels`**
+```sql
+CREATE TABLE IF NOT EXISTS channels (
+    id              TEXT PRIMARY KEY,           -- "ch_" + hex(12) or "default"
+    workspace_id    TEXT NOT NULL,
+    phone_number_id TEXT NOT NULL,              -- Meta phone number ID (globally unique)
+    waba_id         TEXT DEFAULT '',
+    access_token    TEXT NOT NULL DEFAULT '',   -- Per-number access token
+    display_name    TEXT NOT NULL DEFAULT '',   -- "Support", "Sales", etc.
+    persona_prompt  TEXT DEFAULT '',            -- System prompt override
+    default_reply_mode TEXT DEFAULT 'auto_ai',
+    kb_scope        TEXT DEFAULT 'global',
+    is_primary      INTEGER DEFAULT 0,
+    is_active       INTEGER DEFAULT 1,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT DEFAULT NULL,
+    UNIQUE(phone_number_id)
+);
+```
+
+**Migration: `channel_id` added to existing tables:**
+- `contacts`, `messages`, `handoff_states`, `optouts`, `reply_modes`
+- `campaigns`, `campaign_contacts`, `ai_drafts`, `assignments`
+- All default to `'default'` for backward compatibility
+- New unique index: `ix_contacts_ws_ch_phone ON contacts(workspace_id, channel_id, phone)`
+
+#### 26.3 `core/channel.py` — Channel CRUD Module (NEW)
+
+Full CRUD operations:
+- `create_channel()` — Register a phone number as a channel
+- `get_channel()` / `get_channel_by_phone_number_id()` — Lookup
+- `list_channels()` — List active (or all) channels per workspace
+- `update_channel()` — Modify config (name, persona, reply mode, KB scope)
+- `delete_channel()` — Soft-delete (is_active=0) or hard-delete
+- `get_primary_channel()` — Get the workspace's primary channel
+- `get_channel_config()` — Get persona/reply mode/KB config (no credentials)
+- `get_channel_credentials()` — Get phone_number_id + access_token for sends
+- `ensure_default_channel()` — Create backward-compat channel from env vars
+- `channel_count()` — Count active channels
+
+#### 26.4 `core/schemas.py` — Validation
+
+- `CreateChannelRequest` — phone_number_id (required), access_token (required), display_name, etc.
+- `UpdateChannelRequest` — Partial updates with validation on reply_mode
+
+#### 26.5 `server.py` — API Endpoints & Webhook Routing
+
+**New REST endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/channels` | List all channels in workspace |
+| `POST` | `/api/channels` | Register a new channel (admin) |
+| `GET` | `/api/channels/{id}` | Get channel details |
+| `PUT` | `/api/channels/{id}` | Update channel config (admin) |
+| `DELETE` | `/api/channels/{id}` | Soft/hard delete (admin) |
+| `POST` | `/api/channels/{id}/verify` | Test Meta API connectivity |
+| `GET` | `/api/channels/{id}/stats` | Contact/message/handoff counts |
+| `GET` | `/api/contacts/{phone}/unified` | Cross-channel contact view |
+
+**Webhook routing update:**
+```
+POST /webhook
+  → extract value.metadata.phone_number_id
+  → look up channel: SELECT * FROM channels WHERE phone_number_id = ?
+  → set_workspace(channel.workspace_id)
+  → set_channel(channel.id)
+  → process messages as before
+```
+
+**Middleware:** `clear_context()` called after every request to prevent context leaking.
+
+**Startup:** `ensure_default_channel()` called to auto-create the default channel from env vars.
+
+#### 26.6 Tests: `tests/test_channels.py` (58 tests)
+
+- **Context tests** (5): set/get/clear channel, independence from workspace, clear_context
+- **Schema tests** (10): channels table exists, all column checks, channel_id on 7 tables, default value
+- **CRUD tests** (25): create, duplicate detection, primary management, get, list, update, delete
+- **Helper tests** (11): primary channel, config, credentials, channel_count
+- **Default channel** (3): ensure_default_channel idempotency
+- **Pydantic validation** (7): CreateChannelRequest/UpdateChannelRequest validation
+
+### Implementation — Phase 2: Routing (Pending)
+
+Wire channel credentials into outbound sends:
+- Replace global `WA_API_URL` / `WA_ACCESS_TOKEN` with per-channel values from `get_channel_credentials()`
+- `send_whatsapp_message()` uses channel from thread-local context
+- `send_template_message()` uses channel credentials
+- Campaign sends use the campaign's `channel_id` for outbound API calls
+
+### Implementation — Phase 3: Core Scoping (Pending)
+
+Make all subsystems channel-aware via `get_channel()`:
+- `contact_manager.py` — All queries include `channel_id`
+- `conversation.py` — `_build_system_prompt()` uses channel's `persona_prompt`
+- `reply_mode.py` — Fallback chain: contact override → channel default → workspace default
+- `optout_manager.py` — Per-channel opt-out
+- `handoff_manager.py` — Per-channel handoff queue
+- `analytics.py` — `channel_id` in all logged events
+- `rate_limiter.py` — Per-channel daily quota
+- `service_window.py` — Per (channel, contact) session windows
+
+### Implementation — Phase 4: Features (Pending)
+
+- `knowledge_base.py` — `channel_{id}` scope with fallback: campaign > channel > global
+- `assignment_manager.py` — Channel-specific agent assignments
+- Cross-channel contact view (unified phone number view)
+
+### Implementation — Phase 5: UI (Pending)
+
+- `dashboard/src/pages/Channels.jsx` — Channel management page
+- `dashboard/src/components/Sidebar.jsx` — Channel selector dropdown
+- Update existing pages to filter by selected channel
+
+### Backward Compatibility
+
+- **`channel_id = 'default'`** behaves exactly as pre-channel behavior
+- **`get_channel()` returns `'default'`** when not explicitly set
+- **Env vars still work:** `WA_PHONE_NUMBER_ID` / `WA_ACCESS_TOKEN` auto-create the default channel
+- **All existing endpoints work** without `?channel_id=` param
+- **All 641 pre-existing tests pass** with zero regressions
+
+### Acceptance Criteria
+
+- [x] `channels` table created with proper schema
+- [x] `channel_id` column added to contacts, messages, handoff_states, optouts, reply_modes, campaigns, campaign_contacts, ai_drafts, assignments
+- [x] Channel CRUD operations work (create, read, update, soft/hard delete)
+- [x] Webhook extracts `phone_number_id` and routes to correct channel
+- [x] Default channel auto-created from env vars on startup
+- [x] All 699 tests pass (641 existing + 58 new)
+- [ ] Outbound sends use per-channel credentials (Phase 2)
+- [ ] All core modules query with `channel_id` (Phase 3)
+- [ ] Per-channel persona, KB, rate limiting (Phase 3/4)
+- [ ] Dashboard channel management UI (Phase 5)
+
+---
+
+## 27. Test Plan
+
+> **Note:** Multi-channel tests are in `tests/test_channels.py` (58 tests covering context, schema, CRUD, helpers, backward compatibility, and Pydantic validation).
 
 ### Backend Tests to Add
 
@@ -2632,7 +2804,9 @@ Use `locust` or `ab`:
 
 ---
 
-## 27. Migration Strategy
+## 28. Migration Strategy
+
+> **Multi-channel migration:** The `_migrate_add_channel_id()` function in `core/database.py` handles adding `channel_id` columns to existing tables. Since there is no production data, this migration is for dev environments only. All existing data defaults to `channel_id = 'default'`.
 
 ### Phase 1: Non-breaking additions (week 1)
 - Add SQLite alongside existing JSON (write to both, read from JSON)
@@ -2659,17 +2833,18 @@ Use `locust` or `ab`:
 
 ---
 
-## 28. Rollout Sequence
+## 29. Rollout Sequence
 
 ```
 Week 1  ─── P0: SQLite migration + WebSocket + Webhook security + Template messages
 Week 2  ─── P1: Job queue + Rate limiting + Opt-out handling
-Week 3  ─── P1: Agent assignment + Campaign scheduling
-Week 4  ─── P2: Media support + Segmentation + Structured KB
-Week 5  ─── P2: Webhooks/integrations + Campaign analytics
-Week 6  ─── P3: Pydantic validation + Pagination + Audit logs
-Week 7  ─── P3: Docker + Tests + Memory decay + Cleanup
-Week 8  ─── Testing, load testing, staging deployment, bug fixes
+Week 3  ─── P1: Agent assignment + Campaign scheduling + Multi-channel foundation ✅
+Week 4  ─── P1: Multi-channel routing + core scoping (Phases 2-3)
+Week 5  ─── P2: Media support + Segmentation + Structured KB
+Week 6  ─── P2: Webhooks/integrations + Campaign analytics + Multi-channel UI
+Week 7  ─── P3: Pydantic validation + Pagination + Audit logs
+Week 8  ─── P3: Docker + Tests + Memory decay + Cleanup
+Week 9  ─── Testing, load testing, staging deployment, bug fixes
 ```
 
 Each week ends with:
@@ -2688,6 +2863,7 @@ Each week ends with:
 | WebSocket | `server.py`, `dashboard/src/hooks/useWebSocket.js` (NEW), `dashboard/src/pages/ConversationDetail.jsx`, `dashboard/src/pages/Campaigns.jsx`, `dashboard/src/context/AuthContext.jsx` |
 | Template Campaigns | `core/outbound.py`, `server.py`, `dashboard/src/pages/Campaigns.jsx` |
 | Webhook Security | `server.py` (lines 333-360), `core/onboarding.py` |
+| Multi-Channel | `core/channel.py` (NEW), `core/workspace_context.py`, `core/database.py`, `core/schemas.py`, `server.py`, `tests/test_channels.py` (NEW), `docs/channels.md` |
 | Job Queue | `core/job_queue.py` (NEW), `server.py` |
 | Agent Assignment | `core/assignment_manager.py` (NEW), `server.py`, `dashboard/src/pages/ConversationDetail.jsx`, `dashboard/src/pages/Conversations.jsx` |
 | Opt-out | `server.py`, `core/contact_manager.py`, `core/outbound.py` |

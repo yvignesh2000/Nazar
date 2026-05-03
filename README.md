@@ -28,14 +28,19 @@ Dashboard (business team)
 
 ## Quick Start
 
+**Requires Python 3.11+** (uses f-strings, type hints, and `match` statements).
+
 ```bash
 cd nazar
 cp .env.template .env
-# Fill in your WhatsApp Business API credentials
+# Fill in your WhatsApp Business API credentials AND:
+#   - WA_APP_SECRET           (required — webhooks rejected without it)
+#   - NAZAR_TOKEN_SECRET      (required — sessions break on restart without it)
+#   - NAZAR_API_KEY           (required — change from default in production)
 
-pip install fastapi uvicorn httpx chromadb pydantic cryptography python-dotenv
+pip install -r requirements.txt
 
-python server.py
+python3.11 server.py
 # Dashboard: http://localhost:8001
 ```
 

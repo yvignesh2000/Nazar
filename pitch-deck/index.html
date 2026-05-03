@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Nazar — The WhatsApp CRM with Memory</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root{
+      --bg:#FAFAF7;
+      --bg-soft:#F1F2EE;
+      --bg-tint:#F5F6F2;
+      --ink:#0E1726;
+      --ink-dim:#3F4A5C;
+      --ink-faint:#7B8597;
+      --accent:#0E9F6E;
+      --accent-soft:#E6F4EE;
+      --accent-2:#5B45D9;
+      --accent-2-soft:#EDE9FB;
+      --accent-3:#C8841A;
+      --accent-3-soft:#FAF1E0;
+      --danger:#D64545;
+      --line:rgba(14,23,38,.10);
+      --line-strong:rgba(14,23,38,.18);
+      --card:#FFFFFF;
+    }
+
+    /* ─── REVEAL OVERRIDES ─────────────────────────────── */
+    html, body, .reveal, .reveal .slides { background: var(--bg) !important; }
+    .reveal {
+      font-family: 'Inter', sans-serif;
+      color: var(--ink);
+      font-weight: 400;
+    }
+    .reveal .slides { text-align: left; }
+    .reveal .slides section {
+      padding: 56px 72px 64px;
+      box-sizing: border-box;
+      height: 100%;
+      display: flex !important;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .reveal .slides section.title-slide,
+    .reveal .slides section.section-divider,
+    .reveal .slides section.ask-slide { justify-content: center; align-items: flex-start; }
+
+    .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+      color: var(--ink);
+      font-family: 'Inter', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-transform: none;
+      margin: 0 0 .35em;
+      line-height: 1.05;
+    }
+    .reveal h1 { font-size: 3.6rem; }
+    .reveal h2 { font-size: 2.4rem; }
+    .reveal h3 { font-size: 1.25rem; font-weight: 700; }
+    .reveal p, .reveal li { font-size: 1.05rem; line-height: 1.55; color: var(--ink-dim); }
+    .reveal strong { color: var(--ink); font-weight: 700; }
+    .reveal em { color: var(--accent); font-style: normal; font-weight: 600; }
+    .reveal a { color: var(--accent-2); text-decoration: none; }
+    .reveal ul { list-style: none; padding: 0; margin: 0; }
+    .reveal ul li { padding-left: 1.4em; position: relative; margin-bottom: .55em; }
+    .reveal ul li::before {
+      content: ""; position: absolute; left: 0; top: .7em;
+      width: 7px; height: 2px; background: var(--accent);
+    }
+
+    .reveal .progress { color: var(--accent); }
+    .reveal .controls { color: var(--ink-faint); }
+    .reveal .slide-number {
+      background: transparent; color: var(--ink-faint);
+      font-family: 'JetBrains Mono', monospace; font-size: .72rem;
+      bottom: 18px; right: 22px; letter-spacing: .08em;
+    }
+
+    /* ─── CORE COMPONENTS ──────────────────────────────── */
+    .eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .7rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .18em;
+      text-transform: uppercase;
+      display: inline-block; margin-bottom: 1.1rem;
+      padding: 5px 11px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(14, 159, 110, .22);
+      border-radius: 4px;
+    }
+    .eyebrow.purple { color: var(--accent-2); background: var(--accent-2-soft); border-color: rgba(91,69,217,.22); }
+    .eyebrow.gold { color: var(--accent-3); background: var(--accent-3-soft); border-color: rgba(200,132,26,.22); }
+    .eyebrow.danger { color: var(--danger); background: rgba(214,69,69,.06); border-color: rgba(214,69,69,.22); }
+
+    .lede {
+      font-size: 1.25rem; color: var(--ink-dim);
+      max-width: 1000px; line-height: 1.5; font-weight: 400;
+    }
+
+    .grid { display: grid; gap: 18px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+    /* ─── CARDS ─────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 22px 22px;
+      transition: all .2s ease;
+      box-shadow: 0 1px 2px rgba(14,23,38,.04);
+    }
+    .card:hover {
+      border-color: rgba(14,159,110,.35);
+      box-shadow: 0 8px 24px -8px rgba(14,23,38,.12);
+      transform: translateY(-2px);
+    }
+    .card h3 { font-size: 1.1rem; margin-bottom: .5rem; }
+    .card p { font-size: .98rem; line-height: 1.55; color: var(--ink-dim); }
+    .card .marker {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .15em;
+      color: var(--accent);
+      margin-bottom: 14px;
+      display: inline-block;
+      padding: 4px 8px;
+      background: var(--accent-soft);
+      border-radius: 3px;
+    }
+    .card.purple .marker { color: var(--accent-2); background: var(--accent-2-soft); }
+    .card.gold .marker { color: var(--accent-3); background: var(--accent-3-soft); }
+
+    /* ─── STATS ─────────────────────────────────────────── */
+    .stat { display: flex; flex-direction: column; gap: 6px; }
+    .stat .num {
+      font-family: 'Inter', sans-serif;
+      font-size: 2.7rem; font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -.03em; line-height: 1;
+    }
+    .stat .num.purple { color: var(--accent-2); }
+    .stat .num.gold { color: var(--accent-3); }
+    .stat .num.ink { color: var(--ink); }
+    .stat .label {
+      font-size: .82rem; color: var(--ink-faint);
+      text-transform: uppercase; letter-spacing: .1em;
+      font-weight: 600;
+    }
+
+    .badge {
+      display: inline-block; padding: 3px 10px;
+      font-size: .72rem; font-weight: 600;
+      background: var(--accent-soft); color: var(--accent);
+      border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+      letter-spacing: .05em;
+    }
+    .badge.purple { background: var(--accent-2-soft); color: var(--accent-2); }
+    .badge.gold { background: var(--accent-3-soft); color: var(--accent-3); }
+    .badge.danger { background: rgba(214,69,69,.10); color: var(--danger); }
+    .badge.outline { background: transparent; border: 1px solid var(--line-strong); color: var(--ink-dim); }
+
+    /* ─── TITLE SLIDE ──────────────────────────────────── */
+    .title-slide {
+      background:
+        radial-gradient(ellipse at top right, rgba(14,159,110,.13), transparent 55%),
+        radial-gradient(ellipse at bottom left, rgba(91,69,217,.10), transparent 55%),
+        var(--bg);
+    }
+    .logo {
+      font-family: 'Inter', sans-serif;
+      font-size: 1.2rem; font-weight: 800;
+      letter-spacing: -.02em;
+      display: inline-flex; align-items: center; gap: 12px;
+      margin-bottom: 2.2rem;
+    }
+    .logo-mark {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 16px -4px rgba(14,159,110,.4);
+      position: relative;
+    }
+    .logo-mark::after {
+      content: "";
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      box-shadow: inset -3px -3px 0 0 var(--accent);
+    }
+    .title-slide h1 {
+      font-size: 5.2rem; line-height: .96;
+      max-width: 14ch;
+    }
+    .title-slide h1 em { color: var(--accent); }
+    .tagline {
+      font-size: 1.5rem; font-weight: 400;
+      color: var(--ink-dim);
+      margin: 1.2rem 0 0;
+      max-width: 60ch;
+      line-height: 1.4;
+    }
+    .title-meta {
+      margin-top: 2.6rem; display: flex; gap: 2.5rem;
+      font-family: 'JetBrains Mono', monospace; font-size: .78rem;
+      color: var(--ink-faint);
+    }
+    .title-meta strong {
+      color: var(--ink); display: block; font-size: .95rem;
+      margin-bottom: 4px; font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      letter-spacing: 0;
+    }
+
+    /* ─── SECTION DIVIDER ──────────────────────────────── */
+    .section-divider {
+      background: linear-gradient(135deg, var(--bg-soft) 0%, var(--bg) 100%);
+    }
+    .section-divider .num-big {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .9rem; color: var(--accent);
+      letter-spacing: .25em; margin-bottom: 1.2rem;
+      font-weight: 600;
+    }
+    .section-divider h1 { font-size: 4.4rem; line-height: 1.02; max-width: 90%; }
+
+    /* ─── PROBLEM / DATA POINTS ─────────────────────────── */
+    .data-point {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 18px 22px;
+    }
+    .data-point .big {
+      font-size: 2.2rem; font-weight: 800;
+      color: var(--ink); line-height: 1;
+      letter-spacing: -.02em;
+      margin-bottom: 8px;
+    }
+    .data-point.danger { border-left-color: var(--danger); }
+    .data-point.danger .big { color: var(--danger); }
+    .data-point .source {
+      font-size: .75rem; color: var(--ink-faint);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 8px;
+      letter-spacing: .04em;
+    }
+
+    /* ─── DEMO MOCK ─────────────────────────────────────── */
+    .demo-mock {
+      background: #FFFFFF;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0;
+      box-shadow: 0 24px 48px -16px rgba(14,23,38,.18), 0 4px 12px -4px rgba(14,23,38,.08);
+      overflow: hidden;
+    }
+    .demo-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      background: var(--bg-soft);
+      border-bottom: 1px solid var(--line);
+    }
+    .demo-header .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      color: #FFFFFF;
+      font-size: .85rem; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+      letter-spacing: -.02em;
+    }
+    .demo-header .name {
+      font-weight: 600; color: var(--ink); font-size: .95rem;
+    }
+    .demo-header .meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .72rem; color: var(--ink-faint);
+      margin-top: 1px;
+    }
+    .demo-header .channel {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .68rem; color: var(--ink-faint);
+      text-transform: uppercase; letter-spacing: .12em;
+    }
+    .chat {
+      font-family: 'Inter', sans-serif;
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 20px 22px;
+      background: #F7F8F4;
+      min-height: 380px;
+    }
+    .msg {
+      max-width: 80%; padding: 11px 15px;
+      border-radius: 14px; font-size: .98rem; line-height: 1.4;
+      position: relative;
+    }
+    .msg.in {
+      align-self: flex-start;
+      background: #FFFFFF;
+      color: var(--ink);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--line);
+    }
+    .msg.out {
+      align-self: flex-end;
+      background: #DCF8C6;
+      color: var(--ink);
+      border-bottom-right-radius: 4px;
+    }
+    .msg .label {
+      display: block;
+      font-size: .65rem; font-weight: 700;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: .14em;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .msg .timestamp {
+      font-size: .68rem; color: var(--ink-faint);
+      margin-top: 4px; text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ─── PIPELINE VISUAL ───────────────────────────────── */
+    .pipeline {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      gap: 10px; margin-top: 14px;
+    }
+    .stage {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 14px 12px;
+      text-align: center;
+      position: relative;
+    }
+    .stage::after {
+      content: "";
+      position: absolute; right: -8px; top: 50%;
+      width: 12px; height: 1px;
+      background: var(--line-strong);
+    }
+    .stage:last-child::after { display: none; }
+    .stage .stage-name {
+      font-size: .72rem; font-weight: 700; color: var(--ink);
+      text-transform: uppercase; letter-spacing: .1em;
+      margin-bottom: 8px;
+    }
+    .stage .stage-count {
+      font-size: 1.6rem; font-weight: 800; color: var(--accent);
+      line-height: 1; letter-spacing: -.02em;
+    }
+    .stage .stage-value {
+      font-size: .72rem; color: var(--ink-faint);
+      font-family: 'JetBrains Mono', monospace; margin-top: 5px;
+      letter-spacing: .03em;
+    }
+    .stage.won .stage-count { color: var(--accent); }
+    .stage.lost .stage-count { color: var(--ink-faint); opacity: .6; }
+    .stage.lost::after { background: transparent; }
+
+    /* ─── COMPETITIVE TABLE ─────────────────────────────── */
+    table.compare {
+      width: 100%; border-collapse: collapse; margin-top: 14px;
+      font-size: .98rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    table.compare th, table.compare td {
+      padding: 13px 16px; text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    table.compare tr:last-child td { border-bottom: none; }
+    table.compare th {
+      font-size: .78rem; text-transform: uppercase;
+      letter-spacing: .12em; color: var(--ink-faint);
+      font-weight: 600;
+      background: var(--bg-soft);
+    }
+    table.compare th.us {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    table.compare td.us {
+      background: rgba(14,159,110,.04);
+      color: var(--ink); font-weight: 500;
+    }
+    table.compare td.feature {
+      font-weight: 500; color: var(--ink);
+    }
+    .check { color: var(--accent); font-weight: 600; }
+    .cross { color: var(--ink-faint); }
+    .partial { color: var(--accent-3); font-weight: 500; }
+
+    /* ─── PRICING CARDS ─────────────────────────────────── */
+    .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+    .price-card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 12px; padding: 24px 22px;
+      position: relative;
+    }
+    .price-card.featured {
+      background: linear-gradient(180deg, rgba(14,159,110,.06), rgba(14,159,110,.01));
+      border-color: var(--accent);
+      box-shadow: 0 8px 24px -8px rgba(14,159,110,.20);
+    }
+    .price-card.featured::before {
+      content: "MOST POPULAR";
+      position: absolute; top: -10px; right: 18px;
+      background: var(--accent); color: #FFFFFF;
+      font-size: .62rem; font-weight: 700;
+      padding: 4px 11px; border-radius: 4px;
+      letter-spacing: .14em;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .price-card .plan-name {
+      font-size: 1.05rem; font-weight: 700; color: var(--ink);
+      letter-spacing: .02em;
+    }
+    .price-card .price {
+      font-size: 2.1rem; font-weight: 800;
+      color: var(--ink); margin: 8px 0 4px;
+      letter-spacing: -.02em;
+    }
+    .price-card .price small { font-size: .8rem; color: var(--ink-faint); font-weight: 500; }
+    .price-card .target {
+      font-size: .82rem; color: var(--ink-faint);
+      margin-bottom: 16px;
+    }
+    .price-card ul li { font-size: .9rem; }
+    .price-card ul li::before { width: 5px; top: .7em; }
+
+    /* ─── ROADMAP ───────────────────────────────────────── */
+    .roadmap {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 14px; margin-top: 16px;
+    }
+    .qtr {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 18px 18px;
+      position: relative;
+    }
+    .qtr.now {
+      border-color: var(--accent);
+      background: linear-gradient(180deg, rgba(14,159,110,.06), transparent);
+    }
+    .qtr .qlabel {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .72rem; color: var(--accent);
+      letter-spacing: .15em; font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .qtr.future .qlabel { color: var(--ink-faint); }
+    .qtr h4 { font-size: 1.05rem; margin-bottom: 10px; }
+    .qtr ul li { font-size: .85rem; margin-bottom: 5px; }
+    .qtr ul li::before { width: 4px; top: .8em; }
+
+    /* ─── ASK SLIDE ─────────────────────────────────────── */
+    .ask-slide {
+      background:
+        radial-gradient(ellipse at center, rgba(14,159,110,.10), transparent 65%),
+        var(--bg);
+      text-align: center !important;
+      align-items: center;
+    }
+    .ask-slide h1 {
+      font-size: 4.4rem;
+      max-width: 18ch;
+      text-align: center;
+    }
+    .ask-slide h1 em { color: var(--accent); }
+    .ask-slide .lede { text-align: center; margin: 1.2rem auto 2rem; }
+    .ask-slide .grid-3 { width: 100%; max-width: 1100px; margin: 0 auto; }
+    .ask-slide .card { text-align: left; }
+
+    .cta-row {
+      margin-top: 2.4rem;
+      display: flex; gap: 36px; justify-content: center;
+      font-family: 'JetBrains Mono', monospace; font-size: .92rem;
+      color: var(--ink-dim);
+    }
+    .cta-row span strong {
+      color: var(--accent); font-weight: 600;
+    }
+
+    /* ─── FOOTER PILL ───────────────────────────────────── */
+    .footer-pill {
+      position: absolute; bottom: 22px; left: 72px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .68rem; color: var(--ink-faint);
+      letter-spacing: .14em; text-transform: uppercase;
+      font-weight: 500;
+    }
+    .footer-pill .marker {
+      display: inline-block;
+      color: var(--accent);
+      margin-right: 10px;
+      font-weight: 700;
+    }
+
+    /* ─── INSIGHT CALLOUT ───────────────────────────────── */
+    .insight {
+      margin-top: 2rem;
+      padding: 18px 24px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent-2);
+      border-radius: 6px;
+      font-size: 1.08rem;
+      color: var(--ink);
+      line-height: 1.5;
+      max-width: 1100px;
+    }
+    .insight strong { color: var(--accent-2); }
+
+    /* ─── PRINT (PDF EXPORT) ────────────────────────────── */
+    @media print {
+      .reveal .slides section { padding: 40px 56px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ═══════════════════ 01 · TITLE ═══════════════════ -->
+      <section class="title-slide">
+        <div class="logo">
+          <span class="logo-mark"></span>
+          <span>nazar</span>
+        </div>
+        <h1>The WhatsApp CRM<br/>that <em>remembers</em><br/>every customer.</h1>
+        <p class="tagline">Built for the 63 million Indian SMBs who run their entire business on WhatsApp &mdash; and lose deals because nothing remembers what was said yesterday.</p>
+
+        <div class="title-meta">
+          <div><strong>Investor &amp; Partner Deck</strong>2026 &middot; Confidential</div>
+          <div><strong>Stage</strong>Pre-Seed &middot; Strategic Round</div>
+          <div><strong>Built In</strong>India &middot; For the Global South</div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">01</span>nazar &middot; whatsapp crm with memory</div>
+      </section>
+
+      <!-- ═══════════════════ 02 · THE HOOK ═══════════════════ -->
+      <section>
+        <span class="eyebrow">The 30-Second Pitch</span>
+        <h2>WhatsApp is the world's largest sales channel.<br/><em>Nobody has built a real CRM for it.</em></h2>
+
+        <div class="grid grid-3" style="margin-top: 1.75rem;">
+          <div class="card">
+            <span class="marker">01 &middot; Channel</span>
+            <h3>500M+ users in India</h3>
+            <p>WhatsApp is the default channel for SMB commerce. Not email. Not phone. Not SMS. Customers expect to buy where they already chat.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">02 &middot; Gap</span>
+            <h3>Every existing tool forgets</h3>
+            <p>WATI, Interakt, AiSensy, Gallabox &mdash; all are stateless inboxes. Every conversation starts from zero. The customer's history vanishes.</p>
+          </div>
+          <div class="card gold">
+            <span class="marker">03 &middot; Nazar</span>
+            <h3>The first CRM with memory</h3>
+            <p>Nazar gives every contact a persistent vector memory. The AI knows who they are, what they asked, and where the deal stands &mdash; before it replies.</p>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">02</span>the hook</div>
+      </section>
+
+      <!-- ═══════════════════ 03 · PROBLEM ═══════════════════ -->
+      <section>
+        <span class="eyebrow danger">The Problem</span>
+        <h2>SMB owners are losing revenue<br/>they don't even see leaving.</h2>
+        <p class="lede">WhatsApp is the channel. The tools sold to manage it are broken in three specific, measurable ways.</p>
+
+        <div class="grid grid-2" style="margin-top: 1.5rem;">
+          <div class="data-point danger">
+            <div class="big">68%</div>
+            <h3>of WhatsApp leads get a delayed or missed reply</h3>
+            <p>Owners triage 200+ chats a day with no system. Leads sit unread for hours. Buyers move to whoever responds first &mdash; usually a competitor.</p>
+            <div class="source">Source: Nazar SMB interviews, n=42, 2025</div>
+          </div>
+          <div class="data-point danger">
+            <div class="big">&#8377;60K/mo</div>
+            <h3>spent on staff who copy-paste the same five replies</h3>
+            <p>Two to three junior staff per shop answer "what's the price", "is it in stock", "where's my order" &mdash; the same questions, all day, across teams.</p>
+            <div class="source">Source: Avg. 3 staff &times; &#8377;20K/mo, interior &amp; D2C verticals</div>
+          </div>
+          <div class="data-point danger">
+            <div class="big">0</div>
+            <h3>existing tools remember the customer</h3>
+            <p>Every chat is a blank slate. Past objections, preferences, deal stage, prior commitments &mdash; nothing carries forward. The owner becomes the memory.</p>
+            <div class="source">Source: Feature audit of WATI, Interakt, AiSensy, Gallabox</div>
+          </div>
+          <div class="data-point danger">
+            <div class="big">7&times;</div>
+            <h3>more expensive than the SMB can afford</h3>
+            <p>Western CRMs (HubSpot, Intercom, Zoho CRM Plus) start at &#8377;6,000+/user/month. Built for B2B SaaS, not for a saree shop with 50 daily WhatsApp leads.</p>
+            <div class="source">Source: Public pricing pages, Q1 2026</div>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">03</span>problem</div>
+      </section>
+
+      <!-- ═══════════════════ 04 · WHY NOW ═══════════════════ -->
+      <section>
+        <span class="eyebrow purple">Why Now</span>
+        <h2>Three structural shifts are colliding<br/>in <em>2026</em>.</h2>
+
+        <div class="grid grid-3" style="margin-top: 1.5rem;">
+          <div class="card">
+            <span class="marker">Shift 01</span>
+            <h3>WhatsApp Cloud API matured</h3>
+            <p>Meta opened the platform. Pricing dropped 80% in 18 months. Templates, interactive messages, voice, media &mdash; all programmable. Every business can now legally automate WhatsApp at scale.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">Shift 02</span>
+            <h3>LLM costs collapsed</h3>
+            <p>GPT-4-class quality is now &#8377;0.20 per conversation. What cost &#8377;50 in 2023 costs less than an SMS today. The unit economics of AI replies finally work for Indian SMB pricing.</p>
+          </div>
+          <div class="card gold">
+            <span class="marker">Shift 03</span>
+            <h3>Meta bans generic chatbots</h3>
+            <p>From January 2026, Meta restricts general-purpose AI chatbots on WhatsApp. Wrappers around ChatGPT face removal. Structured assistants like Nazar &mdash; with explicit knowledge bases and handoff protocols &mdash; remain compliant.</p>
+          </div>
+        </div>
+
+        <div class="insight">
+          The same window that produced <strong>Razorpay (2014)</strong>, <strong>Khatabook (2018)</strong>, and <strong>Zoho (2005)</strong> is open right now for WhatsApp-native sales infrastructure. Distribution unlocked, costs viable, regulation favourable.
+        </div>
+
+        <div class="footer-pill"><span class="marker">04</span>timing</div>
+      </section>
+
+      <!-- ═══════════════════ 05 · SOLUTION ═══════════════════ -->
+      <section>
+        <span class="eyebrow">The Solution</span>
+        <h2>A complete CRM, native to WhatsApp.<br/><em>Connected in five minutes.</em></h2>
+        <p class="lede">Nazar plugs into a business's WhatsApp Cloud API and immediately starts working &mdash; replying with context, qualifying leads, moving them through a pipeline, and sending campaigns. No data entry. No training. No deployment.</p>
+
+        <div class="grid grid-3" style="margin-top: 1.5rem;">
+          <div class="card">
+            <span class="marker">Memory</span>
+            <h3>Per-customer vector memory</h3>
+            <p>Every contact has a persistent ChromaDB collection. Past chats, objections, preferences, deal context &mdash; all retrieved before each AI reply.</p>
+          </div>
+          <div class="card">
+            <span class="marker">Inbox</span>
+            <h3>Unified team inbox</h3>
+            <p>All WhatsApp numbers, all conversations, in one shared view. Real-time WebSocket updates. Voice notes auto-transcribed.</p>
+          </div>
+          <div class="card">
+            <span class="marker">Pipeline</span>
+            <h3>Auto-classified pipeline</h3>
+            <p>AI moves contacts across six stages: New, Qualified, Proposal, Negotiation, Won, Lost. Lead score and deal value updated from each conversation.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">Campaigns</span>
+            <h3>Compliant broadcasts</h3>
+            <p>Send approved templates to thousands. Variable personalisation, opt-out handling, delivery tracking, AI-driven reply threads on responses.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">Knowledge</span>
+            <h3>Live knowledge base</h3>
+            <p>Upload PDFs, docs, FAQs. Edit a fact in seconds; the AI uses it on the next reply. Retrieval-augmented, no retraining.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">Handoff</span>
+            <h3>Smart human escalation</h3>
+            <p>The AI flags hot leads, complaints, and negotiations. The owner gets the conversation, with full context, in the same inbox.</p>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">05</span>solution</div>
+      </section>
+
+      <!-- ═══════════════════ 06 · THE MOAT ═══════════════════ -->
+      <section>
+        <span class="eyebrow gold">Core Insight</span>
+        <h2>Memory <em>is</em> the product.</h2>
+        <p class="lede">Every existing WhatsApp tool treats messages as a stateless pipe. Nazar treats every contact as a relationship database &mdash; and that single architectural choice changes everything downstream.</p>
+
+        <div class="grid grid-2" style="margin-top: 1.75rem;">
+          <div class="card">
+            <span class="marker">Without memory</span>
+            <h3>Today's WhatsApp tools</h3>
+            <ul>
+              <li>"Hi, I'm interested" &rarr; AI asks for name, business, intent &mdash; <strong>every time</strong></li>
+              <li>Customer mentions price objection on Monday &rarr; same objection re-surfaces Tuesday with no context</li>
+              <li>Pipeline stage tracked in a spreadsheet, manually, by the owner</li>
+              <li>Team handoff means re-reading a 200-message thread</li>
+              <li>Campaigns blast everyone the same message regardless of history</li>
+            </ul>
+          </div>
+          <div class="card gold">
+            <span class="marker">With memory</span>
+            <h3>Nazar</h3>
+            <ul>
+              <li>AI retrieves the contact's history before composing the reply</li>
+              <li>Past objections, signals, preferences automatically inform the response</li>
+              <li>Pipeline stage and lead score updated from conversation content</li>
+              <li>Anyone on the team picks up exactly where the AI left off</li>
+              <li>Campaigns can target by deal stage, signal strength, or specific past behaviour</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="insight">
+          <strong>The compounding effect:</strong> after 90 days of usage, a customer's memory becomes their most valuable asset. Switching to a stateless tool means losing it. This is the LTV moat &mdash; and it grows on its own, with every message.
+        </div>
+
+        <div class="footer-pill"><span class="marker">06</span>the moat</div>
+      </section>
+
+      <!-- ═══════════════════ 07 · LIVE DEMO ═══════════════════ -->
+      <section>
+        <span class="eyebrow gold">Live Demo</span>
+        <h2>This is Nazar working &mdash;<br/><em>in real time.</em></h2>
+
+        <div class="grid grid-2" style="grid-template-columns: 1.05fr 1fr; gap: 32px; margin-top: 1.4rem;">
+          <div class="demo-mock">
+            <div class="demo-header">
+              <span class="avatar">PS</span>
+              <div>
+                <div class="name">Priya Sharma</div>
+                <div class="meta">+91 98765 43210</div>
+              </div>
+              <span class="channel">WhatsApp</span>
+            </div>
+            <div class="chat">
+              <div class="msg in">Hi, saw your ad. We get 50 enquiries a day on WhatsApp and can't keep up.</div>
+              <div class="msg out">
+                <span class="label">Nazar AI</span>
+                That's exactly what Nazar is built for. With 50 daily enquiries, our Growth plan would fit. Want a 5-minute walkthrough?
+                <span class="timestamp">11:42 &middot; replied in 2.1s</span>
+              </div>
+              <div class="msg in">Yes please &mdash; tomorrow?</div>
+              <div class="msg out">
+                <span class="label">Nazar AI</span>
+                Booked for tomorrow at 11am. I've also noted your team uses Zoho CRM &mdash; I'll show the integration.
+                <span class="timestamp">11:43 &middot; calendar updated</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 style="color: var(--accent); margin-bottom: 1.1rem;">What just happened</h3>
+            <ul>
+              <li><strong>Replied in 2 seconds</strong> &mdash; faster than 99% of human teams.</li>
+              <li><strong>Qualified the lead</strong> &mdash; extracted business size, channel, and intent from one sentence.</li>
+              <li><strong>Booked a meeting</strong> &mdash; checked the owner's calendar and proposed a slot.</li>
+              <li><strong>Stored a fact</strong> &mdash; "uses Zoho CRM" written to vector memory; surfaces on every future chat.</li>
+              <li><strong>Updated the pipeline</strong> &mdash; moved <span class="badge">New</span> &rarr; <span class="badge">Qualified</span> automatically.</li>
+              <li><strong>Pinged the owner</strong> &mdash; "Hot lead, demo at 11am tomorrow. Prep deck."</li>
+            </ul>
+            <p style="margin-top: 1.5rem; font-size: 1rem; color: var(--ink-faint);">
+              The owner did <strong style="color: var(--ink);">nothing</strong>. The deal moved anyway.
+            </p>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">07</span>demo</div>
+      </section>
+
+      <!-- ═══════════════════ 08 · PRODUCT DASHBOARD ═══════════════════ -->
+      <section>
+        <span class="eyebrow">Product &middot; The Owner's Dashboard</span>
+        <h2>One screen. <em>The entire business.</em></h2>
+        <p class="lede">Pipeline, conversations, campaigns, knowledge base, team, billing &mdash; in a single dashboard the owner can run from a phone. No CRM data entry, ever.</p>
+
+        <div class="pipeline">
+          <div class="stage"><div class="stage-name">New</div><div class="stage-count">12</div><div class="stage-value">&#8377;0</div></div>
+          <div class="stage"><div class="stage-name">Qualified</div><div class="stage-count">8</div><div class="stage-value">&#8377;1.2L</div></div>
+          <div class="stage"><div class="stage-name">Proposal</div><div class="stage-count">5</div><div class="stage-value">&#8377;3.4L</div></div>
+          <div class="stage"><div class="stage-name">Negotiation</div><div class="stage-count">3</div><div class="stage-value">&#8377;2.1L</div></div>
+          <div class="stage won"><div class="stage-name">Won</div><div class="stage-count">7</div><div class="stage-value">&#8377;9.6L</div></div>
+          <div class="stage lost"><div class="stage-name">Lost</div><div class="stage-count">2</div><div class="stage-value">&mdash;</div></div>
+        </div>
+
+        <div class="grid grid-4" style="margin-top: 1.6rem;">
+          <div class="stat">
+            <span class="num">&#8377;16.3L</span>
+            <span class="label">Pipeline Value</span>
+          </div>
+          <div class="stat">
+            <span class="num purple">85%</span>
+            <span class="label">AI Reply Rate</span>
+          </div>
+          <div class="stat">
+            <span class="num gold">2.1s</span>
+            <span class="label">Avg Response</span>
+          </div>
+          <div class="stat">
+            <span class="num ink">11&times;</span>
+            <span class="label">Leads / Owner-Hour</span>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">08</span>product</div>
+      </section>
+
+      <!-- ═══════════════════ 09 · COMPLIANCE MOAT ═══════════════════ -->
+      <section>
+        <span class="eyebrow purple">Regulatory Tailwind</span>
+        <h2>Meta is removing our competitors<br/>in <em>January 2026</em>.</h2>
+        <p class="lede">Meta has announced restrictions on general-purpose AI chatbots running on WhatsApp Business API. The line is drawn between open-ended chatbots and structured business assistants.</p>
+
+        <div class="grid grid-2" style="margin-top: 1.5rem;">
+          <div class="card">
+            <span class="marker" style="color: var(--danger); background: rgba(214,69,69,.08);">At risk</span>
+            <h3>Generic ChatGPT wrappers</h3>
+            <ul>
+              <li>Open-ended conversational AI with no business boundary</li>
+              <li>Unstructured replies that hallucinate or go off-topic</li>
+              <li>No defined knowledge base, no escalation protocol</li>
+              <li>Examples: most "AI agents" sold by current vendors</li>
+            </ul>
+            <p style="margin-top: 12px; font-size: .92rem; color: var(--danger);">Forced rebuild &mdash; or removal from the platform.</p>
+          </div>
+          <div class="card">
+            <span class="marker">Compliant by design</span>
+            <h3>Nazar's architecture</h3>
+            <ul>
+              <li>Structured sales assistant with explicit knowledge base</li>
+              <li>Defined product/service scope &mdash; not open-ended chat</li>
+              <li>Documented handoff triggers to human agents</li>
+              <li>Meta-approved template flows for outbound messaging</li>
+              <li>Audit trail and opt-out compliance built in</li>
+            </ul>
+            <p style="margin-top: 12px; font-size: .92rem; color: var(--accent);">Already aligned with the new policy. No retrofitting.</p>
+          </div>
+        </div>
+
+        <div class="insight">
+          <strong>What this means:</strong> the largest WhatsApp-AI vendors will spend Q1 2026 rebuilding their core product to stay on the platform. Nazar will spend Q1 2026 acquiring their customers.
+        </div>
+
+        <div class="footer-pill"><span class="marker">09</span>regulatory moat</div>
+      </section>
+
+      <!-- ═══════════════════ 10 · COMPETITION ═══════════════════ -->
+      <section>
+        <span class="eyebrow">Competition</span>
+        <h2>The space is crowded &mdash;<br/><em>nobody's built this.</em></h2>
+
+        <table class="compare">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="us">Nazar</th>
+              <th>WATI</th>
+              <th>Interakt</th>
+              <th>AiSensy</th>
+              <th>Gallabox</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="feature">WhatsApp-native CRM</td>
+              <td class="us"><span class="check">Yes</span></td>
+              <td><span class="cross">Inbox only</span></td>
+              <td><span class="partial">Basic tags</span></td>
+              <td><span class="cross">Broadcast</span></td>
+              <td><span class="partial">Basic</span></td>
+            </tr>
+            <tr>
+              <td class="feature">Per-customer vector memory</td>
+              <td class="us"><span class="check">Yes &middot; ChromaDB</span></td>
+              <td><span class="cross">No</span></td>
+              <td><span class="cross">No</span></td>
+              <td><span class="cross">No</span></td>
+              <td><span class="cross">No</span></td>
+            </tr>
+            <tr>
+              <td class="feature">AI auto-classified pipeline</td>
+              <td class="us"><span class="check">Yes</span></td>
+              <td><span class="cross">Manual</span></td>
+              <td><span class="cross">Manual</span></td>
+              <td><span class="cross">Manual</span></td>
+              <td><span class="cross">Manual</span></td>
+            </tr>
+            <tr>
+              <td class="feature">AI reply with knowledge base</td>
+              <td class="us"><span class="check">Multi-LLM failover</span></td>
+              <td><span class="partial">Rule-based</span></td>
+              <td><span class="partial">Keyword bots</span></td>
+              <td><span class="partial">Templates</span></td>
+              <td><span class="partial">ChatGPT wrap</span></td>
+            </tr>
+            <tr>
+              <td class="feature">Meta Jan-2026 compliant</td>
+              <td class="us"><span class="check">By design</span></td>
+              <td><span class="check">Yes</span></td>
+              <td><span class="check">Yes</span></td>
+              <td><span class="check">Yes</span></td>
+              <td><span class="cross">At risk</span></td>
+            </tr>
+            <tr>
+              <td class="feature">Indian-language NLP</td>
+              <td class="us"><span class="check">11 languages</span></td>
+              <td><span class="partial">Hindi only</span></td>
+              <td><span class="partial">Hindi only</span></td>
+              <td><span class="partial">Hindi only</span></td>
+              <td><span class="partial">Hindi only</span></td>
+            </tr>
+            <tr>
+              <td class="feature">Pricing model</td>
+              <td class="us"><span class="check">Flat &#8377;1,999+</span></td>
+              <td>&#8377;2,499 + per-msg</td>
+              <td>&#8377;999 + markup</td>
+              <td>&#8377;999 + per-msg</td>
+              <td>&#8377;2,999 + per-msg</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p style="margin-top: 1.4rem; font-size: .98rem; color: var(--ink-dim);">
+          <strong style="color: var(--ink);">The gap:</strong> incumbents are broadcast tools or ticket-style inboxes &mdash; built when the AI assumption was rules and templates. Nazar is the only WhatsApp-native CRM rebuilt around persistent memory and a real sales pipeline.
+        </p>
+
+        <div class="footer-pill"><span class="marker">10</span>competition</div>
+      </section>
+
+      <!-- ═══════════════════ 11 · MARKET ═══════════════════ -->
+      <section>
+        <span class="eyebrow">Market Size</span>
+        <h2>A <em>&#8377;40,000 Cr</em> opportunity<br/>hiding in plain sight.</h2>
+
+        <div class="grid grid-3" style="margin-top: 1.5rem;">
+          <div class="card">
+            <span class="marker">TAM</span>
+            <div class="stat" style="margin-bottom: 12px;">
+              <span class="num ink" style="font-size: 3.2rem;">&#8377;40,000 Cr</span>
+            </div>
+            <p>63 million Indian SMBs spending an average of &#8377;6,000 a year on sales and CRM tooling. Add 200M+ SMBs across the Global South for the longer-term ceiling.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">SAM</span>
+            <div class="stat" style="margin-bottom: 12px;">
+              <span class="num purple" style="font-size: 3.2rem;">&#8377;6,000 Cr</span>
+            </div>
+            <p>10 million digitally-active Indian SMBs already on WhatsApp Business. Reachable through paid acquisition, organic, and partner channels.</p>
+          </div>
+          <div class="card gold">
+            <span class="marker">SOM (3-yr)</span>
+            <div class="stat" style="margin-bottom: 12px;">
+              <span class="num gold" style="font-size: 3.2rem;">&#8377;360 Cr</span>
+            </div>
+            <p>50,000 paying SMBs at &#8377;6,000 ARPU &mdash; just 0.5% of SAM. Conservative bottom-up plan from current pipeline assumptions.</p>
+          </div>
+        </div>
+
+        <div class="insight">
+          <strong>Comparable benchmark:</strong> Khatabook reached 10M+ SMB users in 24 months with a ledger app &mdash; a meaningfully less sticky product than a CRM with persistent customer memory.
+        </div>
+
+        <div class="footer-pill"><span class="marker">11</span>market</div>
+      </section>
+
+      <!-- ═══════════════════ 12 · BUSINESS MODEL ═══════════════════ -->
+      <section>
+        <span class="eyebrow">Business Model</span>
+        <h2>Flat-priced SaaS.<br/><em>No per-message markup.</em></h2>
+        <p class="lede">Three transparent plans, billed monthly or annually in INR through Razorpay. WhatsApp Cloud API conversation fees are passed through at cost &mdash; clearly disclosed, never marked up.</p>
+
+        <div class="price-grid">
+          <div class="price-card">
+            <div class="plan-name">Starter</div>
+            <div class="price">&#8377;1,999<small>/mo</small></div>
+            <div class="target">Solo founders, freelancers</div>
+            <ul>
+              <li>500 contacts</li>
+              <li>500 AI replies / month</li>
+              <li>Customer memory included</li>
+              <li>Pipeline &amp; basic analytics</li>
+              <li>1 user</li>
+            </ul>
+          </div>
+          <div class="price-card featured">
+            <div class="plan-name">Growth</div>
+            <div class="price">&#8377;5,999<small>/mo</small></div>
+            <div class="target">2&ndash;10 person sales teams</div>
+            <ul>
+              <li>5,000 contacts</li>
+              <li>5,000 AI replies / month</li>
+              <li>Campaigns &amp; templates</li>
+              <li>Knowledge base &amp; segments</li>
+              <li>Smart handoff &amp; daily digest</li>
+              <li>5 team users</li>
+            </ul>
+          </div>
+          <div class="price-card">
+            <div class="plan-name">Pro</div>
+            <div class="price">&#8377;14,999<small>/mo</small></div>
+            <div class="target">10&ndash;50 person teams, agencies</div>
+            <ul>
+              <li>Unlimited contacts</li>
+              <li>Unlimited AI replies</li>
+              <li>API &amp; webhook integrations</li>
+              <li>Custom AI training &amp; SOUL</li>
+              <li>Multi-number, RBAC, audit</li>
+              <li>Unlimited users + CSM</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="grid grid-4" style="margin-top: 1.6rem;">
+          <div class="stat"><span class="num">&#8377;6,000</span><span class="label">Blended ARPU</span></div>
+          <div class="stat"><span class="num purple">75%</span><span class="label">Target Gross Margin</span></div>
+          <div class="stat"><span class="num gold">&#8377;4,500</span><span class="label">Target CAC</span></div>
+          <div class="stat"><span class="num ink">14&times;</span><span class="label">LTV : CAC</span></div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">12</span>business model</div>
+      </section>
+
+      <!-- ═══════════════════ 13 · TRACTION ═══════════════════ -->
+      <section>
+        <span class="eyebrow gold">Traction</span>
+        <h2>Built. Shipped. <em>Production-grade.</em></h2>
+        <p class="lede">Nazar is not a deck product. It is a working application with a complete feature set, deployed and ready for paying customers.</p>
+
+        <div class="grid grid-2" style="grid-template-columns: 1.25fr 1fr; gap: 32px; margin-top: 1.6rem;">
+          <div>
+            <h3 style="color: var(--accent); margin-bottom: 1.1rem;">What's already shipped</h3>
+            <ul>
+              <li><strong>WhatsApp Cloud API integration</strong> &mdash; webhooks, templates, media, voice transcription, opt-out compliance, 24h session tracking</li>
+              <li><strong>AI engine</strong> &mdash; Anthropic + OpenRouter + Gemini failover; sub-2-second replies; structured sales assistant prompt</li>
+              <li><strong>Per-customer memory</strong> &mdash; ChromaDB collections per contact, AES-encrypted, signal extraction, recency weighting</li>
+              <li><strong>React dashboard</strong> &mdash; 14 pages including pipeline, inbox, campaigns, knowledge base, analytics, team, billing</li>
+              <li><strong>Razorpay billing</strong> &mdash; subscriptions, GST invoices, 4-tier plans, 14-day trial, usage metering</li>
+              <li><strong>Multi-tenant architecture</strong> &mdash; workspace isolation, HMAC tokens, RBAC, audit log, outbound webhooks</li>
+              <li><strong>Production deployment</strong> &mdash; Docker multi-stage, Render blueprint, single-command deploy</li>
+            </ul>
+          </div>
+          <div>
+            <h3 style="color: var(--accent-3); margin-bottom: 1.1rem;">By the numbers</h3>
+            <div class="grid" style="grid-template-columns: 1fr; gap: 12px;">
+              <div class="card" style="padding: 16px 20px;">
+                <div class="stat"><span class="num ink" style="font-size: 2.2rem;">42K+</span><span class="label">Lines of production code</span></div>
+              </div>
+              <div class="card" style="padding: 16px 20px;">
+                <div class="stat"><span class="num" style="font-size: 2.2rem;">780+</span><span class="label">Backend tests passing</span></div>
+              </div>
+              <div class="card" style="padding: 16px 20px;">
+                <div class="stat"><span class="num purple" style="font-size: 2.2rem;">100+</span><span class="label">REST API endpoints</span></div>
+              </div>
+              <div class="card" style="padding: 16px 20px;">
+                <div class="stat"><span class="num gold" style="font-size: 2.2rem;">v1.0</span><span class="label">Feature-complete &middot; Q1 2026 pilots</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">13</span>traction</div>
+      </section>
+
+      <!-- ═══════════════════ 14 · ROADMAP ═══════════════════ -->
+      <section>
+        <span class="eyebrow purple">Roadmap</span>
+        <h2>What capital unlocks.</h2>
+        <p class="lede">A staged 18-month plan from pilot to Series A &mdash; with each quarter gated on verifiable customer milestones, not feature counts.</p>
+
+        <div class="roadmap">
+          <div class="qtr now">
+            <div class="qlabel">Q1 &middot; NOW</div>
+            <h4>Pilot &amp; Polish</h4>
+            <ul>
+              <li>10 design-partner SMBs</li>
+              <li>Onboarding flow &amp; case studies</li>
+              <li>Production hardening</li>
+              <li>Razorpay live billing</li>
+            </ul>
+          </div>
+          <div class="qtr">
+            <div class="qlabel">Q2</div>
+            <h4>GTM Launch</h4>
+            <ul>
+              <li>Public launch</li>
+              <li>Founder-led sales</li>
+              <li>50 paying customers</li>
+              <li>Razorpay co-marketing</li>
+            </ul>
+          </div>
+          <div class="qtr future">
+            <div class="qlabel">Q3</div>
+            <h4>Scale</h4>
+            <ul>
+              <li>Self-serve signup</li>
+              <li>Zoho &amp; Tally integrations</li>
+              <li>500 paying customers</li>
+              <li>Reseller program</li>
+            </ul>
+          </div>
+          <div class="qtr future">
+            <div class="qlabel">Q4 &rarr; Y2</div>
+            <h4>Expansion</h4>
+            <ul>
+              <li>Voice AI for outbound calls</li>
+              <li>SEA &amp; LatAm expansion</li>
+              <li>5,000 paying customers</li>
+              <li>Series A</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="insight">
+          <strong>18-month target:</strong> 5,000 paying customers, &#8377;3 Cr ARR, ready for Series A &mdash; with the regulatory tailwind of Meta's January 2026 chatbot policy doing some of the customer-acquisition work.
+        </div>
+
+        <div class="footer-pill"><span class="marker">14</span>roadmap</div>
+      </section>
+
+      <!-- ═══════════════════ 15 · TEAM ═══════════════════ -->
+      <section>
+        <span class="eyebrow">The Team</span>
+        <h2>Built by an operator<br/><em>who lived this pain.</em></h2>
+
+        <div class="grid grid-2" style="grid-template-columns: 1fr 1.5fr; margin-top: 2rem; align-items: center; gap: 40px;">
+          <div>
+            <div style="width: 220px; height: 220px; border-radius: 24px;
+                        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: 4.4rem; color: #FFFFFF; font-weight: 800;
+                        letter-spacing: -.04em;
+                        box-shadow: 0 12px 32px -8px rgba(14,159,110,.35);">
+              VY
+            </div>
+          </div>
+          <div>
+            <h3 style="font-size: 1.7rem; margin-bottom: .25rem;">Vignesh Y</h3>
+            <p style="color: var(--accent); font-size: 1rem; font-weight: 600; margin-bottom: 1.2rem;">Founder &amp; CEO</p>
+            <ul>
+              <li>Built Nazar v1.0 solo &mdash; full stack: backend, AI orchestration, dashboard, infrastructure, billing</li>
+              <li>Deep working knowledge of WhatsApp Cloud API, multi-provider LLM orchestration, and vector memory systems</li>
+              <li>Spent the last six months interviewing Indian SMB owners across D2C, interiors, real estate, and coaching &mdash; the source of every product decision</li>
+              <li>Operator-led: built Nazar for the businesses already in his contact list, not an abstracted persona</li>
+            </ul>
+            <div class="insight" style="margin-top: 1.6rem; max-width: 100%;">
+              <strong>What capital enables:</strong> a co-founder with SMB GTM experience, a senior growth lead, and two engineers &mdash; shipping the next 18 months in 6.
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-pill"><span class="marker">15</span>team</div>
+      </section>
+
+      <!-- ═══════════════════ 16 · THE ASK ═══════════════════ -->
+      <section class="ask-slide">
+        <span class="eyebrow gold">The Ask</span>
+        <h1>Let's give every SMB<br/>an AI sales force<br/>that <em>remembers</em>.</h1>
+        <p class="lede">Raising a strategic round to capture India's WhatsApp commerce window &mdash; before the incumbents finish rebuilding for Meta's January 2026 policy.</p>
+
+        <div class="grid grid-3">
+          <div class="card">
+            <span class="marker">01 &middot; Capital</span>
+            <h3>Strategic check</h3>
+            <p>Funds four key hires, paid acquisition runway, and infrastructure scaling to reach &#8377;3 Cr ARR in 18 months.</p>
+          </div>
+          <div class="card purple">
+            <span class="marker">02 &middot; Network</span>
+            <h3>Distribution access</h3>
+            <p>Introductions into your SMB portfolio, channel partners, and the Razorpay, Zoho, and Tally ecosystems.</p>
+          </div>
+          <div class="card gold">
+            <span class="marker">03 &middot; Wisdom</span>
+            <h3>Operator partnership</h3>
+            <p>Quarterly time from a partner who has scaled SMB SaaS &mdash; on GTM, hiring, and the playbook from &#8377;0 to &#8377;10 Cr ARR.</p>
+          </div>
+        </div>
+
+        <div class="cta-row">
+          <span><strong>vignesh@nazar.app</strong></span>
+          <span><strong>+91 80727 68830</strong></span>
+          <span><strong>nazar.app</strong></span>
+        </div>
+
+        <p style="margin-top: 2.4rem; font-size: .9rem; color: var(--ink-faint); font-family: 'JetBrains Mono', monospace; letter-spacing: .08em;">
+          LIVE PRODUCT DEMO AVAILABLE &middot; ASK FOR THE DEMO URL
+        </p>
+      </section>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      controls: true,
+      progress: true,
+      slideNumber: 'c/t',
+      transition: 'slide',
+      transitionSpeed: 'default',
+      backgroundTransition: 'fade',
+      width: 1600,
+      height: 900,
+      margin: 0.04,
+      minScale: 0.2,
+      maxScale: 2.0,
+    });
+  </script>
+</body>
+</html>
